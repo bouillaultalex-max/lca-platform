@@ -1,0 +1,46 @@
+# Docker Compose — option de déploiement pour LCA-MES (poste du laboratoire).
+#
+# Le développement local n'a PAS besoin de Docker (voir README.md) : ce fichier
+# ne sert qu'au déploiement d'une instance prête à l'emploi (PostgreSQL + API
+# NestJS servant aussi le build React). Copier .env.example vers .env avant de
+# lancer `docker compose up -d --build`.
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lca_mes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?La variable POSTGRES_PASSWORD est obligatoire (voir .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:-lca_mes}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Exposé sur l'interface locale uniquement : permet un accès psql/sauvegarde
+      # depuis le poste hôte sans exposer PostgreSQL au reste du réseau.
+      - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-lca_mes}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lca_mes}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lca_mes}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?La variable JWT_SECRET est obligatoire (voir .env.example)}
+      JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-28800}
+      PORT: 3000
+      NODE_ENV: production
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres_data:

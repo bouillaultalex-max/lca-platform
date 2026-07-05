@@ -1,0 +1,84 @@
+// Schéma Prisma — LCA-MES
+// Source unique de vérité du modèle de données (voir docs/modele-donnees.md à la racine du dépôt).
+// Toute évolution passe par une migration versionnée : `npm run prisma:migrate`.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  // Le tsconfig Nest 11 utilise "module": "nodenext", que Prisma ne reconnaît pas
+  // automatiquement comme CommonJS : sans ce réglage explicite, le client généré
+  // utilise `import.meta.url` et casse au chargement (require) par Nest.
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Rôles utilisateurs (voir docs/regles-metier.md §1).
+/// RESPONSABLE_LABORATOIRE et RESPONSABLE_ADJOINT ont un accès complet.
+/// DIRECTION et DAF sont strictement en lecture seule.
+enum UserRole {
+  RESPONSABLE_LABORATOIRE
+  RESPONSABLE_ADJOINT
+  DIRECTION
+  DAF
+
+  @@map("user_role")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+
+  @@map("audit_action")
+}
+
+/// Site de production. Un seul enregistrement existe en V0.9 ;
+/// cette table prépare l'évolution multi-site sans fonctionnalité multi-site en V0.9.
+model Site {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("sites")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  siteId       String   @map("site_id")
+  site         Site     @relation(fields: [siteId], references: [id])
+  fullName     String   @map("full_name")
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+/// Journal technique des écritures sensibles (qui, quoi, quand).
+/// Distinct de la généalogie de traçabilité métier des lots, qui sera introduite
+/// avec le module `traceability` lors du développement métier.
+model AuditLog {
+  id        String      @id @default(uuid())
+  userId    String?     @map("user_id")
+  user      User?       @relation(fields: [userId], references: [id])
+  action    AuditAction
+  entity    String
+  entityId  String      @map("entity_id")
+  before    Json?
+  after     Json?
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}

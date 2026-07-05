@@ -1,0 +1,9 @@
+{
+  "name": "@lca-mes/shared",
+  "version": "0.9.0",
+  "private": true,
+  "description": "Types partagés entre le backend (apps/api) et le frontend (apps/web) de LCA-MES",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}
