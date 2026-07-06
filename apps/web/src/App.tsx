@@ -4,6 +4,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { RecipesPage } from './pages/RecipesPage';
 import { StockPage } from './pages/StockPage';
+import { ProductionPage } from './pages/ProductionPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
 function App() {
@@ -39,6 +40,14 @@ function App() {
         element={
           <ProtectedRoute>
             <StockPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/production"
+        element={
+          <ProtectedRoute requireFullAccess>
+            <ProductionPage />
           </ProtectedRoute>
         }
       />

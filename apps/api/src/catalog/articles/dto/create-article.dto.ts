@@ -48,4 +48,15 @@ export class CreateArticleDto {
   @IsInt()
   @IsPositive({ message: 'Le nombre d’unités par carton doit être positif.' })
   unitsPerCarton?: number;
+
+  @ApiPropertyOptional({
+    example: 0.98,
+    description:
+      'Densité (kg par litre), matières premières uniquement — permet de calculer la masse à peser en ' +
+      'préparation de batch. Optionnelle, aucune valeur par défaut : si absente, seul le volume est affiché.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive({ message: 'La densité doit être positive.' })
+  densityKgPerL?: number;
 }

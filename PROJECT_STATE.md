@@ -2,7 +2,7 @@
 
 Document de suivi vivant, à mettre à jour à la fin de chaque jalon. Contrairement aux autres documents de `docs/` (qui décrivent l'architecture cible), celui-ci décrit **l'état réel du dépôt aujourd'hui**.
 
-Dernière mise à jour : **2026-07-06** — Jalon 2 en cours : modules `catalog` et `stock` terminés (backend + frontend, vérifiés en navigateur), `batching`/`production`/`import-export` restent à faire.
+Dernière mise à jour : **2026-07-06** — Jalon 2 en cours : modules `catalog`, `stock`, `batching` et `production` terminés (backend + frontend, vérifiés en navigateur) ; `import-export` reste à faire.
 
 ## 1. Statut
 
@@ -10,7 +10,7 @@ Dernière mise à jour : **2026-07-06** — Jalon 2 en cours : modules `catalog`
 |---|---|
 | Jalon 0 — Cadrage & documentation | ✅ Terminé |
 | Jalon 1 — Socle technique | ✅ Terminé et vérifié (tests, build, navigateur) |
-| Jalon 2 — Cœur production (catalogue, stock, batching, production, lots) | ⏳ En cours — `catalog` ✅, `stock` ✅ ; `batching`, `production`, `import-export` à venir |
+| Jalon 2 — Cœur production (catalogue, stock, batching, production, lots) | ⏳ En cours — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅ ; `import-export` à venir |
 | Jalon 3 — Traçabilité, qualité, coûts | Non démarré |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré |
 
@@ -19,21 +19,21 @@ Dernière mise à jour : **2026-07-06** — Jalon 2 en cours : modules `catalog`
 ```
 lca-mes/
 ├── apps/
-│   ├── api/     # NestJS — auth, catalog (articles/machines/recipes), stock (lots/items/movements/fifo), Prisma, Swagger, ServeStatic
-│   └── web/     # React + Vite + Tailwind — login, tableau de bord, catalogue, recettes, stock
+│   ├── api/     # NestJS — auth, catalog, stock, batching, production, Prisma, Swagger, ServeStatic
+│   └── web/     # React + Vite + Tailwind — login, tableau de bord, catalogue, recettes, stock, production
 ├── packages/
-│   └── shared/  # Types partagés (UserRole, auth, catalog, stock)
+│   └── shared/  # Types partagés (UserRole, auth, catalog, stock, production)
 ├── docs/                 # architecture, modèle de données, règles métier, roadmap, ADR
 ├── docker-compose.yml, apps/api/Dockerfile   # déploiement (optionnel, non testé avec Docker réel)
 ├── CLAUDE.md, MASTER_SPECIFICATION.md, README.md
 └── PROJECT_STATE.md       # ce fichier
 ```
 
-**Modules Nest existants** : `auth`, `prisma`, `config`, `catalog` (`articles`, `machines`, `recipes`), `stock` (`stock-lots`, `stock-items`, `stock-movements`, `stock-fifo`).
+**Modules Nest existants** : `auth`, `prisma`, `config`, `catalog` (`articles`, `machines`, `recipes`), `stock` (`stock-lots`, `stock-items`, `stock-movements`, `stock-fifo`), `batching` (`batches`, `batch-preparation`), `production` (`batch-steps`, `batch-stops`, `batch-closure`, `lot-number-generator`).
 
-**Modèle Prisma existant** (7 migrations) : `Site`, `User`, `AuditLog`, `Article` (avec `unitsPerCarton`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch`, `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog`, `ExportLog`, `ExpectedRequirement`. **Attention** : les tables `Batch`/`BatchStop`/`Lot`/`LotGenealogy`/`ImportLog`/`ExportLog`/`ExpectedRequirement` existent en base (créées en une fois lors du cadrage du modèle) mais n'ont **aucune logique applicative** pour l'instant — seuls `catalog` et `stock` ont des services/controllers réels.
+**Modèle Prisma existant** (9 migrations) : `Site`, `User`, `AuditLog`, `Article` (avec `unitsPerCarton`, `densityKgPerL`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch` (avec `currentStep` séparé de `status`), `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog`, `ExportLog`, `ExpectedRequirement`. **Attention** : `Lot`/`LotGenealogy` sont désormais réellement exploités (génération à la clôture d'un batch) ; seuls `ImportLog`/`ExportLog`/`ExpectedRequirement` restent sans logique applicative (module `import-export` pas encore développé).
 
-**Frontend existant** : `/login`, `/dashboard`, `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot).
+**Frontend existant** : `/login`, `/dashboard`, `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture).
 
 ## 3. Commandes utiles
 
@@ -52,7 +52,7 @@ npm run prisma:seed                  # (re)crée le site, l'utilisateur par déf
 
 ### Tests
 ```bash
-npm run test:api                     # unitaires (apps/api) — 62 tests
+npm run test:api                     # unitaires (apps/api) — 115 tests
 npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 31 tests
 ```
 
@@ -101,6 +101,15 @@ docker compose up -d --build
 - **Seuil de stock minimum** (`StockItem.minimumThreshold`) : source unique de vérité (pas de duplication dans `ExpectedRequirement`) ; `isLowStock` calculé côté serveur, jamais dupliqué côté frontend.
 - **Rôles module par module** : `catalog` est fermé à `DIRECTION`/`DAF` (ni lecture ni écriture) ; `stock` leur ouvre la lecture (conforme à `docs/regles-metier.md` §1) mais leur ferme l'écriture.
 
+### Jalon 2 — Phase D (batching, production)
+- **`BatchStep` séparé de `BatchStatus`** : le statut (`PLANIFIE`/`EN_COURS`/`TERMINE`/`ANNULE`) indique l'état global du batch, l'étape (`PREPARATION`/`MELANGE`/`INCORPORATION_TREMIE`/`CONDITIONNEMENT`, champ `Batch.currentStep`) indique où on en est dans le workflow réel. Seule l'étape courante est stockée en V0.9 (pas d'horodatage détaillé par étape).
+- **Progression stricte, aucun retour en arrière** : un seul endpoint fait avancer à l'étape suivante ; aucun endpoint ne permet de revenir en arrière.
+- **Densité (`Article.densityKgPerL`)** : optionnelle, matières premières uniquement, aucune valeur par défaut codée en dur — sert uniquement au calcul de la masse à peser en préparation de batch (`BatchPreparationService`), n'est **pas** utilisée pour la déduction de stock (qui reste en volume, L).
+- **Refactor `StockFifoService`** : logique FIFO extraite en fonction pure `computeFifoAllocations()`, réutilisable à l'intérieur d'une transaction Prisma (clôture de batch) sans dupliquer l'algorithme. Non-régression vérifiée.
+- **`LotNumberGeneratorService`** : implémentation placeholder `455001`, `455002`... (compteur séquentiel par site) — **temporaire**, à remplacer par l'algorithme réel une fois fourni (voir `docs/regles-metier.md` §4).
+- **Clôture de batch atomique** : génération du `Lot`, de la `LotGenealogy` (une ligne par `StockLot` consommé, pas par article), déduction `StockLot`/`StockItem`, création des `StockMovement` `SORTIE_BATCH`, et passage du `Batch` à `TERMINE` — le tout dans une seule transaction Prisma. Rupture de stock = rejet global agrégé (tous les articles manquants listés), aucune écriture partielle.
+- **Rôles** : `batching` et `production` sont fermés à `DIRECTION`/`DAF` (comme `catalog`), pas seulement en écriture.
+
 ## 7. Décisions métier confirmées
 
 Voir `docs/regles-metier.md` pour le détail complet.
@@ -118,15 +127,21 @@ Voir `docs/regles-metier.md` pour le détail complet.
 8. **FIFO confirmé** comme règle par défaut d'affectation des `StockLot`.
 9. **Ajustement d'inventaire** toujours ciblé sur un `StockLot` précis.
 10. **Nouveau module futur `logistique`** (expédition, conditionnement, exports transporteurs) et **module futur `r&d`** (recettes expérimentales, essais, validation, promotion vers le catalogue production) — anticipés pour une version post-V0.9, non codés.
+11. **Workflow réel de préparation/batching/production** (voir `docs/regles-metier.md` §12) : consultation des besoins → adaptation des quantités par gamme (objectif ~1 mois ou plus de couverture) → préparation de la recette selon la quantité à produire (aujourd'hui via Excel, à remplacer par un calcul automatique dans `batching`) → batching → mélange → incorporation en trémie → conditionnement machine. Le module `production` doit distinguer ces 4 dernières étapes (préparation/batching, mélange, incorporation trémie, conditionnement) plutôt qu'un statut unique "en cours". **Aucune étape de maturation** dans le processus réel — à ne pas prévoir en V0.9.
+12. **`BatchStep` séparé de `BatchStatus`**, une seule étape courante stockée (pas d'historique horodaté par étape en V0.9) — voir §6 ci-dessus.
+13. **Déduction de stock des matières premières en volume (L)**, jamais en masse — la densité/masse reste un indicateur de pesée pour la préparation.
+14. **Rôles `batching`/`production`** : fermés à `DIRECTION`/`DAF`, comme `catalog`.
 
 ## 8. Points encore ouverts (à trancher pendant le Jalon 2/3, non bloquants pour continuer)
 
-- Algorithme exact de génération du numéro de lot (format confirmé, détail à fournir par l'utilisateur) — bloquant pour coder `LotNumberGeneratorService` définitivement, mais un placeholder isolé suffira pour avancer.
-- Formule exacte de `besoinCalculé`/`quantitéSuggérée` pour les besoins attendus (module `import-export`, pas encore développé).
+- Algorithme exact de génération du numéro de lot (format confirmé, détail à fournir par l'utilisateur) — bloquant pour finaliser `LotNumberGeneratorService` (actuellement un placeholder `455XXX` séquentiel).
+- Formule exacte de `besoinCalculé`/`quantitéSuggérée` pour les besoins attendus, et désormais leur déclinaison **par gamme** (regroupement de produits) — module `import-export`, pas encore développé.
+- Notion de "gamme" (regroupement de produits) : n'existe pas encore dans le modèle (`Article` n'a pas de champ famille/catégorie) — à préciser lors de la conception du module `import-export`/besoins attendus.
 - Règle exacte de calcul du statut qualité global du lot à partir des contrôles individuels (Jalon 3).
+- **Consultation du numéro de lot après rechargement d'un batch terminé** : actuellement affiché uniquement juste après la clôture (réponse de l'API), pas rechargeable ensuite (aucun endpoint de lecture des `Lot` pour l'instant). Noté explicitement par l'utilisateur pour traitement lors du futur module `traceability` (Jalon 3).
 - Docker/`docker-compose.yml` écrits et raisonnés mais jamais exécutés avec un vrai Docker (non disponible dans l'environnement de développement utilisé).
 - Vulnérabilités npm connues et non corrigées (transitives : `multer` via `@nestjs/platform-express`) — à traiter sérieusement dès que `multer` sera réellement exercé par l'upload de fichiers d'import (module `import-export`, pas encore développé).
 
 ## 9. Prochaine étape
 
-Suite du Jalon 2 : modules `batching` (création/suivi de batch) et `production` (saisie manuelle de fin de batch, génération du lot, déduction de stock via `StockFifoService`, `LotNumberGeneratorService`), puis `import-export` (imports OpenSi). Découpage détaillé à proposer et valider avant tout développement, comme pour les phases précédentes.
+Reste du Jalon 2 : module `import-export` (imports OpenSi — articles, références, stocks, besoins attendus, inventaire — avec prévisualisation obligatoire). Découpage détaillé à proposer et valider avant tout développement, comme pour les phases précédentes. Le Jalon 3 (traçabilité, qualité, coûts) ne démarre pas avant la fin du Jalon 2.

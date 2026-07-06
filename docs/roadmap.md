@@ -23,10 +23,10 @@ Objectif : livrer un MVP resserré mais propre couvrant l'ensemble du cœur mét
 
 - ✅ Module `catalog` : produits, recettes, matières premières, packaging (terminé le 2026-07-06 — backend + frontend, vérifié en navigateur)
 - ✅ Module `stock` : état des stocks, mouvements, FIFO, ajustement d'inventaire (terminé le 2026-07-06 — backend + frontend, vérifié en navigateur)
-- ⏳ Module `batching` : création et suivi de batch
-- ⏳ Module `production` : saisie manuelle de fin de batch (quantités, rebuts, temps, arrêts, changement de format)
-- ⏳ Génération des lots (`Lot`) et déduction automatique des stocks associés (rebuts inclus, voir `docs/regles-metier.md` §3)
-- ⏳ Module `import-export` : import OpenSi (articles, références, stocks, besoins attendus, inventaire) avec prévisualisation — repoussé après `batching`/`production` (dépend moins directement du cœur de production que `stock`, qui devait être prêt en premier pour la réception physique)
+- ✅ Module `batching` : création et suivi de batch, avec **calcul automatique des quantités de chaque ingrédient/packaging** (volume + masse) à partir de la recette et de la quantité à produire (terminé le 2026-07-06 — remplace le calcul jusque-là fait dans un fichier Excel, voir `docs/regles-metier.md` §12)
+- ✅ Module `production` : saisie manuelle des 4 étapes réelles — préparation, mélange, incorporation en trémie, conditionnement machine — gestion des arrêts, clôture avec génération du lot (terminé le 2026-07-06 — backend + frontend, vérifié en navigateur). **Aucune étape de maturation**, conforme à la décision actée.
+- ✅ Génération des lots (`Lot`) et déduction automatique des stocks associés (rebuts inclus, voir `docs/regles-metier.md` §3) — réalisée à la clôture du batch, en une transaction Prisma atomique
+- ⏳ Module `import-export` : import OpenSi (articles, références, stocks, besoins attendus, inventaire) avec prévisualisation — dernier module du Jalon 2
 
 **Livrable** : catalogue alimentable manuellement ou par import OpenSi, un batch complet peut être créé, produit (saisie manuelle) et clôturé en générant un lot, avec impact automatique sur le stock.
 
@@ -46,6 +46,10 @@ Objectif : livrer un MVP resserré mais propre couvrant l'ensemble du cœur mét
 
   Cette règle doit être exploitée par les modules `stock` et `production` (Jalon 2), ainsi que par un futur module `logistique` (voir "Évolutions futures" ci-dessous). La modélisation exacte (champ sur `Article`, table de correspondance...) sera proposée et validée au démarrage de la Phase C (module `stock`), avant tout code.
 - **Nouveau module futur : R&D**, anticipé pour une version ultérieure à la V0.9 (voir "Évolutions futures" ci-dessous).
+- **Workflow réel de préparation/batching/production** validé avec le responsable laboratoire (voir `docs/regles-metier.md` §12) : consultation des besoins → adaptation des quantités par gamme (couverture visée d'environ 1 mois ou plus) → préparation de la recette selon la quantité à produire → batching → mélange → incorporation en trémie → conditionnement machine. Aucune maturation. Impacte directement la conception des modules `batching`/`production` (Phase D).
+- **Calcul volume + masse en préparation de batch** : les recettes restent exprimées en % de volume ; une densité optionnelle par matière première (`Article.densityKgPerL`) permet d'afficher la masse à peser, sans valeur par défaut codée en dur — "densité manquante" affiché explicitement si absente. La déduction de stock, elle, reste en volume (L).
+- **Étape de production distincte du statut** : `BatchStep` (`PREPARATION`/`MELANGE`/`INCORPORATION_TREMIE`/`CONDITIONNEMENT`) est un champ séparé de `BatchStatus`, avec progression stricte et sans retour en arrière.
+- **Point noté pour un futur module `traceability`** (Jalon 3) : le numéro de lot généré à la clôture d'un batch n'est aujourd'hui affiché qu'immédiatement après la clôture — il n'est pas encore consultable en rechargeant un batch terminé (pas d'endpoint de lecture des lots).
 
 ## Jalon 4 — Sortie, fiabilisation, documentation finale
 

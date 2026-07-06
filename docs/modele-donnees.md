@@ -23,6 +23,7 @@ Table unique pour matières premières, packaging et produits finis, distingués
 - `uniteDeMesure` (L, kg, unité...)
 - `coutUnitaireCourant` (mis à jour par import ou saisie manuelle)
 - `unitesParCarton` (optionnel — conditionnement en carton, **calcul d'affichage uniquement** : le stock reste compté en unités. Valeur libre par article, non figée en dur. Décision actée le 2026-07-06, voir `docs/roadmap.md` : flacons 10/30/50/100 ml → cartons de 100 ; flacons 200 ml → cartons de 36, à titre de suggestion par défaut)
+- `densiteKgParL` (optionnel, matières premières uniquement — permet de calculer la masse à peser en préparation de batch à partir du volume, voir §4. Aucune valeur par défaut : si absente, seul le volume est affiché et une alerte "densité manquante" est montrée pour la masse. Décision actée le 2026-07-06, voir `docs/regles-metier.md` §12)
 - `actif`
 
 ### Machine
@@ -80,23 +81,30 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 
 ## 4. Batching & production
 
+**Décision confirmée (2026-07-06)**, voir `docs/regles-metier.md` §12 : le workflow réel de production comporte 4 étapes (préparation, mélange, incorporation en trémie, conditionnement), distinctes du statut global du batch. La quantité de chaque matière première (volume + masse si densité renseignée) et packaging nécessaire est calculée automatiquement à partir de la recette et de la quantité à produire (remplace le calcul auparavant fait dans un fichier Excel) — calcul à l'affichage, non stocké avant la clôture.
+
 ### Batch
 - `recette` → FK `Recipe`
 - `machine` → FK `Machine`
-- `format`
+- `format` (hérité de la recette à la création, non ressaisi)
 - `quantitePrevue`
 - `quantiteProduite`
 - `rebuts`
 - `dateHeureDebut`, `dateHeureFin`
 - `changementDeFormat` (booléen + détail optionnel)
-- `statut` : `PLANIFIE` / `EN_COURS` / `TERMINE` / `ANNULE`
+- `statut` : `PLANIFIE` / `EN_COURS` / `TERMINE` / `ANNULE` — état global du batch
+- `etapeCourante` (optionnelle) : enum `BatchStep` (`PREPARATION` / `MELANGE` / `INCORPORATION_TREMIE` / `CONDITIONNEMENT`), **champ distinct du statut** — indique où on en est dans le workflow réel. `null` tant que le batch n'a pas démarré. Progression stricte, un seul sens, aucun retour en arrière (V0.9). Seule l'étape courante est stockée, pas d'horodatage détaillé par étape.
 - `utilisateurCreateur` → FK `User`
+
+> La création d'un batch valide que la recette est `ACTIVE` et que la machine supporte le format de la recette (`Machine.formatsSupportes`).
 
 ### BatchStop (Arrêt de batch)
 - `batch` → FK `Batch`
 - `motif`
 - `debut`, `fin`
-- `dureeMinutes` (calculée)
+- `dureeMinutes` (calculée automatiquement à la clôture de l'arrêt)
+
+> Un seul arrêt peut être ouvert (`fin` nulle) à la fois pour un même batch.
 
 ## 5. Lots & traçabilité
 
@@ -108,7 +116,9 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 - `datePeremption` (optionnelle)
 - `statutQualite` : enum `EN_ATTENTE` / `CONFORME` / `NON_CONFORME` / `BLOQUE`, calculé automatiquement à partir de l'ensemble des `QualityCheck` du lot (règle de calcul exacte à définir au Jalon 3, voir §6)
 
-> **Génération du numéro de lot** : convention interne confirmée — 6 chiffres commençant par 455 (ex : `455XXX`), algorithme exact à préciser par l'utilisateur. Pour ne pas coder une règle figée, la génération est isolée dans un `LotNumberGeneratorService` dédié (derrière une interface simple `genererNumeroLot(): string`), appelé par le module `production` sans connaître le détail de l'algorithme. Ce service pourra être réimplémenté sans impacter le reste du MES le jour où l'algorithme précis sera fourni.
+> **Génération du numéro de lot** : convention interne confirmée — 6 chiffres commençant par 455 (ex : `455XXX`), algorithme exact à préciser par l'utilisateur. Pour ne pas coder une règle figée, la génération est isolée dans un `LotNumberGeneratorService` dédié, appelé par le module `production` à la clôture du batch sans connaître le détail de l'algorithme. **Implémentation actuelle (temporaire, Phase D)** : compteur séquentiel par site (`455001`, `455002`...) — à remplacer par l'algorithme réel une fois fourni, sans impacter le reste du MES.
+>
+> **Point noté pour plus tard (2026-07-06)** : le numéro de lot n'est aujourd'hui renvoyé qu'immédiatement après la clôture (réponse de l'appel de clôture) — aucun endpoint ne permet encore de le relire en rechargeant un batch déjà terminé. À traiter avec le futur module `traceability` (Jalon 3), qui exposera la consultation des lots.
 
 ### LotGenealogy (Généalogie du lot)
 Table centrale de traçabilité : permet de remonter d'un lot fini vers les lots de matières/packaging précis consommés pour le produire (traçabilité amont, voir §3).
@@ -118,6 +128,8 @@ Table centrale de traçabilité : permet de remonter d'un lot fini vers les lots
 - `quantiteConsommee`
 
 > Chaque lot fini doit posséder au moins une ligne de généalogie avant d'être considéré comme "clôturé" — condition nécessaire pour garantir la capacité de rappel produit. La quantité totale généalogique (rebuts inclus) doit correspondre à la quantité totale déduite du stock (§3).
+>
+> **Implémenté (Phase D, 2026-07-06)** : à la clôture du batch, une ligne `LotGenealogy` est créée **par `StockLot` consommé** (pas par article) — si la sélection FIFO répartit la consommation d'un article sur plusieurs lots de réception, autant de lignes de généalogie sont créées pour cet article. Génération, déduction de stock (FIFO) et création du lot se font dans une seule transaction Prisma ; une rupture de stock sur un ou plusieurs articles annule l'ensemble (aucune écriture partielle), avec un message listant tous les articles manquants.
 
 ## 6. Qualité
 

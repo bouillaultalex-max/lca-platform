@@ -66,3 +66,33 @@ Les règles marquées **[À VALIDER]** sont des propositions raisonnables faites
 
 - Une sauvegarde automatique (`pg_dump`) de la base est exécutée quotidiennement, avec une politique de rétention/rotation à définir avec l'utilisateur (proposition par défaut : conservation glissante sur 30 jours + copie hebdomadaire sur un support externe).
 - La procédure de restauration doit être testée et documentée avant toute mise en production réelle.
+
+## 12. Workflow réel de préparation/batching/production
+
+**Décision confirmée (2026-07-06)**, validée avec le responsable laboratoire — workflow réel actuel :
+1. Consultation des besoins.
+2. Adaptation des quantités à produire, par gamme, avec un **objectif de couverture d'environ 1 mois ou plus** de besoin (pas un flux tendu à la demande).
+3. Préparation de la recette du produit à batcher selon la quantité nécessaire — **faite aujourd'hui manuellement via des fichiers Excel**.
+4. Batching (préparation/pesée des matières premières et packaging selon la recette).
+5. Mélange du produit.
+6. Incorporation du produit dans la trémie de la machine.
+7. Conditionnement (remplissage des flacons par la machine).
+
+Conséquences pour LCA-MES :
+- **Le logiciel doit remplacer progressivement les fichiers Excel de préparation de batch** : à partir de la recette (matières premières en %, packaging en quantité absolue par unité, voir `docs/modele-donnees.md` §2) et de la quantité à produire, le module `batching` doit **calculer automatiquement** la quantité de chaque ingrédient/packaging nécessaire.
+- **Le module `production` doit distinguer 4 étapes** plutôt qu'un unique statut "en cours" : préparation/batching, mélange, incorporation en trémie, conditionnement machine. **Décision confirmée (2026-07-06)** : ces étapes sont modélisées par un champ dédié `Batch.currentStep` (enum `BatchStep`), **distinct** du statut global `Batch.status` (`BatchStatus`) — le statut indique l'état global du batch (planifié/en cours/terminé/annulé), l'étape indique où on en est dans le déroulement de la production. Pour la V0.9, seule l'étape courante est stockée ; les horodatages détaillés par étape pourront être ajoutés plus tard si nécessaire, non anticipés maintenant.
+- **Aucune étape de maturation dans le processus réel — ne pas en prévoir en V0.9.**
+- La planification de la production doit s'appuyer sur les **besoins par gamme** (regroupement de produits), pas uniquement par référence individuelle prise isolément — vient s'ajouter aux besoins attendus déjà actés (§8), formule exacte encore à préciser (voir aussi le point ouvert sur `besoinCalculé`/`quantitéSuggérée`).
+
+### Calcul des quantités de préparation (volume et masse)
+
+**Décision confirmée (2026-07-06)** : les recettes expriment la composition des matières premières en **pourcentage de volume** (voir §2 modèle de données — règle des 100 % déjà en place depuis le Jalon 2). En production, le laboratoire a besoin à la fois du **volume** et de la **masse à peser** de chaque matière première. Formules retenues, pour une quantité à produire donnée :
+
+- `volumeTotalL = format(mL) × quantitéÀProduire ÷ 1000`
+- `volumeIngrédientL = volumeTotalL × pourcentage ÷ 100`
+- `masseIngrédientKg = volumeIngrédientL × densité(kg/L)` — **uniquement si une densité est renseignée** pour l'article concerné.
+
+Conséquences :
+- Nouveau champ **`Article.densityKgPerL`** (optionnel, matières premières uniquement) : densité en kg par litre, saisie manuelle article par article. **Aucune valeur par défaut codée en dur** — si la densité n'est pas renseignée pour un article, le logiciel affiche uniquement le volume et signale explicitement "densité manquante" pour la masse (jamais une masse silencieusement fausse ou une valeur par défaut arbitraire).
+- Le calcul de masse **ne s'applique pas au packaging** (quantité déjà exprimée en unités absolues, pas de notion de volume/masse à convertir).
+- Cette règle reste volontairement simple pour la V0.9 : pas de gestion avancée de conversion (température, viscosité...), pas de densité "type" par famille de produit codée en dur.

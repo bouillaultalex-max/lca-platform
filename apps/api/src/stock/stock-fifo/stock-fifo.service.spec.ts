@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { StockFifoService } from './stock-fifo.service';
+import { computeFifoAllocations, StockFifoService } from './stock-fifo.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '../../../generated/prisma/client';
 
@@ -147,5 +147,63 @@ describe('StockFifoService', () => {
     expect(toPlain(result)).toEqual([
       { stockLotId: 'A', quantityToConsume: '25.5' },
     ]);
+  });
+});
+
+/**
+ * Tests de non-régression pour la fonction pure extraite de StockFifoService,
+ * réutilisée directement (avec des lots chargés via un client transactionnel `tx`)
+ * par la clôture de batch (module `production`) — voir docs/regles-metier.md §12.
+ */
+describe('computeFifoAllocations (fonction pure)', () => {
+  const plainLot = (id: string, remainingQuantity: number) => ({
+    id,
+    remainingQuantity: new Prisma.Decimal(remainingQuantity),
+  });
+
+  it('retourne un shortfall à 0 quand un seul lot couvre entièrement le besoin', () => {
+    const result = computeFifoAllocations(
+      [plainLot('A', 100)],
+      new Prisma.Decimal(40),
+    );
+
+    expect(
+      result.allocations.map((a) => ({
+        stockLotId: a.stockLotId,
+        quantityToConsume: a.quantityToConsume.toString(),
+      })),
+    ).toEqual([{ stockLotId: 'A', quantityToConsume: '40' }]);
+    expect(result.shortfall.toString()).toBe('0');
+  });
+
+  it('répartit sur plusieurs lots et retourne un shortfall à 0 quand le total suffit', () => {
+    const result = computeFifoAllocations(
+      [plainLot('A', 30), plainLot('B', 50)],
+      new Prisma.Decimal(70),
+    );
+
+    expect(
+      result.allocations.map((a) => a.quantityToConsume.toString()),
+    ).toEqual(['30', '40']);
+    expect(result.shortfall.toString()).toBe('0');
+  });
+
+  it('retourne un shortfall positif (et les allocations partielles) quand le stock total est insuffisant', () => {
+    const result = computeFifoAllocations(
+      [plainLot('A', 30), plainLot('B', 20)],
+      new Prisma.Decimal(100),
+    );
+
+    expect(
+      result.allocations.map((a) => a.quantityToConsume.toString()),
+    ).toEqual(['30', '20']);
+    expect(result.shortfall.toString()).toBe('50');
+  });
+
+  it('retourne un shortfall égal au besoin complet quand aucun lot n’est disponible', () => {
+    const result = computeFifoAllocations([], new Prisma.Decimal(10));
+
+    expect(result.allocations).toEqual([]);
+    expect(result.shortfall.toString()).toBe('10');
   });
 });

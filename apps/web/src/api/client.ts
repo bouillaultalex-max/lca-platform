@@ -5,6 +5,7 @@ import type {
   Article,
   ArticleType,
   CreateArticleRequest,
+  Machine,
   Recipe,
   CreateRecipeRequest,
   StockItem,
@@ -13,6 +14,14 @@ import type {
   CreateStockLotRequest,
   AdjustStockLotRequest,
   UpdateMinimumThresholdRequest,
+  Batch,
+  CreateBatchRequest,
+  IngredientQuantity,
+  BatchStop,
+  CreateBatchStopRequest,
+  EndBatchStopRequest,
+  CloseBatchRequest,
+  BatchClosureResult,
 } from '@lca-mes/shared';
 
 export class ApiError extends Error {
@@ -76,6 +85,8 @@ export const api = {
   listRecipesByProduct: (token: string, finishedProductId: string): Promise<Recipe[]> =>
     request<Recipe[]>(`/catalog/recipes?finishedProductId=${finishedProductId}`, {}, token),
 
+  getRecipe: (token: string, id: string): Promise<Recipe> => request<Recipe>(`/catalog/recipes/${id}`, {}, token),
+
   createRecipe: (token: string, payload: CreateRecipeRequest): Promise<Recipe> =>
     request<Recipe>('/catalog/recipes', { method: 'POST', body: JSON.stringify(payload) }, token),
 
@@ -103,4 +114,33 @@ export const api = {
 
   listStockMovementsByLot: (token: string, stockLotId: string): Promise<StockMovement[]> =>
     request<StockMovement[]>(`/stock/movements?stockLotId=${stockLotId}`, {}, token),
+
+  listMachines: (token: string): Promise<Machine[]> => request<Machine[]>('/catalog/machines', {}, token),
+
+  listBatches: (token: string): Promise<Batch[]> => request<Batch[]>('/batching/batches', {}, token),
+
+  getBatchPreparation: (token: string, recipeId: string, quantity: number): Promise<IngredientQuantity[]> =>
+    request<IngredientQuantity[]>(
+      `/batching/batches/preparation?recipeId=${recipeId}&quantity=${quantity}`,
+      {},
+      token,
+    ),
+
+  createBatch: (token: string, payload: CreateBatchRequest): Promise<Batch> =>
+    request<Batch>('/batching/batches', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  advanceBatchStep: (token: string, batchId: string): Promise<Batch> =>
+    request<Batch>(`/production/batches/${batchId}/advance-step`, { method: 'POST' }, token),
+
+  listBatchStops: (token: string, batchId: string): Promise<BatchStop[]> =>
+    request<BatchStop[]>(`/production/batches/${batchId}/stops`, {}, token),
+
+  startBatchStop: (token: string, batchId: string, payload: CreateBatchStopRequest): Promise<BatchStop> =>
+    request<BatchStop>(`/production/batches/${batchId}/stops`, { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  endBatchStop: (token: string, stopId: string, payload: EndBatchStopRequest): Promise<BatchStop> =>
+    request<BatchStop>(`/production/stops/${stopId}/end`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  closeBatch: (token: string, batchId: string, payload: CloseBatchRequest): Promise<BatchClosureResult> =>
+    request<BatchClosureResult>(`/production/batches/${batchId}/close`, { method: 'POST', body: JSON.stringify(payload) }, token),
 };

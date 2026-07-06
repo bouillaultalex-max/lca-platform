@@ -73,6 +73,20 @@ enum BatchStatus {
   @@map("batch_status")
 }
 
+/// Étape du workflow réel de production (voir docs/regles-metier.md §12), distincte
+/// du statut global (`BatchStatus`) : le statut indique l'état global du batch, l'étape
+/// indique où on en est dans le déroulement de la production. Pour la V0.9, seule
+/// l'étape courante est stockée sur `Batch.currentStep` — les horodatages détaillés
+/// par étape pourront être ajoutés plus tard si nécessaire, pas anticipés maintenant.
+enum BatchStep {
+  PREPARATION
+  MELANGE
+  INCORPORATION_TREMIE
+  CONDITIONNEMENT
+
+  @@map("batch_step")
+}
+
 /// Statut qualité global du lot, calculé automatiquement à partir de l'ensemble
 /// de ses `QualityCheck` (voir docs/regles-metier.md §6). La règle de calcul exacte
 /// et le module `quality` lui-même sont prévus au Jalon 3 ; le champ existe déjà ici
@@ -199,6 +213,11 @@ model Article {
   /// modifiable article par article (pas de règle figée en dur) ; par défaut suggéré
   /// à la création : 100 pour les flacons 10/30/50/100 ml, 36 pour les flacons 200 ml.
   unitsPerCarton     Int?        @map("units_per_carton")
+  /// Densité (kg par litre), pour les matières premières uniquement — permet de calculer
+  /// la masse à peser à partir du volume en préparation de batch (voir docs/regles-metier.md
+  /// §12). Optionnelle, saisie manuelle article par article, aucune valeur par défaut :
+  /// si absente, le batching affiche le volume et signale "densité manquante" pour la masse.
+  densityKgPerL      Decimal?    @map("density_kg_per_l")
   active             Boolean     @default(true)
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
@@ -357,6 +376,9 @@ model Batch {
   formatChanged      Boolean     @default(false) @map("format_changed")
   formatChangeDetail String?     @map("format_change_detail")
   status             BatchStatus @default(PLANIFIE)
+  /// Étape courante du workflow de production (voir BatchStep) ; `null` tant que le
+  /// batch n'a pas démarré (statut PLANIFIE).
+  currentStep        BatchStep?  @map("current_step")
   createdByUserId    String      @map("created_by_user_id")
   createdByUser      User        @relation(fields: [createdByUserId], references: [id])
   createdAt          DateTime    @default(now()) @map("created_at")

@@ -26,6 +26,14 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      '/batching': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/production': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
       '/health': {
         target: 'http://localhost:3000',
         changeOrigin: true,

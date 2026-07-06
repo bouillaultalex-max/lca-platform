@@ -25,6 +25,8 @@ export interface Article {
   currentUnitCost: string;
   /** Conditionnement en carton, affichage uniquement (voir docs/roadmap.md). */
   unitsPerCarton: number | null;
+  /** Densité (kg/L), matières premières uniquement — voir docs/regles-metier.md §12. */
+  densityKgPerL: string | null;
   active: boolean;
 }
 
@@ -35,6 +37,14 @@ export interface CreateArticleRequest {
   unitOfMeasure: string;
   currentUnitCost: number;
   unitsPerCarton?: number;
+  densityKgPerL?: number;
+}
+
+export interface Machine {
+  id: string;
+  name: string;
+  supportedFormats: number[];
+  active: boolean;
 }
 
 export type RecipeStatus = 'ACTIVE' | 'ARCHIVEE';

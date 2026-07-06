@@ -9,6 +9,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { StockModule } from './stock/stock.module';
+import { BatchingModule } from './batching/batching.module';
+import { ProductionModule } from './production/production.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { StockModule } from './stock/stock.module';
         '/auth/{*path}',
         '/catalog/{*path}',
         '/stock/{*path}',
+        '/batching/{*path}',
+        '/production/{*path}',
         '/health',
         '/api/{*path}',
       ],
@@ -34,6 +38,8 @@ import { StockModule } from './stock/stock.module';
     AuthModule,
     CatalogModule,
     StockModule,
+    BatchingModule,
+    ProductionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
