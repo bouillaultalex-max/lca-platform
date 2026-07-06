@@ -7,6 +7,8 @@ import { AppService } from './app.service';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { StockModule } from './stock/stock.module';
 
 @Module({
   imports: [
@@ -20,10 +22,18 @@ import { AuthModule } from './auth/auth.module';
     // masquées par le renvoi de index.html (repli SPA de ServeStaticModule).
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
-      exclude: ['/auth/{*path}', '/health', '/api/{*path}'],
+      exclude: [
+        '/auth/{*path}',
+        '/catalog/{*path}',
+        '/stock/{*path}',
+        '/health',
+        '/api/{*path}',
+      ],
     }),
     PrismaModule,
     AuthModule,
+    CatalogModule,
+    StockModule,
   ],
   controllers: [AppController],
   providers: [AppService],

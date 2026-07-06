@@ -35,6 +35,7 @@ Le backend NestJS sert à la fois l'API REST et les fichiers statiques du build 
 | `costing` | Calcul et historisation du coût matière + packaging par flacon |
 | `import-export` | Imports/exports Excel/CSV avec OpenSi (prévisualisation, journalisation) |
 | `audit-log` | Journal technique des écritures sensibles (qui, quoi, quand) |
+| `logistique` *(futur, post-V0.9)* | Expédition, conditionnement (cartons), exports transporteurs — voir `docs/roadmap.md` |
 
 La logique métier vit exclusivement dans les services de chaque module. Les controllers restent fins (validation d'entrée, appel du service, sérialisation de sortie). L'accès aux données passe par Prisma, encapsulé dans les services (pas d'accès Prisma direct depuis les controllers).
 
@@ -109,3 +110,5 @@ Ces points sont **prévus dans la conception du modèle et des frontières de mo
 
 - **Multi-site** : une colonne `siteId` existe dès la V0.9 sur les entités concernées (batch, lot, mouvement de stock…), avec un site unique créé par défaut.
 - **Connexion machine** : le module `production` sépare déjà la « saisie de l'état machine » (aujourd'hui : formulaire manuel) du « traitement métier de cet état » (déduction de stock, généalogie, coût). Une future connexion machine (OPC-UA/Modbus/MQTT) viendrait remplacer uniquement la source de saisie, sans toucher au traitement métier.
+- **Module `logistique`** (post-V0.9) : expédition, conditionnement en cartons, exports transporteurs. La règle de conditionnement (flacons 10/30/50/100 ml → cartons de 100 ; 200 ml → cartons de 36, actée le 2026-07-06, voir `docs/roadmap.md`) sera modélisée dès le Jalon 2 (module `stock`) pour être réutilisable par ce futur module sans refonte.
+- **Module `r&d`** (post-V0.9) : recettes expérimentales, essais, validation/rejet, promotion vers le catalogue de production (voir `docs/roadmap.md`).

@@ -35,6 +35,87 @@ enum AuditAction {
   @@map("audit_action")
 }
 
+/// Type d'article (voir docs/modele-donnees.md §1) : une table unique pour matières
+/// premières, packaging et produits finis, distingués par ce type.
+enum ArticleType {
+  MATIERE_PREMIERE
+  PACKAGING
+  PRODUIT_FINI
+
+  @@map("article_type")
+}
+
+/// Statut d'une recette (voir docs/modele-donnees.md §2).
+enum RecipeStatus {
+  ACTIVE
+  ARCHIVEE
+
+  @@map("recipe_status")
+}
+
+/// Type de mouvement de stock (voir docs/regles-metier.md §3).
+enum StockMovementType {
+  ENTREE
+  SORTIE_BATCH
+  AJUSTEMENT_INVENTAIRE
+  EXPORT_OPENSI
+
+  @@map("stock_movement_type")
+}
+
+/// Statut d'un batch de production (voir docs/modele-donnees.md §4).
+enum BatchStatus {
+  PLANIFIE
+  EN_COURS
+  TERMINE
+  ANNULE
+
+  @@map("batch_status")
+}
+
+/// Statut qualité global du lot, calculé automatiquement à partir de l'ensemble
+/// de ses `QualityCheck` (voir docs/regles-metier.md §6). La règle de calcul exacte
+/// et le module `quality` lui-même sont prévus au Jalon 3 ; le champ existe déjà ici
+/// car il fait partie intégrante de l'entité Lot (valeur par défaut EN_ATTENTE en
+/// l'absence de tout contrôle qualité pour l'instant).
+enum LotQualityStatus {
+  EN_ATTENTE
+  CONFORME
+  NON_CONFORME
+  BLOQUE
+
+  @@map("lot_quality_status")
+}
+
+/// Type de fichier importé depuis OpenSi (voir docs/regles-metier.md §7).
+enum ImportType {
+  ARTICLES
+  STOCKS
+  BESOINS_ATTENDUS
+  INVENTAIRE
+
+  @@map("import_type")
+}
+
+enum ImportStatus {
+  PREVISUALISE
+  VALIDE
+  ERREUR
+
+  @@map("import_status")
+}
+
+/// Type de fichier exporté vers OpenSi (voir docs/regles-metier.md §9).
+enum ExportType {
+  PRODUCTIONS
+  CONSOMMATIONS
+  MOUVEMENTS_STOCK
+  INVENTAIRES
+  RAPPORTS
+
+  @@map("export_type")
+}
+
 /// Site de production. Un seul enregistrement existe en V0.9 ;
 /// cette table prépare l'évolution multi-site sans fonctionnalité multi-site en V0.9.
 model Site {
@@ -43,7 +124,18 @@ model Site {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users User[]
+  users          User[]
+  articles       Article[]
+  machines       Machine[]
+  recipes        Recipe[]
+  stockLots      StockLot[]
+  stockItems     StockItem[]
+  stockMovements StockMovement[]
+  batches              Batch[]
+  lots                 Lot[]
+  importLogs           ImportLog[]
+  exportLogs           ExportLog[]
+  expectedRequirements ExpectedRequirement[]
 
   @@map("sites")
 }
@@ -60,7 +152,11 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  auditLogs AuditLog[]
+  auditLogs      AuditLog[]
+  stockMovements StockMovement[]
+  batchesCreated Batch[]
+  importLogs     ImportLog[]
+  exportLogs     ExportLog[]
 
   @@map("users")
 }
@@ -81,4 +177,324 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue (voir docs/modele-donnees.md §1-2)
+// ---------------------------------------------------------------------------
+
+/// Table unique pour matières premières, packaging et produits finis (distingués par `type`),
+/// pour éviter de dupliquer une structure très proche entre trois tables.
+model Article {
+  id                 String      @id @default(uuid())
+  siteId             String      @map("site_id")
+  site               Site        @relation(fields: [siteId], references: [id])
+  type               ArticleType
+  openSiReference    String      @map("opensi_reference")
+  name               String
+  unitOfMeasure      String      @map("unit_of_measure")
+  currentUnitCost    Decimal     @map("current_unit_cost")
+  /// Conditionnement en carton, à l'affichage uniquement (le stock reste compté en
+  /// unités) — voir docs/roadmap.md "Décisions actées le 2026-07-06". Valeur libre,
+  /// modifiable article par article (pas de règle figée en dur) ; par défaut suggéré
+  /// à la création : 100 pour les flacons 10/30/50/100 ml, 36 pour les flacons 200 ml.
+  unitsPerCarton     Int?        @map("units_per_carton")
+  active             Boolean     @default(true)
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  recipeLines              RecipeLine[]
+  recipesAsFinishedProduct Recipe[]
+  stockLots                StockLot[]
+  stockItem                StockItem?
+  stockMovements           StockMovement[]
+  genealogyLines           LotGenealogy[]
+  expectedRequirements     ExpectedRequirement[]
+
+  @@unique([siteId, openSiReference])
+  @@map("articles")
+}
+
+model Machine {
+  id               String   @id @default(uuid())
+  siteId           String   @map("site_id")
+  site             Site     @relation(fields: [siteId], references: [id])
+  name             String
+  supportedFormats Int[]    @map("supported_formats")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  batches Batch[]
+
+  @@map("machines")
+}
+
+/// Une recette utilisée dans un batch conserve sa version au moment de l'utilisation :
+/// une modification ultérieure ne doit jamais altérer rétroactivement un batch déjà clôturé
+/// (voir docs/regles-metier.md §2).
+model Recipe {
+  id                 String       @id @default(uuid())
+  siteId             String       @map("site_id")
+  site               Site         @relation(fields: [siteId], references: [id])
+  finishedProductId  String       @map("finished_product_id")
+  finishedProduct    Article      @relation(fields: [finishedProductId], references: [id])
+  format             Int
+  version            Int
+  status             RecipeStatus @default(ACTIVE)
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  lines   RecipeLine[]
+  batches Batch[]
+
+  @@unique([finishedProductId, format, version])
+  @@map("recipes")
+}
+
+model RecipeLine {
+  id              String   @id @default(uuid())
+  recipeId        String   @map("recipe_id")
+  recipe          Recipe   @relation(fields: [recipeId], references: [id])
+  articleId       String   @map("article_id")
+  article         Article  @relation(fields: [articleId], references: [id])
+  quantityPerUnit Decimal  @map("quantity_per_unit")
+  unit            String
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([recipeId, articleId])
+  @@map("recipe_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Stocks (voir docs/modele-donnees.md §3 et docs/regles-metier.md §3)
+// ---------------------------------------------------------------------------
+
+/// Représente une réception physique (fût, seau, carton de packaging...) avec sa
+/// propre quantité restante. Le suivi par lot de réception (et non seulement par
+/// article) est ce qui permet la traçabilité amont (rappel produit lot-à-lot).
+/// Règle d'affectation à la consommation : FIFO par défaut (premier reçu, premier
+/// consommé) — voir docs/regles-metier.md §3. Une évolution FEFO (basée sur
+/// `expiryDate`) est envisageable plus tard mais non implémentée pour l'instant.
+model StockLot {
+  id                 String    @id @default(uuid())
+  siteId             String    @map("site_id")
+  site               Site      @relation(fields: [siteId], references: [id])
+  articleId          String    @map("article_id")
+  article            Article   @relation(fields: [articleId], references: [id])
+  supplierLotNumber  String    @map("supplier_lot_number")
+  receivedQuantity   Decimal   @map("received_quantity")
+  remainingQuantity  Decimal   @map("remaining_quantity")
+  receivedAt         DateTime  @map("received_at")
+  expiryDate         DateTime? @map("expiry_date")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  movements      StockMovement[]
+  genealogyLines LotGenealogy[]
+
+  @@index([articleId, receivedAt])
+  @@map("stock_lots")
+}
+
+/// Vue agrégée par article, dérivée de la somme des `StockLot.remainingQuantity`
+/// de cet article — évite de recalculer cette somme à chaque affichage.
+model StockItem {
+  id                String   @id @default(uuid())
+  siteId            String   @map("site_id")
+  site              Site     @relation(fields: [siteId], references: [id])
+  articleId         String   @unique @map("article_id")
+  article           Article  @relation(fields: [articleId], references: [id])
+  availableQuantity Decimal  @default(0) @map("available_quantity")
+  minimumThreshold  Decimal? @map("minimum_threshold")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("stock_items")
+}
+
+model StockMovement {
+  id           String            @id @default(uuid())
+  siteId       String            @map("site_id")
+  site         Site              @relation(fields: [siteId], references: [id])
+  articleId    String            @map("article_id")
+  article      Article           @relation(fields: [articleId], references: [id])
+  stockLotId   String?           @map("stock_lot_id")
+  stockLot     StockLot?         @relation(fields: [stockLotId], references: [id])
+  type         StockMovementType
+  quantity     Decimal
+  movementDate DateTime          @default(now()) @map("movement_date")
+  batchId      String?           @map("batch_id")
+  batch        Batch?            @relation(fields: [batchId], references: [id])
+  userId       String            @map("user_id")
+  user         User              @relation(fields: [userId], references: [id])
+  comment      String?
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  @@map("stock_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Batching & production (voir docs/modele-donnees.md §4)
+// ---------------------------------------------------------------------------
+
+model Batch {
+  id                 String      @id @default(uuid())
+  siteId             String      @map("site_id")
+  site               Site        @relation(fields: [siteId], references: [id])
+  recipeId           String      @map("recipe_id")
+  recipe             Recipe      @relation(fields: [recipeId], references: [id])
+  machineId          String      @map("machine_id")
+  machine            Machine     @relation(fields: [machineId], references: [id])
+  format             Int
+  plannedQuantity    Int         @map("planned_quantity")
+  producedQuantity   Int?        @map("produced_quantity")
+  rejectedQuantity   Int?        @map("rejected_quantity")
+  startedAt          DateTime?   @map("started_at")
+  endedAt            DateTime?   @map("ended_at")
+  formatChanged      Boolean     @default(false) @map("format_changed")
+  formatChangeDetail String?     @map("format_change_detail")
+  status             BatchStatus @default(PLANIFIE)
+  createdByUserId    String      @map("created_by_user_id")
+  createdByUser      User        @relation(fields: [createdByUserId], references: [id])
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  stops          BatchStop[]
+  stockMovements StockMovement[]
+  lot            Lot?
+
+  @@map("batches")
+}
+
+model BatchStop {
+  id              String    @id @default(uuid())
+  batchId         String    @map("batch_id")
+  batch           Batch     @relation(fields: [batchId], references: [id])
+  reason          String
+  startedAt       DateTime  @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  durationMinutes Int?      @map("duration_minutes")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("batch_stops")
+}
+
+// ---------------------------------------------------------------------------
+// Lots & traçabilité amont (voir docs/modele-donnees.md §5)
+//
+// Décision confirmée le 2026-07-05 : LotGenealogy est créée dès le Jalon 2 car
+// nécessaire à la déduction précise du stock par StockLot (docs/regles-metier.md §2-3).
+// Les écrans de consultation de traçabilité / rappel produit restent au Jalon 3
+// (module `traceability`).
+// ---------------------------------------------------------------------------
+
+model Lot {
+  id             String           @id @default(uuid())
+  siteId         String           @map("site_id")
+  site           Site             @relation(fields: [siteId], references: [id])
+  batchId        String           @unique @map("batch_id")
+  batch          Batch            @relation(fields: [batchId], references: [id])
+  /// Généré par LotNumberGeneratorService (TODO : algorithme définitif non fourni,
+  /// implémentation actuelle = placeholder isolé derrière une interface simple,
+  /// voir docs/regles-metier.md §4).
+  lotNumber      String           @unique @map("lot_number")
+  /// Quantité totale produite, rebuts inclus (voir docs/regles-metier.md §3/§5).
+  quantity       Int
+  manufacturedAt DateTime         @map("manufactured_at")
+  expiryDate     DateTime?        @map("expiry_date")
+  qualityStatus  LotQualityStatus @default(EN_ATTENTE) @map("quality_status")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  genealogyLines LotGenealogy[]
+
+  @@map("lots")
+}
+
+/// Table centrale de traçabilité amont : permet de remonter d'un lot fini vers les
+/// lots de matières/packaging précis consommés pour le produire (rappel produit
+/// lot-à-lot). Générée automatiquement à la clôture du batch à partir de la recette
+/// (quantité produite × quantités unitaires), modifiable manuellement en cas d'écart
+/// réel constaté. Un lot fini n'est considéré "clôturé" que s'il possède au moins
+/// une ligne de généalogie (voir docs/regles-metier.md §2).
+model LotGenealogy {
+  id                 String   @id @default(uuid())
+  lotId              String   @map("lot_id")
+  lot                Lot      @relation(fields: [lotId], references: [id])
+  consumedArticleId  String   @map("consumed_article_id")
+  consumedArticle    Article  @relation(fields: [consumedArticleId], references: [id])
+  consumedStockLotId String   @map("consumed_stock_lot_id")
+  consumedStockLot   StockLot @relation(fields: [consumedStockLotId], references: [id])
+  consumedQuantity   Decimal  @map("consumed_quantity")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("lot_genealogies")
+}
+
+// ---------------------------------------------------------------------------
+// Imports / exports OpenSi (voir docs/modele-donnees.md §8-9 et docs/regles-metier.md §7-9)
+// ---------------------------------------------------------------------------
+
+/// Journal d'un import de fichier OpenSi. Chaque import passe par une prévisualisation
+/// obligatoire (dry-run, statut PREVISUALISE) avant toute écriture en base (statut VALIDE) ;
+/// journalisé que l'import soit validé ou abandonné.
+model ImportLog {
+  id                String       @id @default(uuid())
+  siteId            String       @map("site_id")
+  site              Site         @relation(fields: [siteId], references: [id])
+  type              ImportType
+  fileName          String       @map("file_name")
+  importedAt        DateTime     @default(now()) @map("imported_at")
+  status            ImportStatus
+  processedLines    Int          @map("processed_lines")
+  errorCount        Int          @map("error_count")
+  userId            String       @map("user_id")
+  user              User         @relation(fields: [userId], references: [id])
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  @@map("import_logs")
+}
+
+/// Journal d'un export de fichier vers OpenSi. Un export n'a pas d'effet de bord :
+/// il ne fait que lire et formater les données existantes.
+model ExportLog {
+  id         String     @id @default(uuid())
+  siteId     String     @map("site_id")
+  site       Site       @relation(fields: [siteId], references: [id])
+  type       ExportType
+  fileName   String     @map("file_name")
+  exportedAt DateTime   @default(now()) @map("exported_at")
+  userId     String     @map("user_id")
+  user       User       @relation(fields: [userId], references: [id])
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  @@map("export_logs")
+}
+
+/// Besoin attendu importé d'OpenSi : quantité à produire pour maintenir le stock de
+/// sécurité d'une référence (voir docs/regles-metier.md §8). Le Jalon 2 se limite à
+/// importer et stocker cette donnée brute — aucune formule de calcul de suggestion
+/// n'est implémentée tant qu'elle n'est pas validée avec l'utilisateur. Le seuil de
+/// stock de sécurité lui-même reste porté par `StockItem.minimumThreshold` (source
+/// unique, pour éviter la duplication signalée dans docs/modele-donnees.md §12).
+model ExpectedRequirement {
+  id                  String   @id @default(uuid())
+  siteId              String   @map("site_id")
+  site                Site     @relation(fields: [siteId], references: [id])
+  articleId           String   @map("article_id")
+  article             Article  @relation(fields: [articleId], references: [id])
+  reservedQuantity    Decimal? @map("reserved_quantity")
+  importedRequirement Decimal? @map("imported_requirement")
+  importedAt           DateTime @map("imported_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("expected_requirements")
 }

@@ -6,6 +6,7 @@ const TOKEN_STORAGE_KEY = 'lca-mes.accessToken';
 
 export interface AuthContextValue {
   user: AuthenticatedUser | null;
+  token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -50,5 +51,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, isLoading, login, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, token, isLoading, login, logout }}>{children}</AuthContext.Provider>;
 }

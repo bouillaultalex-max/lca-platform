@@ -9,7 +9,7 @@ LCA-MES est le logiciel de gestion de production du laboratoire de **LCA Distrib
 ## 2. Contexte métier
 
 - **Activité** : conditionnement de produits (parfums d'ambiance / recharges "Maison Fuel") en flacons de différents formats, à partir de matières premières stockées en fûts et seaux.
-- **Formats de conditionnement** : 30 ml, 50 ml, 100 ml, 200 ml.
+- **Formats de conditionnement** : 10 ml, 30 ml, 50 ml, 100 ml, 200 ml.
 - **Stock matières premières (ordre de grandeur actuel)** : ~8 fûts de 200 L, ~15 seaux de 30 L.
 - **Recettes** : ~100 recettes actives.
 - **Machines de conditionnement** :

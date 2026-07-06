@@ -22,6 +22,7 @@ Table unique pour matières premières, packaging et produits finis, distingués
 - `designation`
 - `uniteDeMesure` (L, kg, unité...)
 - `coutUnitaireCourant` (mis à jour par import ou saisie manuelle)
+- `unitesParCarton` (optionnel — conditionnement en carton, **calcul d'affichage uniquement** : le stock reste compté en unités. Valeur libre par article, non figée en dur. Décision actée le 2026-07-06, voir `docs/roadmap.md` : flacons 10/30/50/100 ml → cartons de 100 ; flacons 200 ml → cartons de 36, à titre de suggestion par défaut)
 - `actif`
 
 ### Machine
@@ -62,7 +63,8 @@ Représente une réception physique (un fût, un seau, un carton de packaging...
 Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante` de cet article — évite de recalculer cette somme à chaque affichage.
 - `article` → FK `Article`
 - `quantiteDisponible` (= somme des `StockLot` actifs de l'article)
-- `seuilMinimum` (stock de sécurité — alimente le calcul des besoins, voir §11)
+- `seuilMinimum` (stock de sécurité — **source unique de vérité**, non dupliquée dans `ExpectedRequirement`, voir §8)
+- `estStockFaible` — dérivé, calculé côté serveur (`quantiteDisponible ≤ seuilMinimum`), `null` si aucun seuil n'est défini ; jamais recalculé côté client
 
 ### StockMovement (Mouvement de stock)
 - `article` → FK `Article`
@@ -74,7 +76,7 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 - `utilisateur` → FK `User`
 - `commentaire`
 
-> **[À VALIDER]** Règle d'affectation du lot consommé quand plusieurs `StockLot` existent pour un même article (ex : deux fûts entamés) : proposition par défaut FIFO (le lot reçu le plus anciennement est consommé en premier), à confirmer.
+> **Décision confirmée (2026-07-06)** : affectation FIFO (le lot reçu le plus anciennement est consommé en premier) pour la sélection des `StockLot` lors d'une consommation. Une évolution FEFO (basée sur `datePeremption`) est envisageable plus tard, non implémentée. Un ajustement d'inventaire (`AJUSTEMENT_INVENTAIRE`) **cible toujours un `StockLot` précis** (jamais un ajustement global par article), pour préserver l'invariant `StockItem.quantiteDisponible = Σ StockLot.quantiteRestante` — condition nécessaire à la fiabilité du FIFO et à la traçabilité.
 
 ## 4. Batching & production
 
@@ -155,12 +157,13 @@ Instantané du coût calculé au moment de la production (le coût unitaire des 
 
 ### ExpectedRequirement (Besoin attendu)
 - `article` → FK `Article` (généralement un produit fini)
-- `stockMinimum` (seuil de sécurité — peut aussi être porté par `StockItem.seuilMinimum`, à trancher en implémentation : une seule source de vérité)
 - `quantiteReservee` (optionnelle, si fournie par OpenSi)
 - `besoinImporte` (valeur telle que fournie par OpenSi, si le fichier l'inclut déjà calculée)
 - `dateImport`
 
-> **[À VALIDER — Jalon 2]** Formule exacte de `besoinCalculé` et de `quantitéSuggérée` (ex : `besoinCalculé = max(0, stockMinimum + besoinImporté − stockActuel − quantitéRéservée)`, `quantitéSuggérée` arrondie à la taille de lot standard de la recette ?). Ces deux valeurs sont **calculées à l'affichage** par un service dédié à partir de `ExpectedRequirement` + `StockItem`, pas stockées — à formaliser précisément avec l'utilisateur avant l'implémentation de l'écran correspondant.
+> **Décision confirmée (2026-07-06)** : pas de champ `stockMinimum` sur `ExpectedRequirement` — `StockItem.seuilMinimum` reste l'unique source de vérité du seuil de sécurité (voir §3), pour éviter toute divergence entre les deux entités.
+
+> **[À VALIDER — Jalon 2]** Formule exacte de `besoinCalculé` et de `quantitéSuggérée` (ex : `besoinCalculé = max(0, seuilMinimum + besoinImporté − stockActuel − quantitéRéservée)`, `quantitéSuggérée` arrondie à la taille de lot standard de la recette ?). Ces deux valeurs sont **calculées à l'affichage** par un service dédié à partir de `ExpectedRequirement` + `StockItem`, pas stockées — à formaliser précisément avec l'utilisateur avant l'implémentation de l'écran correspondant.
 
 ## 9. Imports / exports OpenSi
 
@@ -220,7 +223,8 @@ QualityCheck 1──n QualityCheckAttachment
 
 - Algorithme exact de génération du numéro de lot (convention confirmée : 6 chiffres commençant par 455, ex. `455XXX` — détail à fournir par l'utilisateur ; isolé dans `LotNumberGeneratorService`, voir §5).
 - Règle exacte de calcul de `Lot.statutQualite` à partir des `QualityCheck` (Jalon 3, voir §6).
-- Règle d'affectation FIFO des `StockLot` lors d'une consommation (§3).
 - Formule exacte de `besoinCalculé`/`quantitéSuggérée` (§8).
 
 > Décisions confirmées le 2026-07-05 : les rebuts consomment le packaging au même titre que la matière première et sont inclus dans la quantité totale déduite du stock/généalogie (§3, §5) ; `BatchCost.coutUnitaireParFlacon` se calcule sur la quantité totale produite, rebuts inclus (§7) ; le stock est suivi par lot de réception pour permettre une traçabilité amont fine (§3) ; le contrôle qualité est multi-type dès la V0.9 (§6) ; les besoins attendus reflètent le maintien du stock de sécurité (§8).
+>
+> Décisions confirmées le 2026-07-06 : conditionnement en carton (`Article.unitesParCarton`, affichage uniquement, voir §1) ; affectation FIFO des `StockLot` confirmée comme règle par défaut, un ajustement d'inventaire cible toujours un `StockLot` précis (§3) ; `StockItem.seuilMinimum` est la source unique de vérité du seuil de stock (§3, §8, remplace l'ambiguïté précédente avec `ExpectedRequirement.stockMinimum`).

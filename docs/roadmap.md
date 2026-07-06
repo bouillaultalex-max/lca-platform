@@ -21,12 +21,12 @@ Objectif : livrer un MVP resserré mais propre couvrant l'ensemble du cœur mét
 
 ## Jalon 2 — Catalogue & cœur production
 
-- Module `catalog` : produits, recettes, matières premières, packaging
-- Module `import-export` : import OpenSi (articles, références, stocks, besoins attendus, inventaire) avec prévisualisation
-- Module `stock` : état des stocks, mouvements
-- Module `batching` : création et suivi de batch
-- Module `production` : saisie manuelle de fin de batch (quantités, rebuts, temps, arrêts, changement de format)
-- Génération des lots (`Lot`) et déduction automatique des stocks associés (rebuts inclus, voir `docs/regles-metier.md` §3)
+- ✅ Module `catalog` : produits, recettes, matières premières, packaging (terminé le 2026-07-06 — backend + frontend, vérifié en navigateur)
+- ✅ Module `stock` : état des stocks, mouvements, FIFO, ajustement d'inventaire (terminé le 2026-07-06 — backend + frontend, vérifié en navigateur)
+- ⏳ Module `batching` : création et suivi de batch
+- ⏳ Module `production` : saisie manuelle de fin de batch (quantités, rebuts, temps, arrêts, changement de format)
+- ⏳ Génération des lots (`Lot`) et déduction automatique des stocks associés (rebuts inclus, voir `docs/regles-metier.md` §3)
+- ⏳ Module `import-export` : import OpenSi (articles, références, stocks, besoins attendus, inventaire) avec prévisualisation — repoussé après `batching`/`production` (dépend moins directement du cœur de production que `stock`, qui devait être prêt en premier pour la réception physique)
 
 **Livrable** : catalogue alimentable manuellement ou par import OpenSi, un batch complet peut être créé, produit (saisie manuelle) et clôturé en générant un lot, avec impact automatique sur le stock.
 
@@ -37,6 +37,15 @@ Objectif : livrer un MVP resserré mais propre couvrant l'ensemble du cœur mét
 - Module `costing` : calcul et historisation du coût matière + packaging par flacon
 
 **Livrable** : chaque lot est intégralement traçable (généalogie), contrôlé qualité, et son coût par flacon est calculé et figé.
+
+## Décisions actées le 2026-07-06
+
+- **Conditionnement en cartons** : les flacons sont conditionnés par carton selon leur format :
+  - 10 ml, 30 ml, 50 ml, 100 ml → cartons de 100 flacons
+  - 200 ml → cartons de 36 flacons
+
+  Cette règle doit être exploitée par les modules `stock` et `production` (Jalon 2), ainsi que par un futur module `logistique` (voir "Évolutions futures" ci-dessous). La modélisation exacte (champ sur `Article`, table de correspondance...) sera proposée et validée au démarrage de la Phase C (module `stock`), avant tout code.
+- **Nouveau module futur : R&D**, anticipé pour une version ultérieure à la V0.9 (voir "Évolutions futures" ci-dessous).
 
 ## Jalon 4 — Sortie, fiabilisation, documentation finale
 
@@ -55,6 +64,17 @@ Ces éléments ne font partie d'aucun jalon ci-dessus et ne doivent pas être an
 - Multi-site complet
 - Application mobile
 - IA avancée, optimisation de planning
+
+## Évolutions futures (post-V0.9, actées le 2026-07-06 mais non planifiées en détail)
+
+Contrairement à la section précédente, ces évolutions sont **prévues pour une version ultérieure** — elles ne sont pas codées en V0.9, mais leur existence future doit être gardée à l'esprit dans les choix de modélisation (sans les anticiper en code).
+
+- **Module `logistique`** : expédition, conditionnement (cartons), exports transporteurs. Périmètre exact non détaillé — utilisera la règle de conditionnement en cartons actée ci-dessus.
+- **Module `r&d`** (recherche & développement) :
+  - création de recettes expérimentales, distinctes des recettes de production actives ;
+  - réalisation d'essais ;
+  - validation ou rejet d'une recette expérimentale ;
+  - promotion d'une recette validée vers le catalogue de production (module `catalog`).
 
 ## Suivi
 

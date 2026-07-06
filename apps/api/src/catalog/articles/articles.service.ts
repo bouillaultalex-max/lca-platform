@@ -1,0 +1,76 @@
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateArticleDto } from './dto/create-article.dto';
+import { UpdateArticleDto } from './dto/update-article.dto';
+import { Article, ArticleType, Prisma } from '../../../generated/prisma/client';
+
+@Injectable()
+export class ArticlesService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  findAll(siteId: string, type?: ArticleType): Promise<Article[]> {
+    return this.prisma.article.findMany({
+      where: { siteId, ...(type ? { type } : {}) },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async findOne(siteId: string, id: string): Promise<Article> {
+    const article = await this.prisma.article.findFirst({
+      where: { id, siteId },
+    });
+    if (!article) {
+      throw new NotFoundException(`Article ${id} introuvable.`);
+    }
+    return article;
+  }
+
+  async create(siteId: string, dto: CreateArticleDto): Promise<Article> {
+    try {
+      return await this.prisma.article.create({ data: { siteId, ...dto } });
+    } catch (error) {
+      throw this.toFriendlyError(error, dto.openSiReference);
+    }
+  }
+
+  async update(
+    siteId: string,
+    id: string,
+    dto: UpdateArticleDto,
+  ): Promise<Article> {
+    await this.findOne(siteId, id);
+    try {
+      return await this.prisma.article.update({ where: { id }, data: dto });
+    } catch (error) {
+      throw this.toFriendlyError(error, dto.openSiReference);
+    }
+  }
+
+  /**
+   * "Suppression" = désactivation uniquement (jamais de suppression physique) :
+   * un article peut être référencé par l'historique (recettes, stock, coûts figés).
+   */
+  async deactivate(siteId: string, id: string): Promise<Article> {
+    await this.findOne(siteId, id);
+    return this.prisma.article.update({
+      where: { id },
+      data: { active: false },
+    });
+  }
+
+  private toFriendlyError(error: unknown, openSiReference?: string): Error {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return new ConflictException(
+        `La référence OpenSi "${openSiReference}" est déjà utilisée sur ce site.`,
+      );
+    }
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}

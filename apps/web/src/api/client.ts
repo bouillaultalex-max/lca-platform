@@ -1,4 +1,19 @@
-import type { LoginRequest, LoginResponse, AuthenticatedUser } from '@lca-mes/shared';
+import type {
+  LoginRequest,
+  LoginResponse,
+  AuthenticatedUser,
+  Article,
+  ArticleType,
+  CreateArticleRequest,
+  Recipe,
+  CreateRecipeRequest,
+  StockItem,
+  StockLot,
+  StockMovement,
+  CreateStockLotRequest,
+  AdjustStockLotRequest,
+  UpdateMinimumThresholdRequest,
+} from '@lca-mes/shared';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -48,4 +63,44 @@ export const api = {
     request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
 
   me: (token: string): Promise<AuthenticatedUser> => request<AuthenticatedUser>('/auth/me', {}, token),
+
+  listArticles: (token: string, type?: ArticleType): Promise<Article[]> =>
+    request<Article[]>(`/catalog/articles${type ? `?type=${type}` : ''}`, {}, token),
+
+  createArticle: (token: string, payload: CreateArticleRequest): Promise<Article> =>
+    request<Article>('/catalog/articles', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  deactivateArticle: (token: string, id: string): Promise<Article> =>
+    request<Article>(`/catalog/articles/${id}`, { method: 'DELETE' }, token),
+
+  listRecipesByProduct: (token: string, finishedProductId: string): Promise<Recipe[]> =>
+    request<Recipe[]>(`/catalog/recipes?finishedProductId=${finishedProductId}`, {}, token),
+
+  createRecipe: (token: string, payload: CreateRecipeRequest): Promise<Recipe> =>
+    request<Recipe>('/catalog/recipes', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  archiveRecipe: (token: string, id: string): Promise<Recipe> =>
+    request<Recipe>(`/catalog/recipes/${id}`, { method: 'DELETE' }, token),
+
+  listStockItems: (token: string, type?: ArticleType): Promise<StockItem[]> =>
+    request<StockItem[]>(`/stock/items${type ? `?type=${type}` : ''}`, {}, token),
+
+  updateMinimumThreshold: (
+    token: string,
+    articleId: string,
+    payload: UpdateMinimumThresholdRequest,
+  ): Promise<StockItem> =>
+    request<StockItem>(`/stock/items/${articleId}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  listStockLotsByArticle: (token: string, articleId: string): Promise<StockLot[]> =>
+    request<StockLot[]>(`/stock/lots?articleId=${articleId}`, {}, token),
+
+  receiveStockLot: (token: string, payload: CreateStockLotRequest): Promise<StockLot> =>
+    request<StockLot>('/stock/lots', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  adjustStockLot: (token: string, stockLotId: string, payload: AdjustStockLotRequest): Promise<StockLot> =>
+    request<StockLot>(`/stock/lots/${stockLotId}/adjustments`, { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  listStockMovementsByLot: (token: string, stockLotId: string): Promise<StockMovement[]> =>
+    request<StockMovement[]>(`/stock/movements?stockLotId=${stockLotId}`, {}, token),
 };
