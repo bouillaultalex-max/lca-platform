@@ -186,6 +186,7 @@ Instantané du coût calculé au moment de la production (le coût unitaire des 
 - `statut` : `PREVISUALISE` / `VALIDE` / `ERREUR`
 - `nombreLignesTraitees`
 - `nombreErreurs`
+- `detailErreurs` (JSON optionnel, ex : `[{ "line": 4, "message": "..." }]`) — pour un historique consultable ligne par ligne, pas seulement un compteur
 - `utilisateur` → FK `User`
 
 ### ExportLog
@@ -193,6 +194,30 @@ Instantané du coût calculé au moment de la production (le coût unitaire des 
 - `nomFichier`
 - `dateExport`
 - `utilisateur` → FK `User`
+
+### ColumnMappingRule (moteur de mapping des connecteurs — voir ADR 0003)
+
+Table générique, partagée par tous les connecteurs (OpenSi aujourd'hui, Magento/CRM/
+fournisseurs/clients demain), pas seulement par les imports OpenSi. Mémorise les
+corrections manuelles de mapping de colonnes validées par l'utilisateur, pour les
+réutiliser automatiquement lors des imports suivants du même type.
+
+- `site` → FK `Site`
+- `source` (chaîne libre, ex : `"OPENSI"` — pas un enum, pour ne jamais exiger de
+  migration à l'ajout d'un nouveau connecteur)
+- `sourceVersion` (chaîne libre, ex : `"2026.1"`) — isole les règles apprises par version
+  de format d'export de la source, pour qu'un futur changement de format côté connecteur
+  (OpenSi, Magento...) ne réutilise jamais à tort une règle apprise sur l'ancien format.
+  Si non fournie par l'appelant, `ColumnMappingService` applique par défaut la valeur
+  `"default"` (constante `DEFAULT_SOURCE_VERSION`) — aucune valeur figée en base.
+- `entityType` (chaîne libre, ex : `"ARTICLES"`, `"STOCKS"`...)
+- `nomColonneNormalise` (nom de colonne du fichier, normalisé : minuscules, sans accents)
+- `nomColonneOriginal` (dernière valeur brute observée, pour affichage)
+- `fieldKey` (champ métier cible, ex : `"openSiReference"`)
+
+Contrainte d'unicité : `(site, source, sourceVersion, entityType, nomColonneNormalise)`.
+Une règle n'est enregistrée qu'à la **confirmation** d'un import, jamais à sa seule
+prévisualisation.
 
 ## 10. Audit
 

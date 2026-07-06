@@ -39,6 +39,19 @@ Le backend NestJS sert à la fois l'API REST et les fichiers statiques du build 
 
 La logique métier vit exclusivement dans les services de chaque module. Les controllers restent fins (validation d'entrée, appel du service, sérialisation de sortie). L'accès aux données passe par Prisma, encapsulé dans les services (pas d'accès Prisma direct depuis les controllers).
 
+### Infrastructure partagée (hors liste des modules métier)
+
+En plus des modules métier ci-dessus, `src/common/` héberge des briques transverses sans
+responsabilité métier propre, consommées par un ou plusieurs modules :
+
+- `common/column-mapping/` — moteur générique de correspondance colonne → champ, utilisé
+  aujourd'hui par `import-export` pour les imports OpenSi (voir ADR 0003). Conçu pour être
+  réutilisé par tout futur connecteur (Magento, CRM, fournisseurs, clients...) sans jamais
+  contenir lui-même de connaissance métier : il ne connaît qu'une source, une
+  configuration de champs attendus (définie par le module consommateur) et les règles de
+  correspondance apprises (mémorisées en base, réutilisées automatiquement lors des
+  imports suivants).
+
 ## 4. Organisation des dossiers (cible, une fois le code créé)
 
 ```
@@ -55,7 +68,9 @@ lca-mes/
 │   │   │   ├── costing/
 │   │   │   ├── import-export/
 │   │   │   ├── auth/
-│   │   │   └── audit-log/
+│   │   │   ├── audit-log/
+│   │   │   └── common/
+│   │   │       └── column-mapping/  # moteur générique de mapping (ADR 0003)
 │   │   └── prisma/
 │   │       ├── schema.prisma
 │   │       └── migrations/

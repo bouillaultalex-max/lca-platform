@@ -45,6 +45,7 @@ Les règles marquées **[À VALIDER]** sont des propositions raisonnables faites
 - Tout import de fichier (articles, références, stocks, besoins attendus, inventaire) doit systématiquement passer par une **prévisualisation** affichant les créations/modifications prévues, avant toute écriture en base.
 - Chaque import est journalisé (`ImportLog`) avec le fichier, la date, l'utilisateur, le nombre de lignes traitées et le nombre d'erreurs, que l'import soit validé ou abandonné après prévisualisation.
 - Un import en erreur partielle (certaines lignes invalides) ne doit jamais bloquer l'intégralité de l'import : les lignes valides sont proposées à la validation, les lignes en erreur sont listées explicitement.
+- **Décision confirmée (2026-07-06)** : la reconnaissance des colonnes d'un fichier importé est automatique (variantes d'intitulés, colonnes surnuméraires ignorées), mais toujours **explicable** — chaque colonne reconnue affiche pourquoi, chaque champ obligatoire non trouvé est signalé avant toute prévisualisation métier. L'utilisateur peut toujours corriger le mapping proposé ; une correction validée à la confirmation d'un import est mémorisée et réutilisée automatiquement lors des imports suivants du même type, pour que les imports demandent de moins en moins d'intervention avec le temps. Ce mécanisme (voir ADR 0003) est volontairement simple et sans IA opaque, et **rien n'est jamais écrit en base tant que le mapping n'est pas validé**.
 
 ## 8. Besoins attendus
 

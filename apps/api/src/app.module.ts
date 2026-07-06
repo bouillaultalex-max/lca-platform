@@ -11,6 +11,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { StockModule } from './stock/stock.module';
 import { BatchingModule } from './batching/batching.module';
 import { ProductionModule } from './production/production.module';
+import { ImportExportModule } from './import-export/import-export.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ProductionModule } from './production/production.module';
         '/stock/{*path}',
         '/batching/{*path}',
         '/production/{*path}',
+        '/import-export/{*path}',
         '/health',
         '/api/{*path}',
       ],
@@ -40,6 +42,7 @@ import { ProductionModule } from './production/production.module';
     StockModule,
     BatchingModule,
     ProductionModule,
+    ImportExportModule,
   ],
   controllers: [AppController],
   providers: [AppService],

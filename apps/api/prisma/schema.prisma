@@ -150,6 +150,7 @@ model Site {
   importLogs           ImportLog[]
   exportLogs           ExportLog[]
   expectedRequirements ExpectedRequirement[]
+  columnMappingRules   ColumnMappingRule[]
 
   @@map("sites")
 }
@@ -475,6 +476,9 @@ model ImportLog {
   status            ImportStatus
   processedLines    Int          @map("processed_lines")
   errorCount        Int          @map("error_count")
+  /// Détail des erreurs ligne par ligne (ex : [{ "line": 4, "message": "..." }]),
+  /// pour que l'historique reste consultable (pas seulement un compteur).
+  errorDetails       Json?        @map("error_details")
   userId            String       @map("user_id")
   user              User         @relation(fields: [userId], references: [id])
   createdAt         DateTime     @default(now()) @map("created_at")
@@ -519,4 +523,32 @@ model ExpectedRequirement {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("expected_requirements")
+}
+
+/// Règle de correspondance colonne → champ apprise à partir des corrections manuelles
+/// de l'utilisateur (voir ADR 0003 et docs/architecture.md §3). Générique et sans aucune
+/// connaissance métier : `source` (ex: "OPENSI", futurs "MAGENTO"/"CRM"/...) et `entityType`
+/// (ex: "ARTICLES", "STOCKS"...) sont de simples chaînes définies par les configurations de
+/// mapping de chaque module, pas des enums figés — un nouveau connecteur n'exige donc jamais
+/// de migration de schéma. Une règle n'est mémorisée qu'au moment de la confirmation d'un
+/// import (jamais à la seule prévisualisation), pour ne pas apprendre une correction abandonnée.
+model ColumnMappingRule {
+  id                   String   @id @default(uuid())
+  siteId               String   @map("site_id")
+  site                 Site     @relation(fields: [siteId], references: [id])
+  source               String
+  /// Version du format d'export de la source (ex: "2026.1"), pour qu'un changement de
+  /// format côté connecteur (OpenSi, Magento...) n'entre jamais en conflit avec les règles
+  /// apprises sur un format antérieur. Valeur par défaut appliquée par le service si non
+  /// fournie (voir ColumnMappingService.DEFAULT_SOURCE_VERSION), jamais figée en base.
+  sourceVersion        String   @map("source_version")
+  entityType           String   @map("entity_type")
+  columnNameNormalized String   @map("column_name_normalized")
+  columnNameOriginal   String   @map("column_name_original")
+  fieldKey             String   @map("field_key")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([siteId, source, sourceVersion, entityType, columnNameNormalized])
+  @@map("column_mapping_rules")
 }
