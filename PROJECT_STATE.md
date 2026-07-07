@@ -2,7 +2,7 @@
 
 Document de suivi vivant, à mettre à jour à la fin de chaque jalon. Contrairement aux autres documents de `docs/` (qui décrivent l'architecture cible), celui-ci décrit **l'état réel du dépôt aujourd'hui**.
 
-Dernière mise à jour : **2026-07-07** — **Jalon 2 officiellement terminé** : `catalog`, `stock`, `batching`, `production` et `import-export` (backend + écran frontend Imports) sont tous terminés, backend et frontend, vérifiés en navigateur.
+Dernière mise à jour : **2026-07-07** — **Jalon 2.5 officiellement terminé** : gestion des utilisateurs (fonctions métier, rôles, administration système, première connexion, historique de connexion) livrée et vérifiée en navigateur, avec 3 comptes réels créés.
 
 ## 1. Statut
 
@@ -11,6 +11,7 @@ Dernière mise à jour : **2026-07-07** — **Jalon 2 officiellement terminé** 
 | Jalon 0 — Cadrage & documentation | ✅ Terminé |
 | Jalon 1 — Socle technique | ✅ Terminé et vérifié (tests, build, navigateur) |
 | Jalon 2 — Cœur production (catalogue, stock, batching, production, lots, imports) | ✅ **Terminé** — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅, `import-export` ✅ (backend + frontend) |
+| Jalon 2.5 — Gestion des utilisateurs | ✅ **Terminé** — fonctions métier, comptes nominatifs, première connexion, historique de connexion, écran Administration |
 | Jalon 3 — Traçabilité, qualité, coûts | Non démarré |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré |
 
@@ -29,11 +30,11 @@ lca-mes/
 └── PROJECT_STATE.md       # ce fichier
 ```
 
-**Modules Nest existants** : `auth`, `prisma`, `config`, `common/column-mapping` (moteur générique de mapping de colonnes, voir ADR 0003), `catalog` (`articles`, `machines`, `recipes`), `stock` (`stock-lots`, `stock-items`, `stock-movements`, `stock-fifo`), `batching` (`batches`, `batch-preparation`), `production` (`batch-steps`, `batch-stops`, `batch-closure`, `lot-number-generator`), `import-export` (`import-logs`, `import-parser`, `mapping-configs`, `articles-import`, `stocks-import`, `expected-requirements-import`, `inventory-import`).
+**Modules Nest existants** : `auth` (`job-titles`, `user-admin`, `login-history`), `audit-log`, `prisma`, `config`, `common/column-mapping` (moteur générique de mapping de colonnes, voir ADR 0003), `catalog` (`articles`, `machines`, `recipes`), `stock` (`stock-lots`, `stock-items`, `stock-movements`, `stock-fifo`), `batching` (`batches`, `batch-preparation`), `production` (`batch-steps`, `batch-stops`, `batch-closure`, `lot-number-generator`), `import-export` (`import-logs`, `import-parser`, `mapping-configs`, `articles-import`, `stocks-import`, `expected-requirements-import`, `inventory-import`).
 
-**Modèle Prisma existant** (12 migrations) : `Site`, `User`, `AuditLog`, `Article` (avec `unitsPerCarton`, `densityKgPerL`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch` (avec `currentStep` séparé de `status`), `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog` (avec `errorDetails` JSON), `ExportLog`, `ExpectedRequirement`, `ColumnMappingRule` (avec `sourceVersion`). **Tous les modèles liés à `import-export` sont désormais réellement exploités** : `ImportLog` par les 4 imports (créé à la prévisualisation, mis à jour à la confirmation), `ExpectedRequirement` en écriture par l'import Besoins attendus (append-only), `ColumnMappingRule` par le moteur de mapping (apprentissage des corrections). Seul `ExportLog` reste sans logique applicative (exports vers OpenSi, Jalon 4).
+**Modèle Prisma existant** (13 migrations) : `Site`, `User` (avec `jobTitleId`, `isSystemAdmin`, `mustChangePassword`, `lastLoginAt`), `JobTitle`, `LoginHistory`, `AuditLog`, `Article` (avec `unitsPerCarton`, `densityKgPerL`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch` (avec `currentStep` séparé de `status`), `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog` (avec `errorDetails` JSON), `ExportLog`, `ExpectedRequirement`, `ColumnMappingRule` (avec `sourceVersion`). **Tous les modèles liés à `import-export` sont désormais réellement exploités** : `ImportLog` par les 4 imports (créé à la prévisualisation, mis à jour à la confirmation), `ExpectedRequirement` en écriture par l'import Besoins attendus (append-only), `ColumnMappingRule` par le moteur de mapping (apprentissage des corrections). `AuditLog` est désormais réellement exploité (gestion des utilisateurs, Jalon 2.5). Seul `ExportLog` reste sans logique applicative (exports vers OpenSi, Jalon 4).
 
-**Frontend existant** : `/login`, `/dashboard`, `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture), `/imports` (assistant en 5 étapes — type, fichier, colonnes, aperçu, confirmation — pour les 4 imports OpenSi ; onglet Historique filtrable ; bandeau "dernier import" ; vocabulaire volontairement sans jargon technique).
+**Frontend existant** : `/login`, `/change-password` (changement de mot de passe, obligatoire à la première connexion), `/dashboard` (message d'accueil personnalisé avec dernière connexion en langage naturel), `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture), `/imports` (assistant en 5 étapes — type, fichier, colonnes, aperçu, confirmation — pour les 4 imports OpenSi ; onglet Historique filtrable ; bandeau "dernier import" ; vocabulaire volontairement sans jargon technique), `/admin/users` (réservé aux administrateurs système : création/modification/désactivation/réinitialisation de mot de passe des comptes, gestion des fonctions métier).
 
 ## 3. Commandes utiles
 
@@ -48,12 +49,13 @@ npm run dev:web                      # Frontend sur http://localhost:5173
 ```bash
 npm run prisma:migrate               # applique les migrations sur lca_mes_dev
 npm run prisma:seed                  # (re)crée le site, l'utilisateur par défaut, une machine et une recette de démo
+cd apps/api && npm run prisma:bootstrap-admin   # crée le tout premier administrateur système (une seule fois, hors seed)
 ```
 
 ### Tests
 ```bash
-npm run test:api                     # unitaires (apps/api) — 218 tests
-npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 35 tests
+npm run test:api                     # unitaires (apps/api) — 238 tests
+npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 38 tests
 ```
 
 ### Build / lint
@@ -82,6 +84,16 @@ docker compose up -d --build
 | Email | Mot de passe | Rôle | Contexte |
 |---|---|---|---|
 | `responsable@lca-mes.local` | `ChangezMoi123!` | `RESPONSABLE_LABORATOIRE` | Créé par `npm run prisma:seed` (base `lca_mes_dev`) — **développement uniquement, à changer avant tout usage réel.** Le seed crée aussi une machine ("CDA E-Fill 1") et une recette de démo ("Recharge Lavande 100 ml", v1) pour disposer de données de test réalistes. |
+
+**Comptes réels (Jalon 2.5)**, créés via le script de bootstrap puis l'écran Administration, base `lca_mes_dev` :
+
+| Nom | Email | Rôle logiciel | Fonction métier | Administrateur système |
+|---|---|---|---|---|
+| Alexandre Bouillault | `alexandre.bouillault@lca-mes.local` | `RESPONSABLE_ADJOINT` | Responsable adjoint | Oui |
+| Kevin Prian | `kevin.prian@lca-mes.local` | `RESPONSABLE_LABORATOIRE` | Responsable laboratoire | Non |
+| Jean-Paul Gouveia | `jean-paul.gouveia@lca-mes.local` | `DIRECTION` | Directeur des opérations | Non |
+
+Adresses e-mail provisoires (`@lca-mes.local`), à corriger via « Modifier » dans Administration si des adresses réelles différentes doivent être utilisées. Mots de passe temporaires générés à la création, jamais conservés dans ce document (voir `docs/regles-metier.md` §13) — utiliser « Réinitialiser le mot de passe » depuis l'écran Administration si besoin d'un nouvel accès.
 
 ## 6. Décisions techniques prises
 
@@ -129,6 +141,13 @@ docker compose up -d --build
 - **Bug réel corrigé, trouvé uniquement grâce à la vérification navigateur** : `PreviewImportDto.mappingCorrections` (champ multipart JSON sérialisé) combinait `@Transform` et `@Type()` sur la même propriété — les corrections de mapping étaient systématiquement rejetées par le `ValidationPipe({ whitelist: true })` réel (`400 : property fieldKey should not exist`), un défaut qu'aucun test unitaire ne pouvait détecter puisqu'il ne passe jamais par le pipe de validation. Corrigé via `plainToInstance` directement dans le `@Transform`. Un test e2e de régression a été ajouté (`import-export.e2e-spec.ts`) pour verrouiller ce comportement.
 - **Le Jalon 2 est officiellement terminé** à l'issue de cette phase.
 
+### Jalon 2.5 (gestion des utilisateurs)
+- **`JobTitle` (fonction métier) séparé du rôle logiciel (`role`) et de `isSystemAdmin`** (administrateur système, capacité orthogonale) — voir `docs/regles-metier.md` §13 pour le détail complet des règles de sécurité (mots de passe, désactivation, première connexion, `LoginHistory`).
+- **`LoginHistory` séparé d'`AuditLog`** ; `AuditLog` branché pour la première fois, limité à la gestion des comptes.
+- **Script d'amorçage** (`prisma/bootstrap-admin.ts`) distinct de `seed.ts`, pour résoudre le problème d'amorçage (créer le premier administrateur sans écran d'administration préexistant).
+- **Message d'accueil personnalisé** sur le tableau de bord (`Bonjour {prénom} 👋`, dernière connexion en langage naturel — Aujourd'hui/Hier/date complète) : amélioration d'affichage pure, à partir de `lastLoginAt` déjà présent sur `User`, aucune nouvelle table.
+- **Le Jalon 2.5 est officiellement terminé** à l'issue de cette phase.
+
 ## 7. Décisions métier confirmées
 
 Voir `docs/regles-metier.md` pour le détail complet.
@@ -162,6 +181,12 @@ Voir `docs/regles-metier.md` pour le détail complet.
 22. **Tableau de bord visuel, encart de réassurance et écran de réussite** dédiés dans l'assistant d'import — objectif : qu'un responsable comprenne le résultat d'un import en moins de 5 secondes.
 23. **Le Jalon 2 est officiellement clôturé** : `catalog`, `stock`, `batching`, `production`, `import-export` sont tous terminés (backend + frontend, vérifiés en navigateur).
 
+**Actées le 2026-07-07 (Jalon 2.5)** :
+24. **Fonction métier (`JobTitle`) et administrateur système (`isSystemAdmin`) indépendants du rôle logiciel (`role`)** — voir `docs/regles-metier.md` §13.
+25. **`LoginHistory` séparé d'`AuditLog`** : l'un journalise les tentatives de connexion, l'autre les actions métier.
+26. **Un administrateur système ne peut pas désactiver son propre compte** (protection contre le verrouillage accidentel).
+27. **Le Jalon 2.5 est officiellement clôturé** : gestion des utilisateurs, 3 comptes réels créés, vérifié en navigateur.
+
 ## 8. Points encore ouverts (à trancher pendant le Jalon 2/3, non bloquants pour continuer)
 
 - Algorithme exact de génération du numéro de lot (format confirmé, détail à fournir par l'utilisateur) — bloquant pour finaliser `LotNumberGeneratorService` (actuellement un placeholder `455XXX` séquentiel).
@@ -172,7 +197,9 @@ Voir `docs/regles-metier.md` pour le détail complet.
 - **Consultation du numéro de lot après rechargement d'un batch terminé** : actuellement affiché uniquement juste après la clôture (réponse de l'API), pas rechargeable ensuite (aucun endpoint de lecture des `Lot` pour l'instant). Noté explicitement par l'utilisateur pour traitement lors du futur module `traceability` (Jalon 3).
 - Docker/`docker-compose.yml` écrits et raisonnés mais jamais exécutés avec un vrai Docker (non disponible dans l'environnement de développement utilisé).
 - Vulnérabilités npm résiduelles, toutes pré-existantes et sans rapport avec `import-export` (chaîne `@hono/node-server`/`@prisma/dev`/`prisma`, 3 alertes modérées) — `xlsx` et `multer` ont été corrigés pendant la Phase E.
+- **Mot de passe temporaire de Jean-Paul Gouveia non conservé** : son compte est actif mais `mustChangePassword` est toujours vrai — utiliser « Réinitialiser le mot de passe » depuis Administration pour lui générer un nouvel accès avant sa première utilisation réelle.
+- Analyse/détection d'anomalies sur `LoginHistory` (tentatives répétées, IP inhabituelle...) : reportée, seul l'enregistrement est fait en Jalon 2.5.
 
 ## 9. Prochaine étape
 
-**Le Jalon 2 est entièrement terminé** (backend et frontend, tous modules). Le Jalon 3 (traçabilité, qualité, coûts) n'a pas encore démarré et sera cadré avec l'utilisateur avant tout code, comme pour chaque jalon précédent — aucun développement du Jalon 3 n'est anticipé ou codé par avance.
+**Le Jalon 2.5 est entièrement terminé** (gestion des utilisateurs, backend et frontend, tous vérifiés). Avant de démarrer le Jalon 3 (traçabilité, qualité, coûts), un audit global de la plateforme est prévu. Le Jalon 3 sera ensuite cadré avec l'utilisateur avant tout code, comme pour chaque jalon précédent — aucun développement du Jalon 3 n'est anticipé ou codé par avance.

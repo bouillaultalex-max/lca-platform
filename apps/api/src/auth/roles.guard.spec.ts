@@ -21,6 +21,10 @@ describe('RolesGuard', () => {
     fullName: 'Direction',
     email: 'direction@lca-mes.local',
     role: UserRole.DIRECTION,
+    jobTitle: null,
+    isSystemAdmin: false,
+    mustChangePassword: false,
+    lastLoginAt: null,
   };
 
   const labUser: AuthenticatedUser = {
@@ -29,6 +33,10 @@ describe('RolesGuard', () => {
     fullName: 'Responsable Labo',
     email: 'labo@lca-mes.local',
     role: UserRole.RESPONSABLE_LABORATOIRE,
+    jobTitle: null,
+    isSystemAdmin: false,
+    mustChangePassword: false,
+    lastLoginAt: null,
   };
 
   beforeEach(() => {

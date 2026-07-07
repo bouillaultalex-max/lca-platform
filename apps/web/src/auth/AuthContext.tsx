@@ -10,6 +10,8 @@ export interface AuthContextValue {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Recharge le profil (ex: après un changement de mot de passe qui lève mustChangePassword). */
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -51,5 +53,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, token, isLoading, login, logout }}>{children}</AuthContext.Provider>;
+  const refreshUser = useCallback(async () => {
+    if (!token) return;
+    setUser(await api.me(token));
+  }, [token]);
+
+  return (
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, refreshUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

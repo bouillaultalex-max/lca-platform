@@ -31,6 +31,18 @@ Objectif : livrer un MVP resserré mais propre couvrant l'ensemble du cœur mét
 
 **Livrable** : catalogue alimentable manuellement ou par import OpenSi, un batch complet peut être créé, produit (saisie manuelle) et clôturé en générant un lot, avec impact automatique sur le stock. **Jalon 2 entièrement livré.**
 
+## Jalon 2.5 — Gestion des utilisateurs ✅ Terminé le 2026-07-07
+
+- ✅ Modèle de données : `JobTitle` (fonction métier, entité dédiée plutôt que texte libre), `User` étendu (`jobTitleId`, `isSystemAdmin` indépendant du rôle logiciel, `mustChangePassword`, `lastLoginAt`), `LoginHistory` (nouvelle table, distincte d'`AuditLog`, historique des tentatives de connexion réussies/échouées)
+- ✅ `AuditLog` branché pour la première fois (jusque-là défini mais inutilisé), limité aux actions de gestion des comptes
+- ✅ Écran Administration > Utilisateurs : création (mot de passe temporaire généré, affiché une seule fois), modification, désactivation (bloque immédiatement la connexion), réinitialisation de mot de passe, gestion des fonctions métier
+- ✅ Changement de mot de passe obligatoire à la première connexion (`MustChangePasswordGuard`, appliqué par défaut à toute route authentifiée) + page dédiée
+- ✅ Script d'amorçage du premier administrateur système (`npm run prisma:bootstrap-admin`, séparé de `seed.ts`)
+- ✅ 3 comptes réels créés et vérifiés en navigateur : Alexandre Bouillault (Responsable adjoint + administrateur système), Kevin Prian (Responsable laboratoire), Jean-Paul Gouveia (Direction)
+- ✅ Message d'accueil personnalisé sur le tableau de bord ("Bonjour {prénom} 👋", dernière connexion en langage naturel — Aujourd'hui/Hier/date complète, jamais de date brute), à partir de `lastLoginAt` déjà présent sur `User`, sans nouvelle table
+
+**Livrable** : premiers comptes nominatifs réels opérationnels, avec permissions d'administration séparées des rôles métier, conformes aux règles de sécurité validées (mots de passe jamais en clair, compte désactivé = connexion refusée, changement de mot de passe obligatoire à la première connexion). Build/lint/tests verts (238 tests unitaires + 38 e2e), vérifié en navigateur.
+
 ## Jalon 3 — Traçabilité, qualité, coûts
 
 - Module `traceability` : généalogie du lot (matières premières + packaging consommés)

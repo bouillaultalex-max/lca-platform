@@ -1,5 +1,6 @@
 export * from './types/user-role';
 export * from './types/auth';
+export * from './types/user-admin';
 export * from './types/catalog';
 export * from './types/stock';
 export * from './types/production';

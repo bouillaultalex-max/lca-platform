@@ -25,12 +25,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <h1 className="text-lg font-semibold text-gray-900">LCA-MES</h1>
             <p className="text-sm text-gray-500">Laboratoire LCA Distribution</p>
           </div>
-          <button
-            onClick={logout}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-100"
-          >
-            Se déconnecter
-          </button>
+          <div className="flex items-center gap-3">
+            <NavLink to="/change-password" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
+              Changer mon mot de passe
+            </NavLink>
+            <button
+              onClick={logout}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-100"
+            >
+              Se déconnecter
+            </button>
+          </div>
         </div>
 
         <nav className="mt-4 flex gap-1">
@@ -56,6 +61,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <NavLink to="/stock" className={navLinkClass}>
             Stock
           </NavLink>
+          {user.isSystemAdmin && (
+            <NavLink to="/admin/users" className={navLinkClass}>
+              Administration
+            </NavLink>
+          )}
         </nav>
       </header>
 

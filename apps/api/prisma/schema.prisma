@@ -138,13 +138,14 @@ model Site {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users          User[]
-  articles       Article[]
-  machines       Machine[]
-  recipes        Recipe[]
-  stockLots      StockLot[]
-  stockItems     StockItem[]
-  stockMovements StockMovement[]
+  users                User[]
+  jobTitles            JobTitle[]
+  articles             Article[]
+  machines             Machine[]
+  recipes              Recipe[]
+  stockLots            StockLot[]
+  stockItems           StockItem[]
+  stockMovements       StockMovement[]
   batches              Batch[]
   lots                 Lot[]
   importLogs           ImportLog[]
@@ -155,19 +156,53 @@ model Site {
   @@map("sites")
 }
 
+/// Fonction métier d'un utilisateur (voir docs/adr — Jalon 2.5), distincte de son
+/// rôle logiciel (`UserRole`, qui pilote les permissions). Table dédiée plutôt qu'un
+/// texte libre pour éviter les doublons ("Responsable labo" / "Resp labo"...) et
+/// permettre une réutilisation future (tableau de bord, statistiques par fonction...).
+/// `siteId` déjà présent : une même fonction pourra différer d'un site à l'autre plus tard.
+model JobTitle {
+  id        String   @id @default(uuid())
+  siteId    String   @map("site_id")
+  site      Site     @relation(fields: [siteId], references: [id])
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@unique([siteId, name])
+  @@map("job_titles")
+}
+
 model User {
-  id           String   @id @default(uuid())
-  siteId       String   @map("site_id")
-  site         Site     @relation(fields: [siteId], references: [id])
-  fullName     String   @map("full_name")
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         UserRole
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid())
+  siteId             String    @map("site_id")
+  site               Site      @relation(fields: [siteId], references: [id])
+  fullName           String    @map("full_name")
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  role               UserRole
+  /// Fonction métier (voir `JobTitle`) — nullable en base pour ne jamais casser un
+  /// compte existant, mais obligatoire côté validation à la création d'un nouvel
+  /// utilisateur via l'écran Administration.
+  jobTitleId         String?   @map("job_title_id")
+  jobTitle           JobTitle? @relation(fields: [jobTitleId], references: [id])
+  /// Capacité d'administration des comptes, volontairement indépendante du rôle
+  /// logiciel (`role`) : un utilisateur garde ses permissions métier normales et
+  /// reçoit en plus, ou non, le droit de gérer les utilisateurs.
+  isSystemAdmin      Boolean   @default(false) @map("is_system_admin")
+  /// Force le changement de mot de passe avant tout accès (première connexion
+  /// après création, ou après une réinitialisation par un administrateur).
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+  lastLoginAt        DateTime? @map("last_login_at")
+  active             Boolean   @default(true)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   auditLogs      AuditLog[]
+  loginHistory   LoginHistory[]
   stockMovements StockMovement[]
   batchesCreated Batch[]
   importLogs     ImportLog[]
@@ -194,6 +229,26 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+/// Historique des tentatives de connexion (réussies ou non), séparé de `AuditLog`
+/// qui reste réservé aux actions métier — voir décision Jalon 2.5. Permet de détecter
+/// plus tard des comportements anormaux (tentatives répétées, IP inhabituelle...).
+/// `userId` nullable : une tentative sur un email inconnu ne peut être rattachée à
+/// personne, mais reste enregistrée (avec l'email tel que saisi) pour la surveillance.
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  email     String
+  succeeded Boolean
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([email])
+  @@map("login_history")
+}
+
 // ---------------------------------------------------------------------------
 // Catalogue (voir docs/modele-donnees.md §1-2)
 // ---------------------------------------------------------------------------
@@ -201,27 +256,27 @@ model AuditLog {
 /// Table unique pour matières premières, packaging et produits finis (distingués par `type`),
 /// pour éviter de dupliquer une structure très proche entre trois tables.
 model Article {
-  id                 String      @id @default(uuid())
-  siteId             String      @map("site_id")
-  site               Site        @relation(fields: [siteId], references: [id])
-  type               ArticleType
-  openSiReference    String      @map("opensi_reference")
-  name               String
-  unitOfMeasure      String      @map("unit_of_measure")
-  currentUnitCost    Decimal     @map("current_unit_cost")
+  id              String      @id @default(uuid())
+  siteId          String      @map("site_id")
+  site            Site        @relation(fields: [siteId], references: [id])
+  type            ArticleType
+  openSiReference String      @map("opensi_reference")
+  name            String
+  unitOfMeasure   String      @map("unit_of_measure")
+  currentUnitCost Decimal     @map("current_unit_cost")
   /// Conditionnement en carton, à l'affichage uniquement (le stock reste compté en
   /// unités) — voir docs/roadmap.md "Décisions actées le 2026-07-06". Valeur libre,
   /// modifiable article par article (pas de règle figée en dur) ; par défaut suggéré
   /// à la création : 100 pour les flacons 10/30/50/100 ml, 36 pour les flacons 200 ml.
-  unitsPerCarton     Int?        @map("units_per_carton")
+  unitsPerCarton  Int?        @map("units_per_carton")
   /// Densité (kg par litre), pour les matières premières uniquement — permet de calculer
   /// la masse à peser à partir du volume en préparation de batch (voir docs/regles-metier.md
   /// §12). Optionnelle, saisie manuelle article par article, aucune valeur par défaut :
   /// si absente, le batching affiche le volume et signale "densité manquante" pour la masse.
-  densityKgPerL      Decimal?    @map("density_kg_per_l")
-  active             Boolean     @default(true)
-  createdAt          DateTime    @default(now()) @map("created_at")
-  updatedAt          DateTime    @updatedAt @map("updated_at")
+  densityKgPerL   Decimal?    @map("density_kg_per_l")
+  active          Boolean     @default(true)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
 
   recipeLines              RecipeLine[]
   recipesAsFinishedProduct Recipe[]
@@ -254,16 +309,16 @@ model Machine {
 /// une modification ultérieure ne doit jamais altérer rétroactivement un batch déjà clôturé
 /// (voir docs/regles-metier.md §2).
 model Recipe {
-  id                 String       @id @default(uuid())
-  siteId             String       @map("site_id")
-  site               Site         @relation(fields: [siteId], references: [id])
-  finishedProductId  String       @map("finished_product_id")
-  finishedProduct    Article      @relation(fields: [finishedProductId], references: [id])
-  format             Int
-  version            Int
-  status             RecipeStatus @default(ACTIVE)
-  createdAt          DateTime     @default(now()) @map("created_at")
-  updatedAt          DateTime     @updatedAt @map("updated_at")
+  id                String       @id @default(uuid())
+  siteId            String       @map("site_id")
+  site              Site         @relation(fields: [siteId], references: [id])
+  finishedProductId String       @map("finished_product_id")
+  finishedProduct   Article      @relation(fields: [finishedProductId], references: [id])
+  format            Int
+  version           Int
+  status            RecipeStatus @default(ACTIVE)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
   lines   RecipeLine[]
   batches Batch[]
@@ -298,18 +353,18 @@ model RecipeLine {
 /// consommé) — voir docs/regles-metier.md §3. Une évolution FEFO (basée sur
 /// `expiryDate`) est envisageable plus tard mais non implémentée pour l'instant.
 model StockLot {
-  id                 String    @id @default(uuid())
-  siteId             String    @map("site_id")
-  site               Site      @relation(fields: [siteId], references: [id])
-  articleId          String    @map("article_id")
-  article            Article   @relation(fields: [articleId], references: [id])
-  supplierLotNumber  String    @map("supplier_lot_number")
-  receivedQuantity   Decimal   @map("received_quantity")
-  remainingQuantity  Decimal   @map("remaining_quantity")
-  receivedAt         DateTime  @map("received_at")
-  expiryDate         DateTime? @map("expiry_date")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  siteId            String    @map("site_id")
+  site              Site      @relation(fields: [siteId], references: [id])
+  articleId         String    @map("article_id")
+  article           Article   @relation(fields: [articleId], references: [id])
+  supplierLotNumber String    @map("supplier_lot_number")
+  receivedQuantity  Decimal   @map("received_quantity")
+  remainingQuantity Decimal   @map("remaining_quantity")
+  receivedAt        DateTime  @map("received_at")
+  expiryDate        DateTime? @map("expiry_date")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   movements      StockMovement[]
   genealogyLines LotGenealogy[]
@@ -467,22 +522,22 @@ model LotGenealogy {
 /// obligatoire (dry-run, statut PREVISUALISE) avant toute écriture en base (statut VALIDE) ;
 /// journalisé que l'import soit validé ou abandonné.
 model ImportLog {
-  id                String       @id @default(uuid())
-  siteId            String       @map("site_id")
-  site              Site         @relation(fields: [siteId], references: [id])
-  type              ImportType
-  fileName          String       @map("file_name")
-  importedAt        DateTime     @default(now()) @map("imported_at")
-  status            ImportStatus
-  processedLines    Int          @map("processed_lines")
-  errorCount        Int          @map("error_count")
+  id             String       @id @default(uuid())
+  siteId         String       @map("site_id")
+  site           Site         @relation(fields: [siteId], references: [id])
+  type           ImportType
+  fileName       String       @map("file_name")
+  importedAt     DateTime     @default(now()) @map("imported_at")
+  status         ImportStatus
+  processedLines Int          @map("processed_lines")
+  errorCount     Int          @map("error_count")
   /// Détail des erreurs ligne par ligne (ex : [{ "line": 4, "message": "..." }]),
   /// pour que l'historique reste consultable (pas seulement un compteur).
-  errorDetails       Json?        @map("error_details")
-  userId            String       @map("user_id")
-  user              User         @relation(fields: [userId], references: [id])
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  errorDetails   Json?        @map("error_details")
+  userId         String       @map("user_id")
+  user           User         @relation(fields: [userId], references: [id])
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
 
   @@map("import_logs")
 }
@@ -518,7 +573,7 @@ model ExpectedRequirement {
   article             Article  @relation(fields: [articleId], references: [id])
   reservedQuantity    Decimal? @map("reserved_quantity")
   importedRequirement Decimal? @map("imported_requirement")
-  importedAt           DateTime @map("imported_at")
+  importedAt          DateTime @map("imported_at")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 

@@ -1,6 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../../generated/prisma/client';
 
+export class JobTitleSummaryDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+}
+
 export class UserSummaryDto {
   @ApiProperty()
   id!: string;
@@ -16,6 +24,18 @@ export class UserSummaryDto {
 
   @ApiProperty({ enum: UserRole })
   role!: UserRole;
+
+  @ApiProperty({ type: JobTitleSummaryDto, nullable: true })
+  jobTitle!: JobTitleSummaryDto | null;
+
+  @ApiProperty()
+  isSystemAdmin!: boolean;
+
+  @ApiProperty()
+  mustChangePassword!: boolean;
+
+  @ApiProperty({ nullable: true })
+  lastLoginAt!: Date | null;
 }
 
 export class LoginResponseDto {

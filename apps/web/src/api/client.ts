@@ -35,34 +35,49 @@ import type {
   ExpectedRequirementsImportPreviewResult,
   ExpectedRequirementsImportConfirmResult,
   InventoryImportPreviewResult,
+  ChangePasswordRequest,
+  JobTitle,
+  CreateJobTitleRequest,
+  UpdateJobTitleRequest,
+  UserAdminView,
+  CreateUserRequest,
+  UpdateUserRequest,
+  CreatedUserResult,
+  ResetPasswordResponse,
 } from '@lca-mes/shared';
 
 export class ApiError extends Error {
   readonly status: number;
+  /** Code machine-readable optionnel (ex: 'PASSWORD_CHANGE_REQUIRED'), voir backend. */
+  readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
 interface ErrorBody {
   message?: string | string[];
+  error?: string;
 }
 
 async function throwIfError(response: Response): Promise<void> {
   if (response.ok) return;
   let message = `Erreur ${response.status}`;
+  let code: string | undefined;
   try {
     const body = (await response.json()) as ErrorBody;
     if (body.message) {
       message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
     }
+    code = body.error;
   } catch {
     // Corps de réponse non-JSON : on garde le message générique.
   }
-  throw new ApiError(response.status, message);
+  throw new ApiError(response.status, message, code);
 }
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
@@ -110,6 +125,40 @@ export const api = {
     request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(payload) }),
 
   me: (token: string): Promise<AuthenticatedUser> => request<AuthenticatedUser>('/auth/me', {}, token),
+
+  changePassword: (token: string, payload: ChangePasswordRequest): Promise<{ success: true }> =>
+    request<{ success: true }>('/auth/change-password', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  listJobTitles: (token: string): Promise<JobTitle[]> => request<JobTitle[]>('/auth/job-titles', {}, token),
+
+  createJobTitle: (token: string, payload: CreateJobTitleRequest): Promise<JobTitle> =>
+    request<JobTitle>('/auth/job-titles', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  updateJobTitle: (token: string, id: string, payload: UpdateJobTitleRequest): Promise<JobTitle> =>
+    request<JobTitle>(`/auth/job-titles/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  deactivateJobTitle: (token: string, id: string): Promise<JobTitle> =>
+    request<JobTitle>(`/auth/job-titles/${id}`, { method: 'DELETE' }, token),
+
+  reactivateJobTitle: (token: string, id: string): Promise<JobTitle> =>
+    request<JobTitle>(`/auth/job-titles/${id}/reactivate`, { method: 'POST' }, token),
+
+  listUsers: (token: string): Promise<UserAdminView[]> => request<UserAdminView[]>('/auth/users', {}, token),
+
+  createUser: (token: string, payload: CreateUserRequest): Promise<CreatedUserResult> =>
+    request<CreatedUserResult>('/auth/users', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  updateUser: (token: string, id: string, payload: UpdateUserRequest): Promise<UserAdminView> =>
+    request<UserAdminView>(`/auth/users/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  deactivateUser: (token: string, id: string): Promise<UserAdminView> =>
+    request<UserAdminView>(`/auth/users/${id}`, { method: 'DELETE' }, token),
+
+  reactivateUser: (token: string, id: string): Promise<UserAdminView> =>
+    request<UserAdminView>(`/auth/users/${id}/reactivate`, { method: 'POST' }, token),
+
+  resetUserPassword: (token: string, id: string): Promise<ResetPasswordResponse> =>
+    request<ResetPasswordResponse>(`/auth/users/${id}/reset-password`, { method: 'POST' }, token),
 
   listArticles: (token: string, type?: ArticleType): Promise<Article[]> =>
     request<Article[]>(`/catalog/articles${type ? `?type=${type}` : ''}`, {}, token),

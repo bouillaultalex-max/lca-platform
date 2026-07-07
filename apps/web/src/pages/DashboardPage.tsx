@@ -1,6 +1,7 @@
 import { hasFullAccess, USER_ROLE_LABELS } from '@lca-mes/shared';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
+import { formatLastLogin } from '../utils/formatLastLogin';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -10,12 +11,17 @@ export function DashboardPage() {
   }
 
   const fullAccess = hasFullAccess(user.role);
+  const firstName = user.fullName.split(' ')[0];
 
   return (
     <AppLayout>
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-sm text-gray-500">Connecté en tant que</p>
-        <p className="mt-1 text-lg font-medium text-gray-900">{user.fullName}</p>
+        <p className="text-lg font-medium text-gray-900">Bonjour {firstName} 👋</p>
+        {user.lastLoginAt && (
+          <p className="mt-1 text-sm text-gray-500">
+            Dernière connexion : {formatLastLogin(user.lastLoginAt)}
+          </p>
+        )}
         <div className="mt-3 flex items-center gap-2">
           <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
             {USER_ROLE_LABELS[user.role]}

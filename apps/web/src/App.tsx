@@ -1,17 +1,35 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { RecipesPage } from './pages/RecipesPage';
 import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { ImportsPage } from './pages/imports/ImportsPage';
+import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
 function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute allowPendingPasswordChange>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute requireSystemAdmin>
+            <AdminUsersPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/dashboard"
         element={
