@@ -166,6 +166,98 @@ describe('StockLotsService', () => {
     expect(createArgs.data.expiryDate).toEqual(new Date('2027-07-06'));
   });
 
+  describe('receive avec un client transactionnel externe', () => {
+    let externalClient: {
+      article: { findFirst: jest.Mock };
+      stockLot: {
+        create: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+      };
+      stockMovement: {
+        create: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+      };
+      stockItem: {
+        upsert: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+      };
+    };
+
+    beforeEach(() => {
+      externalClient = {
+        article: { findFirst: jest.fn() },
+        stockLot: {
+          create: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+        },
+        stockMovement: {
+          create: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+        },
+        stockItem: {
+          upsert: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+        },
+      };
+    });
+
+    it('écrit directement via le client fourni, sans ouvrir une nouvelle transaction', async () => {
+      externalClient.article.findFirst.mockResolvedValue(article);
+      const createdStockLot = {
+        id: 'stock-lot-1',
+        ...dto,
+        remainingQuantity: dto.receivedQuantity,
+      };
+      externalClient.stockLot.create.mockResolvedValue(createdStockLot);
+
+      const result = await service.receive(siteId, userId, dto, externalClient);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(externalClient.stockLot.create).toHaveBeenCalledWith({
+        data: {
+          siteId,
+          articleId: dto.articleId,
+          supplierLotNumber: dto.supplierLotNumber,
+          receivedQuantity: dto.receivedQuantity,
+          remainingQuantity: dto.receivedQuantity,
+          receivedAt: new Date(dto.receivedAt),
+          expiryDate: null,
+        },
+      });
+      expect(externalClient.stockMovement.create).toHaveBeenCalledWith({
+        data: {
+          siteId,
+          articleId: dto.articleId,
+          stockLotId: createdStockLot.id,
+          type: StockMovementType.ENTREE,
+          quantity: dto.receivedQuantity,
+          userId,
+          comment: undefined,
+        },
+      });
+      expect(externalClient.stockItem.upsert).toHaveBeenCalledWith({
+        where: { articleId: dto.articleId },
+        update: { availableQuantity: { increment: dto.receivedQuantity } },
+        create: {
+          siteId,
+          articleId: dto.articleId,
+          availableQuantity: dto.receivedQuantity,
+        },
+      });
+      expect(result).toEqual(createdStockLot);
+
+      // Les mocks de la transaction "par défaut" ne doivent jamais être sollicités.
+      expect(tx.stockLot.create).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
+      expect(tx.stockItem.upsert).not.toHaveBeenCalled();
+    });
+
+    it('lève NotFoundException via le client fourni sans jamais ouvrir de transaction', async () => {
+      externalClient.article.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.receive(siteId, userId, dto, externalClient),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(externalClient.stockLot.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('adjust', () => {
     const existingStockLot = {
       id: 'stock-lot-1',

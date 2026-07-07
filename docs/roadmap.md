@@ -26,7 +26,8 @@ Objectif : livrer un MVP resserré mais propre couvrant l'ensemble du cœur mét
 - ✅ Module `batching` : création et suivi de batch, avec **calcul automatique des quantités de chaque ingrédient/packaging** (volume + masse) à partir de la recette et de la quantité à produire (terminé le 2026-07-06 — remplace le calcul jusque-là fait dans un fichier Excel, voir `docs/regles-metier.md` §12)
 - ✅ Module `production` : saisie manuelle des 4 étapes réelles — préparation, mélange, incorporation en trémie, conditionnement machine — gestion des arrêts, clôture avec génération du lot (terminé le 2026-07-06 — backend + frontend, vérifié en navigateur). **Aucune étape de maturation**, conforme à la décision actée.
 - ✅ Génération des lots (`Lot`) et déduction automatique des stocks associés (rebuts inclus, voir `docs/regles-metier.md` §3) — réalisée à la clôture du batch, en une transaction Prisma atomique
-- ⏳ Module `import-export` : import OpenSi (articles, références, stocks, besoins attendus, inventaire) avec prévisualisation — dernier module du Jalon 2
+- ✅ Module `import-export` **(backend)** : moteur générique de mapping de colonnes versionné (voir ADR 0003, réutilisable par de futurs connecteurs) + 4 imports OpenSi — articles (upsert, type immuable), stocks (réutilise `StockLotsService.receive()`, atomicité totale), besoins attendus (historique append-only), inventaire (volontairement partiel, en attente d'un fichier réel OpenSi) — terminé le 2026-07-06, backend uniquement (build/lint/tests verts, 218 tests unitaires + 31 e2e)
+- ⏳ Écran frontend Imports : reste à construire (upload, aperçu du mapping avec correction manuelle, affichage créations/mises à jour/erreurs/avertissements, confirmation) — dernière étape du Jalon 2
 
 **Livrable** : catalogue alimentable manuellement ou par import OpenSi, un batch complet peut être créé, produit (saisie manuelle) et clôturé en générant un lot, avec impact automatique sur le stock.
 

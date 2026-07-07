@@ -2,7 +2,7 @@
 
 Document de suivi vivant, à mettre à jour à la fin de chaque jalon. Contrairement aux autres documents de `docs/` (qui décrivent l'architecture cible), celui-ci décrit **l'état réel du dépôt aujourd'hui**.
 
-Dernière mise à jour : **2026-07-06** — Jalon 2 en cours : modules `catalog`, `stock`, `batching` et `production` terminés (backend + frontend, vérifiés en navigateur) ; `import-export` reste à faire.
+Dernière mise à jour : **2026-07-06** — Jalon 2 : modules `catalog`, `stock`, `batching`, `production` terminés (backend + frontend, vérifiés en navigateur) ; `import-export` **backend terminé** (moteur de mapping générique + 4 imports OpenSi : articles, stocks, besoins attendus, inventaire partiel) ; **écran frontend Imports pas encore construit**.
 
 ## 1. Statut
 
@@ -10,7 +10,7 @@ Dernière mise à jour : **2026-07-06** — Jalon 2 en cours : modules `catalog`
 |---|---|
 | Jalon 0 — Cadrage & documentation | ✅ Terminé |
 | Jalon 1 — Socle technique | ✅ Terminé et vérifié (tests, build, navigateur) |
-| Jalon 2 — Cœur production (catalogue, stock, batching, production, lots) | ⏳ En cours — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅ ; `import-export` à venir |
+| Jalon 2 — Cœur production (catalogue, stock, batching, production, lots, imports) | ⏳ En cours — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅, `import-export` backend ✅ (frontend à faire) |
 | Jalon 3 — Traçabilité, qualité, coûts | Non démarré |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré |
 
@@ -29,9 +29,9 @@ lca-mes/
 └── PROJECT_STATE.md       # ce fichier
 ```
 
-**Modules Nest existants** : `auth`, `prisma`, `config`, `catalog` (`articles`, `machines`, `recipes`), `stock` (`stock-lots`, `stock-items`, `stock-movements`, `stock-fifo`), `batching` (`batches`, `batch-preparation`), `production` (`batch-steps`, `batch-stops`, `batch-closure`, `lot-number-generator`).
+**Modules Nest existants** : `auth`, `prisma`, `config`, `common/column-mapping` (moteur générique de mapping de colonnes, voir ADR 0003), `catalog` (`articles`, `machines`, `recipes`), `stock` (`stock-lots`, `stock-items`, `stock-movements`, `stock-fifo`), `batching` (`batches`, `batch-preparation`), `production` (`batch-steps`, `batch-stops`, `batch-closure`, `lot-number-generator`), `import-export` (`import-logs`, `import-parser`, `mapping-configs`, `articles-import`, `stocks-import`, `expected-requirements-import`, `inventory-import`).
 
-**Modèle Prisma existant** (9 migrations) : `Site`, `User`, `AuditLog`, `Article` (avec `unitsPerCarton`, `densityKgPerL`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch` (avec `currentStep` séparé de `status`), `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog`, `ExportLog`, `ExpectedRequirement`. **Attention** : `Lot`/`LotGenealogy` sont désormais réellement exploités (génération à la clôture d'un batch) ; seuls `ImportLog`/`ExportLog`/`ExpectedRequirement` restent sans logique applicative (module `import-export` pas encore développé).
+**Modèle Prisma existant** (12 migrations) : `Site`, `User`, `AuditLog`, `Article` (avec `unitsPerCarton`, `densityKgPerL`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch` (avec `currentStep` séparé de `status`), `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog` (avec `errorDetails` JSON), `ExportLog`, `ExpectedRequirement`, `ColumnMappingRule` (avec `sourceVersion`). **Tous les modèles liés à `import-export` sont désormais réellement exploités** : `ImportLog` par les 4 imports (créé à la prévisualisation, mis à jour à la confirmation), `ExpectedRequirement` en écriture par l'import Besoins attendus (append-only), `ColumnMappingRule` par le moteur de mapping (apprentissage des corrections). Seul `ExportLog` reste sans logique applicative (exports vers OpenSi, Jalon 4).
 
 **Frontend existant** : `/login`, `/dashboard`, `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture).
 
@@ -52,7 +52,7 @@ npm run prisma:seed                  # (re)crée le site, l'utilisateur par déf
 
 ### Tests
 ```bash
-npm run test:api                     # unitaires (apps/api) — 115 tests
+npm run test:api                     # unitaires (apps/api) — 218 tests
 npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 31 tests
 ```
 
@@ -110,6 +110,16 @@ docker compose up -d --build
 - **Clôture de batch atomique** : génération du `Lot`, de la `LotGenealogy` (une ligne par `StockLot` consommé, pas par article), déduction `StockLot`/`StockItem`, création des `StockMovement` `SORTIE_BATCH`, et passage du `Batch` à `TERMINE` — le tout dans une seule transaction Prisma. Rupture de stock = rejet global agrégé (tous les articles manquants listés), aucune écriture partielle.
 - **Rôles** : `batching` et `production` sont fermés à `DIRECTION`/`DAF` (comme `catalog`), pas seulement en écriture.
 
+### Jalon 2 — Phase E (import-export, backend)
+- **Dépendances sécurisées** : `xlsx` installé depuis le CDN officiel SheetJS (0.20.3, la version npm publique reste vulnérable) ; `multer` porté à 2.2.0 via `overrides` npm (2 CVE connues corrigées).
+- **Moteur générique de mapping de colonnes** (`common/column-mapping/`, voir ADR 0003) : détection automatique par synonymes (correspondance exacte/partielle/orthographique, seuil 50/100), apprentissage persistant des corrections manuelles (`ColumnMappingRule`, scopé par site + source + **version de connecteur** + type d'entité), aucune connaissance métier dans le moteur — les synonymes et champs attendus vivent dans des fichiers de configuration séparés (`import-export/mapping-configs/`). Conçu pour être réutilisé par de futurs connecteurs (Magento, CRM...), pas seulement OpenSi.
+- **Import Articles** : upsert par `openSiReference` ; ne touche jamais `active`/`unitsPerCarton`/`densityKgPerL` (champs propres à LCA-MES) ; `type` immuable (tentative de changement = erreur de ligne explicite, jamais silencieusement ignorée) ; doublon intra-fichier = erreur bloquante.
+- **Import Stocks** : réutilise `StockLotsService.receive()` sans dupliquer sa logique — ce service a été étendu pour accepter un client Prisma transactionnel optionnel (même principe que `LotNumberGeneratorService`), permettant une **atomicité totale** de l'import (toutes les réceptions + mise à jour du journal en une seule transaction). Article désactivé référencé = erreur bloquante. Doublon (article + lot fournisseur), qu'il soit intra-fichier ou contre l'existant, = avertissement seulement (jamais bloquant), ligne incluse par défaut. Dates acceptées sous 3 formats explicites (série Excel, ISO, français), sans bibliothèque tierce.
+- **Import Besoins attendus** : historique **append-only** — chaque ligne valide crée toujours un nouvel `ExpectedRequirement`, jamais de mise à jour ; aucune détection de doublon (une même référence peut légitimement apparaître plusieurs fois) ; `importedAt` absent → un seul instant de confirmation appliqué à tout le lot ; aucune restriction de type d'article (tranchée plus tard, au moment de l'écran de planification).
+- **Import Inventaire** : **volontairement partiel**, en l'absence d'un fichier réel OpenSi observé. Prévisualisation uniquement (parse + mapping + détection structurelle "avec ou sans lot fournisseur"), aucune validation de contenu de ligne. `confirm()` renvoie systématiquement `501 Not Implemented` avec un message explicite — aucune stratégie de réconciliation n'est codée en dur.
+- **Toutes les prévisualisations créent systématiquement un `ImportLog`** (même abandonnées ensuite) ; toutes les confirmations **revalident intégralement côté serveur** depuis l'état actuel de la base, sans jamais faire confiance à ce que le frontend a mémorisé de la prévisualisation.
+- **Rôles** : les 4 écrans d'import sont fermés à `DIRECTION`/`DAF`, comme `catalog`/`batching`/`production`.
+
 ## 7. Décisions métier confirmées
 
 Voir `docs/regles-metier.md` pour le détail complet.
@@ -131,17 +141,24 @@ Voir `docs/regles-metier.md` pour le détail complet.
 12. **`BatchStep` séparé de `BatchStatus`**, une seule étape courante stockée (pas d'historique horodaté par étape en V0.9) — voir §6 ci-dessus.
 13. **Déduction de stock des matières premières en volume (L)**, jamais en masse — la densité/masse reste un indicateur de pesée pour la préparation.
 14. **Rôles `batching`/`production`** : fermés à `DIRECTION`/`DAF`, comme `catalog`.
+15. **Moteur de mapping des connecteurs générique et versionné** (ADR 0003) : détection automatique + apprentissage persistant, réutilisable par tout futur connecteur (pas seulement OpenSi), jamais de connaissance métier dans le moteur lui-même.
+16. **`type` d'article immuable via import**, comme via l'écran manuel — une incohérence de type entre le fichier et l'existant est une erreur de ligne, jamais une mise à jour silencieuse.
+17. **Doublon (article + lot fournisseur) en import Stocks = avertissement, pas une erreur** — contrairement au doublon de référence en import Articles, qui reste bloquant.
+18. **`StockLotsService.receive()` accepte un client Prisma transactionnel optionnel**, pour une atomicité totale des imports de masse (et de tout futur traitement similaire), sans dupliquer sa logique.
+19. **Import Besoins attendus append-only** : aucune mise à jour possible, aucune détection de doublon — chaque ligne est un fait historique indépendant.
+20. **Import Inventaire volontairement partiel** : prévisualisation et détection structurelle uniquement, `confirm()` renvoie `501 Not Implemented` tant qu'un fichier réel OpenSi n'a pas été analysé.
 
 ## 8. Points encore ouverts (à trancher pendant le Jalon 2/3, non bloquants pour continuer)
 
 - Algorithme exact de génération du numéro de lot (format confirmé, détail à fournir par l'utilisateur) — bloquant pour finaliser `LotNumberGeneratorService` (actuellement un placeholder `455XXX` séquentiel).
-- Formule exacte de `besoinCalculé`/`quantitéSuggérée` pour les besoins attendus, et désormais leur déclinaison **par gamme** (regroupement de produits) — module `import-export`, pas encore développé.
-- Notion de "gamme" (regroupement de produits) : n'existe pas encore dans le modèle (`Article` n'a pas de champ famille/catégorie) — à préciser lors de la conception du module `import-export`/besoins attendus.
+- Formule exacte de `besoinCalculé`/`quantitéSuggérée` pour les besoins attendus, et leur déclinaison **par gamme** (regroupement de produits) — l'import qui alimente l'historique est terminé, mais l'écran de planification qui exploitera cette donnée n'est pas construit.
+- Notion de "gamme" (regroupement de produits) : n'existe toujours pas dans le modèle (`Article` n'a pas de champ famille/catégorie) — à préciser lors de la conception du futur écran de planification.
+- **Stratégie de réconciliation de l'import Inventaire** : non tranchée par choix — en attente d'un fichier réel OpenSi pour savoir si la granularité est par lot fournisseur ou par quantité globale par article. L'architecture (mapping + détection structurelle) est prête à accueillir les deux cas ; `confirm()` renvoie `501 Not Implemented` tant que la décision n'est pas prise.
 - Règle exacte de calcul du statut qualité global du lot à partir des contrôles individuels (Jalon 3).
 - **Consultation du numéro de lot après rechargement d'un batch terminé** : actuellement affiché uniquement juste après la clôture (réponse de l'API), pas rechargeable ensuite (aucun endpoint de lecture des `Lot` pour l'instant). Noté explicitement par l'utilisateur pour traitement lors du futur module `traceability` (Jalon 3).
 - Docker/`docker-compose.yml` écrits et raisonnés mais jamais exécutés avec un vrai Docker (non disponible dans l'environnement de développement utilisé).
-- Vulnérabilités npm connues et non corrigées (transitives : `multer` via `@nestjs/platform-express`) — à traiter sérieusement dès que `multer` sera réellement exercé par l'upload de fichiers d'import (module `import-export`, pas encore développé).
+- Vulnérabilités npm résiduelles, toutes pré-existantes et sans rapport avec `import-export` (chaîne `@hono/node-server`/`@prisma/dev`/`prisma`, 3 alertes modérées) — `xlsx` et `multer` ont été corrigés pendant la Phase E.
 
 ## 9. Prochaine étape
 
-Reste du Jalon 2 : module `import-export` (imports OpenSi — articles, références, stocks, besoins attendus, inventaire — avec prévisualisation obligatoire). Découpage détaillé à proposer et valider avant tout développement, comme pour les phases précédentes. Le Jalon 3 (traçabilité, qualité, coûts) ne démarre pas avant la fin du Jalon 2.
+Le **backend du Jalon 2 est entièrement terminé**. Reste à construire l'**écran frontend Imports** (upload de fichier, aperçu du mapping avec possibilité de correction, affichage des créations/mises à jour/erreurs/avertissements selon le type d'import, confirmation) — découpage détaillé à proposer et valider avant tout développement, comme pour les phases précédentes. Le Jalon 3 (traçabilité, qualité, coûts) ne démarre pas avant la fin du Jalon 2.

@@ -4,9 +4,23 @@ import { CreateStockLotDto } from './dto/create-stock-lot.dto';
 import { AdjustStockLotDto } from './dto/adjust-stock-lot.dto';
 import {
   Prisma,
+  PrismaClient,
   StockLot,
   StockMovementType,
 } from '../../../generated/prisma/client';
+
+/**
+ * Surface Prisma minimale nécessaire à `receive()` — satisfaite aussi bien par
+ * `PrismaService` que par le client `tx` d'une transaction englobante (même principe
+ * que `LotNumberGeneratorService`), pour que de futurs traitements de masse (imports,
+ * connecteurs...) puissent réutiliser `receive()` dans leur propre transaction.
+ */
+export interface StockLotWriteClient {
+  article: { findFirst: PrismaClient['article']['findFirst'] };
+  stockLot: { create: PrismaClient['stockLot']['create'] };
+  stockMovement: { create: PrismaClient['stockMovement']['create'] };
+  stockItem: { upsert: PrismaClient['stockItem']['upsert'] };
+}
 
 @Injectable()
 export class StockLotsService {
@@ -28,56 +42,75 @@ export class StockLotsService {
    * Réception d'un lot physique : crée le `StockLot`, le `StockMovement` ENTREE
    * associé, et incrémente (ou initialise) `StockItem.availableQuantity` — le tout
    * dans une même transaction (voir docs/modele-donnees.md §3).
+   *
+   * Accepte un client transactionnel optionnel (`tx` d'une transaction englobante) :
+   * si fourni, `receive()` ne rouvre pas sa propre transaction et écrit directement
+   * avec ce client, pour permettre à un appelant (ex: import de masse) d'englober
+   * plusieurs réceptions dans une seule transaction atomique. Sans client fourni,
+   * le comportement est inchangé : `receive()` ouvre et gère sa propre transaction.
    */
   async receive(
     siteId: string,
     userId: string,
     dto: CreateStockLotDto,
+    client: StockLotWriteClient = this.prisma,
   ): Promise<StockLot> {
-    const article = await this.prisma.article.findFirst({
+    const article = await client.article.findFirst({
       where: { id: dto.articleId, siteId },
     });
     if (!article) {
       throw new NotFoundException(`Article ${dto.articleId} introuvable.`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const stockLot = await tx.stockLot.create({
-        data: {
-          siteId,
-          articleId: dto.articleId,
-          supplierLotNumber: dto.supplierLotNumber,
-          receivedQuantity: dto.receivedQuantity,
-          remainingQuantity: dto.receivedQuantity,
-          receivedAt: new Date(dto.receivedAt),
-          expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
-        },
-      });
+    if (client === this.prisma) {
+      return this.prisma.$transaction((tx) =>
+        this.writeStockLot(tx, siteId, userId, dto),
+      );
+    }
+    return this.writeStockLot(client, siteId, userId, dto);
+  }
 
-      await tx.stockMovement.create({
-        data: {
-          siteId,
-          articleId: dto.articleId,
-          stockLotId: stockLot.id,
-          type: StockMovementType.ENTREE,
-          quantity: dto.receivedQuantity,
-          userId,
-          comment: dto.comment,
-        },
-      });
-
-      await tx.stockItem.upsert({
-        where: { articleId: dto.articleId },
-        update: { availableQuantity: { increment: dto.receivedQuantity } },
-        create: {
-          siteId,
-          articleId: dto.articleId,
-          availableQuantity: dto.receivedQuantity,
-        },
-      });
-
-      return stockLot;
+  private async writeStockLot(
+    client: StockLotWriteClient,
+    siteId: string,
+    userId: string,
+    dto: CreateStockLotDto,
+  ): Promise<StockLot> {
+    const stockLot = await client.stockLot.create({
+      data: {
+        siteId,
+        articleId: dto.articleId,
+        supplierLotNumber: dto.supplierLotNumber,
+        receivedQuantity: dto.receivedQuantity,
+        remainingQuantity: dto.receivedQuantity,
+        receivedAt: new Date(dto.receivedAt),
+        expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : null,
+      },
     });
+
+    await client.stockMovement.create({
+      data: {
+        siteId,
+        articleId: dto.articleId,
+        stockLotId: stockLot.id,
+        type: StockMovementType.ENTREE,
+        quantity: dto.receivedQuantity,
+        userId,
+        comment: dto.comment,
+      },
+    });
+
+    await client.stockItem.upsert({
+      where: { articleId: dto.articleId },
+      update: { availableQuantity: { increment: dto.receivedQuantity } },
+      create: {
+        siteId,
+        articleId: dto.articleId,
+        availableQuantity: dto.receivedQuantity,
+      },
+    });
+
+    return stockLot;
   }
 
   /**

@@ -19,8 +19,10 @@ import { StockFifoService } from './stock-fifo/stock-fifo.service';
     StockMovementsService,
     StockFifoService,
   ],
-  // StockFifoService sera injecté par le futur module `production` (Jalon 2/3)
-  // pour la déduction de stock à la clôture d'un batch.
-  exports: [StockFifoService],
+  // StockFifoService : injecté par `production` pour la déduction de stock à la
+  // clôture d'un batch. StockLotsService : réutilisé par `import-export` (Import
+  // Stocks) pour réceptionner chaque ligne valide via receive(), sans dupliquer
+  // sa logique (voir docs/adr).
+  exports: [StockFifoService, StockLotsService],
 })
 export class StockModule {}
