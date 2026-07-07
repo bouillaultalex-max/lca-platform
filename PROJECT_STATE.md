@@ -2,7 +2,7 @@
 
 Document de suivi vivant, à mettre à jour à la fin de chaque jalon. Contrairement aux autres documents de `docs/` (qui décrivent l'architecture cible), celui-ci décrit **l'état réel du dépôt aujourd'hui**.
 
-Dernière mise à jour : **2026-07-06** — Jalon 2 : modules `catalog`, `stock`, `batching`, `production` terminés (backend + frontend, vérifiés en navigateur) ; `import-export` **backend terminé** (moteur de mapping générique + 4 imports OpenSi : articles, stocks, besoins attendus, inventaire partiel) ; **écran frontend Imports pas encore construit**.
+Dernière mise à jour : **2026-07-07** — **Jalon 2 officiellement terminé** : `catalog`, `stock`, `batching`, `production` et `import-export` (backend + écran frontend Imports) sont tous terminés, backend et frontend, vérifiés en navigateur.
 
 ## 1. Statut
 
@@ -10,7 +10,7 @@ Dernière mise à jour : **2026-07-06** — Jalon 2 : modules `catalog`, `stock`
 |---|---|
 | Jalon 0 — Cadrage & documentation | ✅ Terminé |
 | Jalon 1 — Socle technique | ✅ Terminé et vérifié (tests, build, navigateur) |
-| Jalon 2 — Cœur production (catalogue, stock, batching, production, lots, imports) | ⏳ En cours — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅, `import-export` backend ✅ (frontend à faire) |
+| Jalon 2 — Cœur production (catalogue, stock, batching, production, lots, imports) | ✅ **Terminé** — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅, `import-export` ✅ (backend + frontend) |
 | Jalon 3 — Traçabilité, qualité, coûts | Non démarré |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré |
 
@@ -33,7 +33,7 @@ lca-mes/
 
 **Modèle Prisma existant** (12 migrations) : `Site`, `User`, `AuditLog`, `Article` (avec `unitsPerCarton`, `densityKgPerL`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch` (avec `currentStep` séparé de `status`), `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog` (avec `errorDetails` JSON), `ExportLog`, `ExpectedRequirement`, `ColumnMappingRule` (avec `sourceVersion`). **Tous les modèles liés à `import-export` sont désormais réellement exploités** : `ImportLog` par les 4 imports (créé à la prévisualisation, mis à jour à la confirmation), `ExpectedRequirement` en écriture par l'import Besoins attendus (append-only), `ColumnMappingRule` par le moteur de mapping (apprentissage des corrections). Seul `ExportLog` reste sans logique applicative (exports vers OpenSi, Jalon 4).
 
-**Frontend existant** : `/login`, `/dashboard`, `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture).
+**Frontend existant** : `/login`, `/dashboard`, `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture), `/imports` (assistant en 5 étapes — type, fichier, colonnes, aperçu, confirmation — pour les 4 imports OpenSi ; onglet Historique filtrable ; bandeau "dernier import" ; vocabulaire volontairement sans jargon technique).
 
 ## 3. Commandes utiles
 
@@ -53,7 +53,7 @@ npm run prisma:seed                  # (re)crée le site, l'utilisateur par déf
 ### Tests
 ```bash
 npm run test:api                     # unitaires (apps/api) — 218 tests
-npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 31 tests
+npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 35 tests
 ```
 
 ### Build / lint
@@ -120,6 +120,15 @@ docker compose up -d --build
 - **Toutes les prévisualisations créent systématiquement un `ImportLog`** (même abandonnées ensuite) ; toutes les confirmations **revalident intégralement côté serveur** depuis l'état actuel de la base, sans jamais faire confiance à ce que le frontend a mémorisé de la prévisualisation.
 - **Rôles** : les 4 écrans d'import sont fermés à `DIRECTION`/`DAF`, comme `catalog`/`batching`/`production`.
 
+### Jalon 2 — Phase F (écran frontend Imports) — clôture du Jalon 2
+- **Assistant en 5 étapes** (`/imports`, `apps/web/src/pages/imports/`) : Type → Fichier → Colonnes → Aperçu → Confirmation, plus un onglet Historique séparé. Dépôt de fichier = envoi immédiat de la prévisualisation (pas de bouton "envoyer" séparé).
+- **Vocabulaire volontairement sans jargon** : "Colonnes reconnues / à vérifier / non utilisées" (jamais "mapping", "correspondance", "confiance", "score") ; explications textuelles (`describeRecognizedField`) plutôt qu'un score de confiance affiché.
+- **Tableau de bord visuel** (grandes cartes colorées : créations, mises à jour, réceptions, besoins importés, avertissements, erreurs), **encart de réassurance** avant confirmation ("Vous êtes sur le point d'enregistrer... 0 suppression"), **véritable écran de réussite** après confirmation (pas un simple bandeau).
+- **Bandeau "dernier import"** : construit uniquement à partir de `GET /import-export/logs` déjà existant, sans aucun endpoint supplémentaire.
+- Un panneau d'aperçu dédié par type d'import (pas de composant générique unique) — Inventaire sans case à cocher ni bouton de confirmation, conforme à sa nature "aperçu uniquement" (E13-E14).
+- **Bug réel corrigé, trouvé uniquement grâce à la vérification navigateur** : `PreviewImportDto.mappingCorrections` (champ multipart JSON sérialisé) combinait `@Transform` et `@Type()` sur la même propriété — les corrections de mapping étaient systématiquement rejetées par le `ValidationPipe({ whitelist: true })` réel (`400 : property fieldKey should not exist`), un défaut qu'aucun test unitaire ne pouvait détecter puisqu'il ne passe jamais par le pipe de validation. Corrigé via `plainToInstance` directement dans le `@Transform`. Un test e2e de régression a été ajouté (`import-export.e2e-spec.ts`) pour verrouiller ce comportement.
+- **Le Jalon 2 est officiellement terminé** à l'issue de cette phase.
+
 ## 7. Décisions métier confirmées
 
 Voir `docs/regles-metier.md` pour le détail complet.
@@ -148,6 +157,11 @@ Voir `docs/regles-metier.md` pour le détail complet.
 19. **Import Besoins attendus append-only** : aucune mise à jour possible, aucune détection de doublon — chaque ligne est un fait historique indépendant.
 20. **Import Inventaire volontairement partiel** : prévisualisation et détection structurelle uniquement, `confirm()` renvoie `501 Not Implemented` tant qu'un fichier réel OpenSi n'a pas été analysé.
 
+**Actées le 2026-07-07** :
+21. **Écran Imports sans jargon technique** : "colonnes reconnues/à vérifier/non utilisées", jamais "mapping"/"correspondance"/"confiance"/"score" — le logiciel doit donner l'impression de comprendre naturellement le fichier.
+22. **Tableau de bord visuel, encart de réassurance et écran de réussite** dédiés dans l'assistant d'import — objectif : qu'un responsable comprenne le résultat d'un import en moins de 5 secondes.
+23. **Le Jalon 2 est officiellement clôturé** : `catalog`, `stock`, `batching`, `production`, `import-export` sont tous terminés (backend + frontend, vérifiés en navigateur).
+
 ## 8. Points encore ouverts (à trancher pendant le Jalon 2/3, non bloquants pour continuer)
 
 - Algorithme exact de génération du numéro de lot (format confirmé, détail à fournir par l'utilisateur) — bloquant pour finaliser `LotNumberGeneratorService` (actuellement un placeholder `455XXX` séquentiel).
@@ -161,4 +175,4 @@ Voir `docs/regles-metier.md` pour le détail complet.
 
 ## 9. Prochaine étape
 
-Le **backend du Jalon 2 est entièrement terminé**. Reste à construire l'**écran frontend Imports** (upload de fichier, aperçu du mapping avec possibilité de correction, affichage des créations/mises à jour/erreurs/avertissements selon le type d'import, confirmation) — découpage détaillé à proposer et valider avant tout développement, comme pour les phases précédentes. Le Jalon 3 (traçabilité, qualité, coûts) ne démarre pas avant la fin du Jalon 2.
+**Le Jalon 2 est entièrement terminé** (backend et frontend, tous modules). Le Jalon 3 (traçabilité, qualité, coûts) n'a pas encore démarré et sera cadré avec l'utilisateur avant tout code, comme pour chaque jalon précédent — aucun développement du Jalon 3 n'est anticipé ou codé par avance.

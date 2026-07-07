@@ -48,6 +48,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <NavLink to="/production" className={navLinkClass}>
                 Production
               </NavLink>
+              <NavLink to="/imports" className={navLinkClass}>
+                Imports
+              </NavLink>
             </>
           )}
           <NavLink to="/stock" className={navLinkClass}>

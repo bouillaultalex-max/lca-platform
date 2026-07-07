@@ -22,6 +22,19 @@ import type {
   EndBatchStopRequest,
   CloseBatchRequest,
   BatchClosureResult,
+  ImportType,
+  ImportLog,
+  MappingCorrection,
+  ArticleImportRow,
+  ArticlesImportPreviewResult,
+  ArticlesImportConfirmResult,
+  StockImportRow,
+  StocksImportPreviewResult,
+  StocksImportConfirmResult,
+  ExpectedRequirementImportRow,
+  ExpectedRequirementsImportPreviewResult,
+  ExpectedRequirementsImportConfirmResult,
+  InventoryImportPreviewResult,
 } from '@lca-mes/shared';
 
 export class ApiError extends Error {
@@ -38,6 +51,20 @@ interface ErrorBody {
   message?: string | string[];
 }
 
+async function throwIfError(response: Response): Promise<void> {
+  if (response.ok) return;
+  let message = `Erreur ${response.status}`;
+  try {
+    const body = (await response.json()) as ErrorBody;
+    if (body.message) {
+      message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
+    }
+  } catch {
+    // Corps de réponse non-JSON : on garde le message générique.
+  }
+  throw new ApiError(response.status, message);
+}
+
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
@@ -46,25 +73,36 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   }
 
   const response = await fetch(path, { ...options, headers });
-
-  if (!response.ok) {
-    let message = `Erreur ${response.status}`;
-    try {
-      const body = (await response.json()) as ErrorBody;
-      if (body.message) {
-        message = Array.isArray(body.message) ? body.message.join(' ') : body.message;
-      }
-    } catch {
-      // Corps de réponse non-JSON : on garde le message générique.
-    }
-    throw new ApiError(response.status, message);
-  }
+  await throwIfError(response);
 
   if (response.status === 204) {
     return undefined as T;
   }
 
   return (await response.json()) as T;
+}
+
+/**
+ * Envoi multipart/form-data (upload de fichier) : ne fixe jamais `Content-Type`
+ * soi-même, pour laisser le navigateur poser la frontière multipart.
+ */
+async function requestMultipart<T>(path: string, formData: FormData, token: string): Promise<T> {
+  const headers = new Headers();
+  headers.set('Authorization', `Bearer ${token}`);
+
+  const response = await fetch(path, { method: 'POST', headers, body: formData });
+  await throwIfError(response);
+
+  return (await response.json()) as T;
+}
+
+function buildImportFormData(file: File, mappingCorrections?: MappingCorrection[]): FormData {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (mappingCorrections && mappingCorrections.length > 0) {
+    formData.append('mappingCorrections', JSON.stringify(mappingCorrections));
+  }
+  return formData;
 }
 
 export const api = {
@@ -143,4 +181,85 @@ export const api = {
 
   closeBatch: (token: string, batchId: string, payload: CloseBatchRequest): Promise<BatchClosureResult> =>
     request<BatchClosureResult>(`/production/batches/${batchId}/close`, { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  listImportLogs: (token: string, type?: ImportType): Promise<ImportLog[]> =>
+    request<ImportLog[]>(`/import-export/logs${type ? `?type=${type}` : ''}`, {}, token),
+
+  previewArticlesImport: (
+    token: string,
+    file: File,
+    mappingCorrections?: MappingCorrection[],
+  ): Promise<ArticlesImportPreviewResult> =>
+    requestMultipart<ArticlesImportPreviewResult>(
+      '/import-export/articles/preview',
+      buildImportFormData(file, mappingCorrections),
+      token,
+    ),
+
+  confirmArticlesImport: (
+    token: string,
+    payload: { importLogId: string; rows: ArticleImportRow[]; mappingCorrections?: MappingCorrection[] },
+  ): Promise<ArticlesImportConfirmResult> =>
+    request<ArticlesImportConfirmResult>(
+      '/import-export/articles/confirm',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
+
+  previewStocksImport: (
+    token: string,
+    file: File,
+    mappingCorrections?: MappingCorrection[],
+  ): Promise<StocksImportPreviewResult> =>
+    requestMultipart<StocksImportPreviewResult>(
+      '/import-export/stocks/preview',
+      buildImportFormData(file, mappingCorrections),
+      token,
+    ),
+
+  confirmStocksImport: (
+    token: string,
+    payload: { importLogId: string; rows: StockImportRow[]; mappingCorrections?: MappingCorrection[] },
+  ): Promise<StocksImportConfirmResult> =>
+    request<StocksImportConfirmResult>(
+      '/import-export/stocks/confirm',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
+
+  previewExpectedRequirementsImport: (
+    token: string,
+    file: File,
+    mappingCorrections?: MappingCorrection[],
+  ): Promise<ExpectedRequirementsImportPreviewResult> =>
+    requestMultipart<ExpectedRequirementsImportPreviewResult>(
+      '/import-export/expected-requirements/preview',
+      buildImportFormData(file, mappingCorrections),
+      token,
+    ),
+
+  confirmExpectedRequirementsImport: (
+    token: string,
+    payload: {
+      importLogId: string;
+      rows: ExpectedRequirementImportRow[];
+      mappingCorrections?: MappingCorrection[];
+    },
+  ): Promise<ExpectedRequirementsImportConfirmResult> =>
+    request<ExpectedRequirementsImportConfirmResult>(
+      '/import-export/expected-requirements/confirm',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
+
+  previewInventoryImport: (
+    token: string,
+    file: File,
+    mappingCorrections?: MappingCorrection[],
+  ): Promise<InventoryImportPreviewResult> =>
+    requestMultipart<InventoryImportPreviewResult>(
+      '/import-export/inventory/preview',
+      buildImportFormData(file, mappingCorrections),
+      token,
+    ),
 };

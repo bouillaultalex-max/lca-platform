@@ -5,6 +5,7 @@ import { CatalogPage } from './pages/CatalogPage';
 import { RecipesPage } from './pages/RecipesPage';
 import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
+import { ImportsPage } from './pages/imports/ImportsPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
 function App() {
@@ -48,6 +49,14 @@ function App() {
         element={
           <ProtectedRoute requireFullAccess>
             <ProductionPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/imports"
+        element={
+          <ProtectedRoute requireFullAccess>
+            <ImportsPage />
           </ProtectedRoute>
         }
       />
