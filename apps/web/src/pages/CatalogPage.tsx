@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ARTICLE_TYPE_LABELS, type Article, type ArticleType } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
@@ -6,24 +6,54 @@ import { AppLayout } from '../components/AppLayout';
 
 const ARTICLE_TYPES: ArticleType[] = ['MATIERE_PREMIERE', 'PACKAGING', 'PRODUIT_FINI'];
 
+const inputClass =
+  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+
 const emptyForm = {
   type: 'MATIERE_PREMIERE' as ArticleType,
   openSiReference: '',
   name: '',
   unitOfMeasure: '',
   currentUnitCost: '',
+  unitsPerCarton: '',
+  densityKgPerL: '',
 };
+
+type EditForm = {
+  openSiReference: string;
+  name: string;
+  unitOfMeasure: string;
+  currentUnitCost: string;
+  unitsPerCarton: string;
+  densityKgPerL: string;
+};
+
+function toEditForm(article: Article): EditForm {
+  return {
+    openSiReference: article.openSiReference,
+    name: article.name,
+    unitOfMeasure: article.unitOfMeasure,
+    currentUnitCost: String(article.currentUnitCost),
+    unitsPerCarton: article.unitsPerCarton === null ? '' : String(article.unitsPerCarton),
+    densityKgPerL: article.densityKgPerL === null ? '' : String(article.densityKgPerL),
+  };
+}
 
 export function CatalogPage() {
   const { token } = useAuth();
   const [articles, setArticles] = useState<Article[]>([]);
   const [filterType, setFilterType] = useState<ArticleType | ''>('');
+  const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const loadArticles = useCallback(
     async (type?: ArticleType) => {
@@ -45,6 +75,16 @@ export function CatalogPage() {
     void loadArticles(filterType || undefined);
   }, [loadArticles, filterType]);
 
+  const filteredArticles = useMemo(() => {
+    const searchLower = search.trim().toLowerCase();
+    if (!searchLower) return articles;
+    return articles.filter(
+      (article) =>
+        article.name.toLowerCase().includes(searchLower) ||
+        article.openSiReference.toLowerCase().includes(searchLower),
+    );
+  }, [articles, search]);
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) return;
@@ -57,6 +97,8 @@ export function CatalogPage() {
         name: form.name,
         unitOfMeasure: form.unitOfMeasure,
         currentUnitCost: Number(form.currentUnitCost),
+        unitsPerCarton: form.unitsPerCarton ? Number(form.unitsPerCarton) : undefined,
+        densityKgPerL: form.densityKgPerL ? Number(form.densityKgPerL) : undefined,
       });
       setForm(emptyForm);
       await loadArticles(filterType || undefined);
@@ -64,6 +106,32 @@ export function CatalogPage() {
       setFormError(err instanceof ApiError ? err.message : 'Impossible de créer l’article.');
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  function startEdit(article: Article) {
+    setEditingId(article.id);
+    setEditError(null);
+    setEditForm(toEditForm(article));
+  }
+
+  async function handleSaveEdit(id: string) {
+    if (!token || !editForm) return;
+    setEditError(null);
+    try {
+      await api.updateArticle(token, id, {
+        openSiReference: editForm.openSiReference,
+        name: editForm.name,
+        unitOfMeasure: editForm.unitOfMeasure,
+        currentUnitCost: Number(editForm.currentUnitCost),
+        unitsPerCarton: editForm.unitsPerCarton ? Number(editForm.unitsPerCarton) : undefined,
+        densityKgPerL: editForm.densityKgPerL ? Number(editForm.densityKgPerL) : undefined,
+      });
+      setEditingId(null);
+      setEditForm(null);
+      await loadArticles(filterType || undefined);
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : 'Impossible de modifier cet article.');
     }
   }
 
@@ -90,13 +158,13 @@ export function CatalogPage() {
 
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer un article</h3>
-        <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Type</label>
             <select
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value as ArticleType })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
             >
               {ARTICLE_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -111,7 +179,7 @@ export function CatalogPage() {
               required
               value={form.openSiReference}
               onChange={(e) => setForm({ ...form, openSiReference: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
             />
           </div>
           <div>
@@ -120,7 +188,7 @@ export function CatalogPage() {
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
             />
           </div>
           <div>
@@ -130,7 +198,7 @@ export function CatalogPage() {
               placeholder="L, kg, unité..."
               value={form.unitOfMeasure}
               onChange={(e) => setForm({ ...form, unitOfMeasure: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
             />
           </div>
           <div>
@@ -142,11 +210,39 @@ export function CatalogPage() {
               step="0.0001"
               value={form.currentUnitCost}
               onChange={(e) => setForm({ ...form, currentUnitCost: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Unités par carton <span className="font-normal text-gray-400">(optionnel)</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              placeholder="Ex : 100"
+              value={form.unitsPerCarton}
+              onChange={(e) => setForm({ ...form, unitsPerCarton: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Densité, kg/L <span className="font-normal text-gray-400">(matières premières, optionnel)</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Ex : 0.98"
+              value={form.densityKgPerL}
+              onChange={(e) => setForm({ ...form, densityKgPerL: e.target.value })}
+              className={inputClass}
             />
           </div>
 
-          <div className="sm:col-span-2 lg:col-span-5">
+          <div className="sm:col-span-2 lg:col-span-4">
             {formError && <p className="mb-2 text-sm text-red-600">{formError}</p>}
             <button
               type="submit"
@@ -159,12 +255,18 @@ export function CatalogPage() {
         </form>
       </div>
 
-      <div className="mt-6 flex items-center gap-2">
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <input
+          placeholder="Rechercher (désignation, référence)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={`${inputClass} max-w-xs`}
+        />
         <label className="text-sm font-medium text-gray-700">Filtrer par type :</label>
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value as ArticleType | '')}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={`${inputClass} w-auto`}
         >
           <option value="">Tous</option>
           {ARTICLE_TYPES.map((type) => (
@@ -188,48 +290,139 @@ export function CatalogPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Désignation</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Unité</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Coût unitaire</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Unités/carton</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Densité kg/L</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Statut</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {articles.length === 0 && (
+              {filteredArticles.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-6 text-center text-gray-500">
                     Aucun article.
                   </td>
                 </tr>
               )}
-              {articles.map((article) => (
-                <tr key={article.id} className={article.active ? '' : 'opacity-50'}>
-                  <td className="px-4 py-2">{ARTICLE_TYPE_LABELS[article.type]}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{article.openSiReference}</td>
-                  <td className="px-4 py-2">{article.name}</td>
-                  <td className="px-4 py-2">{article.unitOfMeasure}</td>
-                  <td className="px-4 py-2">{Number(article.currentUnitCost).toFixed(4)}</td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={
-                        article.active
-                          ? 'rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700'
-                          : 'rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500'
-                      }
-                    >
-                      {article.active ? 'Actif' : 'Désactivé'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {article.active && (
-                      <button
-                        onClick={() => void handleDeactivate(article)}
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        Désactiver
-                      </button>
+              {filteredArticles.map((article) => {
+                const isEditing = editingId === article.id;
+                return (
+                  <tr key={article.id} className={article.active ? '' : 'opacity-50'}>
+                    {isEditing && editForm ? (
+                      <>
+                        <td className="px-4 py-2 text-gray-500">{ARTICLE_TYPE_LABELS[article.type]}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            value={editForm.openSiReference}
+                            onChange={(e) => setEditForm({ ...editForm, openSiReference: e.target.value })}
+                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            value={editForm.name}
+                            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            value={editForm.unitOfMeasure}
+                            onChange={(e) => setEditForm({ ...editForm, unitOfMeasure: e.target.value })}
+                            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.0001"
+                            value={editForm.currentUnitCost}
+                            onChange={(e) => setEditForm({ ...editForm, currentUnitCost: e.target.value })}
+                            className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={editForm.unitsPerCarton}
+                            onChange={(e) => setEditForm({ ...editForm, unitsPerCarton: e.target.value })}
+                            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editForm.densityKgPerL}
+                            onChange={(e) => setEditForm({ ...editForm, densityKgPerL: e.target.value })}
+                            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-gray-500">{article.active ? 'Actif' : 'Désactivé'}</td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
+                          <button
+                            onClick={() => void handleSaveEdit(article.id)}
+                            className="mr-2 text-xs font-medium text-blue-600 hover:underline"
+                          >
+                            Enregistrer
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingId(null);
+                              setEditForm(null);
+                            }}
+                            className="text-xs text-gray-500 hover:underline"
+                          >
+                            Annuler
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2">{ARTICLE_TYPE_LABELS[article.type]}</td>
+                        <td className="px-4 py-2 font-mono text-xs">{article.openSiReference}</td>
+                        <td className="px-4 py-2">{article.name}</td>
+                        <td className="px-4 py-2">{article.unitOfMeasure}</td>
+                        <td className="px-4 py-2">{Number(article.currentUnitCost).toFixed(4)}</td>
+                        <td className="px-4 py-2">{article.unitsPerCarton ?? '—'}</td>
+                        <td className="px-4 py-2">{article.densityKgPerL ?? '—'}</td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={
+                              article.active
+                                ? 'rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700'
+                                : 'rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500'
+                            }
+                          >
+                            {article.active ? 'Actif' : 'Désactivé'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => startEdit(article)}
+                            className="mr-3 text-xs text-blue-600 hover:underline"
+                          >
+                            Modifier
+                          </button>
+                          {article.active && (
+                            <button
+                              onClick={() => void handleDeactivate(article)}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Désactiver
+                            </button>
+                          )}
+                        </td>
+                      </>
                     )}
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

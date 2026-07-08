@@ -4,6 +4,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { CatalogPage } from './pages/CatalogPage';
 import { RecipesPage } from './pages/RecipesPage';
+import { MachinesPage } from './pages/MachinesPage';
 import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { ImportsPage } from './pages/imports/ImportsPage';
@@ -51,6 +52,14 @@ function App() {
         element={
           <ProtectedRoute requireFullAccess>
             <RecipesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/catalog/machines"
+        element={
+          <ProtectedRoute requireFullAccess>
+            <MachinesPage />
           </ProtectedRoute>
         }
       />

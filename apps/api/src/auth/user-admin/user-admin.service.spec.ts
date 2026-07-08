@@ -98,6 +98,57 @@ describe('UserAdminService', () => {
     });
   });
 
+  describe('update', () => {
+    it('empêche un administrateur de retirer son propre statut isSystemAdmin', async () => {
+      await expect(
+        service.update(
+          siteId,
+          actingUserId,
+          { isSystemAdmin: false },
+          actingUserId,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('autorise un administrateur à modifier ses propres informations sans toucher isSystemAdmin', async () => {
+      prisma.user.findFirst.mockResolvedValue(kevin);
+      prisma.user.update.mockResolvedValue(kevin);
+
+      await expect(
+        service.update(
+          siteId,
+          actingUserId,
+          { fullName: 'Nouveau nom' },
+          actingUserId,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it("modifie un autre compte, y compris l'e-mail, et journalise l'action", async () => {
+      prisma.user.findFirst.mockResolvedValue(kevin);
+      const updated = { ...kevin, email: 'kevin.prian.nouveau@lca-mes.local' };
+      prisma.user.update.mockResolvedValue(updated);
+
+      const result = await service.update(
+        siteId,
+        kevin.id,
+        { email: 'kevin.prian.nouveau@lca-mes.local' },
+        actingUserId,
+      );
+
+      const updateCallArgs = prisma.user.update.mock.calls[0][0];
+      expect(updateCallArgs).toMatchObject({
+        where: { id: kevin.id },
+        data: { email: 'kevin.prian.nouveau@lca-mes.local' },
+      });
+      expect(result.email).toBe('kevin.prian.nouveau@lca-mes.local');
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'UPDATE', entity: 'User' }),
+      );
+    });
+  });
+
   describe('deactivate', () => {
     it('empêche un administrateur de désactiver son propre compte', async () => {
       await expect(

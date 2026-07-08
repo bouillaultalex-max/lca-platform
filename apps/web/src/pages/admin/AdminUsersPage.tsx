@@ -21,6 +21,7 @@ const emptyUserForm = {
 
 type EditUserForm = {
   fullName: string;
+  email: string;
   jobTitleId: string;
   role: UserRole;
   isSystemAdmin: boolean;
@@ -108,6 +109,7 @@ export function AdminUsersPage() {
     setEditError(null);
     setEditForm({
       fullName: user.fullName,
+      email: user.email,
       jobTitleId: user.jobTitle?.id ?? '',
       role: user.role,
       isSystemAdmin: user.isSystemAdmin,
@@ -342,7 +344,14 @@ export function AdminUsersPage() {
                             className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
                           />
                         </td>
-                        <td className="px-4 py-2 text-gray-500">{user.email}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="email"
+                            value={editForm.email}
+                            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          />
+                        </td>
                         <td className="px-4 py-2">
                           <select
                             value={editForm.jobTitleId}
@@ -374,6 +383,12 @@ export function AdminUsersPage() {
                           <input
                             type="checkbox"
                             checked={editForm.isSystemAdmin}
+                            disabled={user.id === currentUser?.id}
+                            title={
+                              user.id === currentUser?.id
+                                ? 'Vous ne pouvez pas retirer votre propre statut d’administrateur système.'
+                                : undefined
+                            }
                             onChange={(e) => setEditForm({ ...editForm, isSystemAdmin: e.target.checked })}
                           />
                         </td>

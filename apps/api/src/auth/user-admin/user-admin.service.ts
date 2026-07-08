@@ -120,6 +120,12 @@ export class UserAdminService {
     dto: UpdateUserDto,
     actingUserId: string,
   ): Promise<UserAdminView> {
+    if (id === actingUserId && dto.isSystemAdmin === false) {
+      throw new ForbiddenException(
+        'Vous ne pouvez pas retirer votre propre statut d’administrateur système.',
+      );
+    }
+
     const before = await this.findOne(siteId, id);
 
     let user: UserAdminView;

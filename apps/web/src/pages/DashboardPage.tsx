@@ -23,6 +23,11 @@ export function DashboardPage() {
           </p>
         )}
         <div className="mt-3 flex items-center gap-2">
+          {user.jobTitle && (
+            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+              {user.jobTitle.name}
+            </span>
+          )}
           <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
             {USER_ROLE_LABELS[user.role]}
           </span>
@@ -37,10 +42,6 @@ export function DashboardPage() {
           </span>
         </div>
       </div>
-
-      <p className="mt-6 text-sm text-gray-500">
-        Les stocks et la production seront disponibles ici dans les prochains jalons.
-      </p>
     </AppLayout>
   );
 }

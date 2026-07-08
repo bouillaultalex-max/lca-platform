@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import type { Article, CreateRecipeLineRequest, Recipe } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
@@ -156,7 +157,7 @@ export function RecipesPage() {
         </select>
         {finishedProducts.length === 0 && (
           <p className="mt-2 text-sm text-gray-500">
-            Aucun produit fini actif. Créez-en un dans le <a className="underline" href="/catalog">catalogue</a>{' '}
+            Aucun produit fini actif. Créez-en un dans le <Link className="underline" to="/catalog">catalogue</Link>{' '}
             (type « Produit fini ») avant de créer une recette.
           </p>
         )}

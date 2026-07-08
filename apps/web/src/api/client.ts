@@ -5,7 +5,10 @@ import type {
   Article,
   ArticleType,
   CreateArticleRequest,
+  UpdateArticleRequest,
   Machine,
+  CreateMachineRequest,
+  UpdateMachineRequest,
   Recipe,
   CreateRecipeRequest,
   StockItem,
@@ -166,6 +169,9 @@ export const api = {
   createArticle: (token: string, payload: CreateArticleRequest): Promise<Article> =>
     request<Article>('/catalog/articles', { method: 'POST', body: JSON.stringify(payload) }, token),
 
+  updateArticle: (token: string, id: string, payload: UpdateArticleRequest): Promise<Article> =>
+    request<Article>(`/catalog/articles/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
   deactivateArticle: (token: string, id: string): Promise<Article> =>
     request<Article>(`/catalog/articles/${id}`, { method: 'DELETE' }, token),
 
@@ -203,6 +209,15 @@ export const api = {
     request<StockMovement[]>(`/stock/movements?stockLotId=${stockLotId}`, {}, token),
 
   listMachines: (token: string): Promise<Machine[]> => request<Machine[]>('/catalog/machines', {}, token),
+
+  createMachine: (token: string, payload: CreateMachineRequest): Promise<Machine> =>
+    request<Machine>('/catalog/machines', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  updateMachine: (token: string, id: string, payload: UpdateMachineRequest): Promise<Machine> =>
+    request<Machine>(`/catalog/machines/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  deactivateMachine: (token: string, id: string): Promise<Machine> =>
+    request<Machine>(`/catalog/machines/${id}`, { method: 'DELETE' }, token),
 
   listBatches: (token: string): Promise<Batch[]> => request<Batch[]>('/batching/batches', {}, token),
 

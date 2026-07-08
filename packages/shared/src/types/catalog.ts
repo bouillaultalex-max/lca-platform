@@ -40,11 +40,31 @@ export interface CreateArticleRequest {
   densityKgPerL?: number;
 }
 
+/** Le type d'article n'est jamais modifiable après création (voir UpdateArticleDto backend). */
+export interface UpdateArticleRequest {
+  openSiReference?: string;
+  name?: string;
+  unitOfMeasure?: string;
+  currentUnitCost?: number;
+  unitsPerCarton?: number;
+  densityKgPerL?: number;
+}
+
 export interface Machine {
   id: string;
   name: string;
   supportedFormats: number[];
   active: boolean;
+}
+
+export interface CreateMachineRequest {
+  name: string;
+  supportedFormats: number[];
+}
+
+export interface UpdateMachineRequest {
+  name?: string;
+  supportedFormats?: number[];
 }
 
 export type RecipeStatus = 'ACTIVE' | 'ARCHIVEE';

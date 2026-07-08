@@ -43,6 +43,18 @@ Objectif : livrer un MVP resserré mais propre couvrant l'ensemble du cœur mét
 
 **Livrable** : premiers comptes nominatifs réels opérationnels, avec permissions d'administration séparées des rôles métier, conformes aux règles de sécurité validées (mots de passe jamais en clair, compte désactivé = connexion refusée, changement de mot de passe obligatoire à la première connexion). Build/lint/tests verts (238 tests unitaires + 38 e2e), vérifié en navigateur.
 
+## Audit V0.3 + mini-jalon "V0.3 Corrections" ✅ Terminé le 2026-07-08
+
+Audit de la plateforme selon 4 profils (administrateur, responsable laboratoire, direction, futur commercial) avant le premier déploiement interne, suivi d'un mini-jalon de corrections resserré (aucune nouvelle fonctionnalité, aucun développement du Jalon 3) :
+
+- ✅ Écran de gestion des machines (`/catalog/machines`) : création, modification, désactivation — le CRUD existait côté backend depuis le Jalon 1/2 mais n'avait jamais d'interface, ce qui aurait bloqué toute création de batch sur une base neuve.
+- ✅ Modification des articles existants (nom, référence OpenSi, unité, coût, `unitsPerCarton`, `densityKgPerL`) — ces deux derniers champs n'étaient réglables nulle part, rendant inutilisables l'équivalent carton (Stock) et le calcul de masse (Production) pour tout article réel.
+- ✅ E-mail utilisateur modifiable depuis Administration ; protection empêchant un administrateur de retirer son propre statut `isSystemAdmin` (UI + API).
+- ✅ Tableau de bord : suppression d'un texte obsolète, ajout de la fonction métier à côté du rôle.
+- ✅ Catalogue : recherche par désignation/référence ; navigation React Router corrigée (un lien utilisait encore un `<a href>` classique).
+
+**Livrable** : plateforme prête pour le premier déploiement interne (Kevin et Jean-Paul), sans les manques identifiés à l'audit. Build/lint/tests verts (241 tests unitaires + 39 e2e), vérifié en navigateur.
+
 ## Jalon 3 — Traçabilité, qualité, coûts
 
 - Module `traceability` : généalogie du lot (matières premières + packaging consommés)

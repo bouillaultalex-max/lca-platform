@@ -196,4 +196,17 @@ describe('Gestion des utilisateurs (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(403);
   });
+
+  it('empêche un administrateur de retirer son propre statut isSystemAdmin', async () => {
+    const { accessToken: adminToken, user } = await loginAs(
+      adminEmail,
+      adminPassword,
+    );
+
+    await request(app.getHttpServer())
+      .patch(`/auth/users/${user.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ isSystemAdmin: false })
+      .expect(403);
+  });
 });

@@ -2,7 +2,7 @@
 
 Document de suivi vivant, à mettre à jour à la fin de chaque jalon. Contrairement aux autres documents de `docs/` (qui décrivent l'architecture cible), celui-ci décrit **l'état réel du dépôt aujourd'hui**.
 
-Dernière mise à jour : **2026-07-07** — **Jalon 2.5 officiellement terminé** : gestion des utilisateurs (fonctions métier, rôles, administration système, première connexion, historique de connexion) livrée et vérifiée en navigateur, avec 3 comptes réels créés.
+Dernière mise à jour : **2026-07-08** — **Audit V0.3 + mini-jalon "V0.3 Corrections" terminés** : écran de gestion des machines, modification des articles existants (y compris `unitsPerCarton`/`densityKgPerL`), e-mail utilisateur modifiable, protection anti-auto-retrait d'administrateur, tableau de bord corrigé, recherche Catalogue — livrés et vérifiés en navigateur, avant le premier déploiement interne.
 
 ## 1. Statut
 
@@ -12,7 +12,8 @@ Dernière mise à jour : **2026-07-07** — **Jalon 2.5 officiellement terminé*
 | Jalon 1 — Socle technique | ✅ Terminé et vérifié (tests, build, navigateur) |
 | Jalon 2 — Cœur production (catalogue, stock, batching, production, lots, imports) | ✅ **Terminé** — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅, `import-export` ✅ (backend + frontend) |
 | Jalon 2.5 — Gestion des utilisateurs | ✅ **Terminé** — fonctions métier, comptes nominatifs, première connexion, historique de connexion, écran Administration |
-| Jalon 3 — Traçabilité, qualité, coûts | Non démarré |
+| Audit V0.3 + mini-jalon "V0.3 Corrections" | ✅ **Terminé** — écran Machines, modification d'articles, e-mail modifiable, protection anti-auto-retrait admin, tableau de bord et Catalogue corrigés |
+| Jalon 3 — Traçabilité, qualité, coûts | Non démarré (démarre après le premier déploiement interne) |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré |
 
 ## 2. Ce qui existe dans le dépôt
@@ -34,7 +35,7 @@ lca-mes/
 
 **Modèle Prisma existant** (13 migrations) : `Site`, `User` (avec `jobTitleId`, `isSystemAdmin`, `mustChangePassword`, `lastLoginAt`), `JobTitle`, `LoginHistory`, `AuditLog`, `Article` (avec `unitsPerCarton`, `densityKgPerL`), `Machine`, `Recipe`, `RecipeLine`, `StockLot`, `StockItem`, `StockMovement`, `Batch` (avec `currentStep` séparé de `status`), `BatchStop`, `Lot`, `LotGenealogy`, `ImportLog` (avec `errorDetails` JSON), `ExportLog`, `ExpectedRequirement`, `ColumnMappingRule` (avec `sourceVersion`). **Tous les modèles liés à `import-export` sont désormais réellement exploités** : `ImportLog` par les 4 imports (créé à la prévisualisation, mis à jour à la confirmation), `ExpectedRequirement` en écriture par l'import Besoins attendus (append-only), `ColumnMappingRule` par le moteur de mapping (apprentissage des corrections). `AuditLog` est désormais réellement exploité (gestion des utilisateurs, Jalon 2.5). Seul `ExportLog` reste sans logique applicative (exports vers OpenSi, Jalon 4).
 
-**Frontend existant** : `/login`, `/change-password` (changement de mot de passe, obligatoire à la première connexion), `/dashboard` (message d'accueil personnalisé avec dernière connexion en langage naturel), `/catalog` (liste/création d'articles, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture), `/imports` (assistant en 5 étapes — type, fichier, colonnes, aperçu, confirmation — pour les 4 imports OpenSi ; onglet Historique filtrable ; bandeau "dernier import" ; vocabulaire volontairement sans jargon technique), `/admin/users` (réservé aux administrateurs système : création/modification/désactivation/réinitialisation de mot de passe des comptes, gestion des fonctions métier).
+**Frontend existant** : `/login`, `/change-password` (changement de mot de passe, obligatoire à la première connexion), `/dashboard` (message d'accueil personnalisé avec fonction métier et dernière connexion en langage naturel), `/catalog` (liste/création/**modification** d'articles — y compris `unitsPerCarton`/`densityKgPerL` —, recherche par désignation/référence, filtre par type, désactivation), `/catalog/recipes` (versionnement, archivage auto, règle des 100 % matières premières), `/catalog/machines` (création/modification/désactivation des machines de conditionnement), `/stock` (écran maître-détail : recherche, filtre, équivalent cartons, indicateur stock faible, réception, ajustement avec aperçu de l'écart, historique par lot), `/production` (écran maître-détail : création de batch avec aperçu volume + masse et alerte densité manquante, frise des 4 étapes de production, gestion des arrêts, clôture avec numéro de lot affiché après clôture), `/imports` (assistant en 5 étapes — type, fichier, colonnes, aperçu, confirmation — pour les 4 imports OpenSi ; onglet Historique filtrable ; bandeau "dernier import" ; vocabulaire volontairement sans jargon technique), `/admin/users` (réservé aux administrateurs système : création/modification/désactivation/réinitialisation de mot de passe des comptes — e-mail inclus —, gestion des fonctions métier ; un administrateur ne peut pas se retirer lui-même son propre statut).
 
 ## 3. Commandes utiles
 
@@ -54,8 +55,8 @@ cd apps/api && npm run prisma:bootstrap-admin   # crée le tout premier administ
 
 ### Tests
 ```bash
-npm run test:api                     # unitaires (apps/api) — 238 tests
-npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 38 tests
+npm run test:api                     # unitaires (apps/api) — 241 tests
+npm run test:api:e2e                 # e2e — nécessite la base lca_mes_test + apps/api/.env.test — 39 tests
 ```
 
 ### Build / lint
@@ -148,6 +149,16 @@ Adresses e-mail provisoires (`@lca-mes.local`), à corriger via « Modifier » d
 - **Message d'accueil personnalisé** sur le tableau de bord (`Bonjour {prénom} 👋`, dernière connexion en langage naturel — Aujourd'hui/Hier/date complète) : amélioration d'affichage pure, à partir de `lastLoginAt` déjà présent sur `User`, aucune nouvelle table.
 - **Le Jalon 2.5 est officiellement terminé** à l'issue de cette phase.
 
+### Audit V0.3 + mini-jalon "V0.3 Corrections"
+- **Audit** mené selon 4 profils (Alexandre administrateur, Kevin responsable laboratoire, Jean-Paul direction, futur commercial) avant tout code, pour identifier incohérences et manques avant le premier déploiement interne réel.
+- **Écran Machines** (`/catalog/machines`) : le backend (CRUD complet) existait depuis le Jalon 1/2 mais n'avait jamais d'interface — sans cet écran, aucun batch n'aurait pu être créé sur une base neuve (aucune machine sans le seed de développement).
+- **Modification d'articles existants**, y compris `unitsPerCarton` et `densityKgPerL` : ces deux champs n'étaient réglables ni à la création manuelle ni par import — l'équivalent carton (Stock) et le calcul de masse (Production) étaient de fait inutilisables pour tout article réel créé après le seed.
+- **E-mail utilisateur modifiable** dans Administration (ne l'était pas, malgré ce qui avait été annoncé à la clôture du Jalon 2.5).
+- **Protection anti-auto-retrait de `isSystemAdmin`** : un administrateur ne peut plus retirer son propre statut (ni via l'interface, ni via l'API directement) — évite un verrouillage total avec un seul administrateur.
+- **Tableau de bord** : suppression du texte obsolète ("prochains jalons" alors que stock/production étaient déjà livrés), ajout de la fonction métier à côté du rôle.
+- **Catalogue** : recherche par désignation/référence (alignée sur Stock) ; lien vers `/catalog` dans Recettes converti en navigation React Router (évitait un rechargement complet de page).
+- Aucune statistique/rapport Direction, aucun développement du Jalon 3 — périmètre volontairement resserré à ces corrections avant déploiement.
+
 ## 7. Décisions métier confirmées
 
 Voir `docs/regles-metier.md` pour le détail complet.
@@ -187,6 +198,11 @@ Voir `docs/regles-metier.md` pour le détail complet.
 26. **Un administrateur système ne peut pas désactiver son propre compte** (protection contre le verrouillage accidentel).
 27. **Le Jalon 2.5 est officiellement clôturé** : gestion des utilisateurs, 3 comptes réels créés, vérifié en navigateur.
 
+**Actées le 2026-07-08 (Audit V0.3)** :
+28. **Un administrateur système ne peut pas retirer son propre statut `isSystemAdmin`** (protection symétrique à celle contre l'auto-désactivation) — vérifiée côté UI et côté API.
+29. **`unitsPerCarton`/`densityKgPerL` doivent rester modifiables après création**, pas seulement à la création — sans quoi les fonctionnalités carton (Stock) et masse (Production) restent inertes pour tout article réel.
+30. **Le mini-jalon "V0.3 Corrections" est officiellement clôturé** : écran Machines, modification d'articles, Administration et tableau de bord corrigés, vérifié en navigateur.
+
 ## 8. Points encore ouverts (à trancher pendant le Jalon 2/3, non bloquants pour continuer)
 
 - Algorithme exact de génération du numéro de lot (format confirmé, détail à fournir par l'utilisateur) — bloquant pour finaliser `LotNumberGeneratorService` (actuellement un placeholder `455XXX` séquentiel).
@@ -202,4 +218,4 @@ Voir `docs/regles-metier.md` pour le détail complet.
 
 ## 9. Prochaine étape
 
-**Le Jalon 2.5 est entièrement terminé** (gestion des utilisateurs, backend et frontend, tous vérifiés). Avant de démarrer le Jalon 3 (traçabilité, qualité, coûts), un audit global de la plateforme est prévu. Le Jalon 3 sera ensuite cadré avec l'utilisateur avant tout code, comme pour chaque jalon précédent — aucun développement du Jalon 3 n'est anticipé ou codé par avance.
+**L'audit V0.3 et le mini-jalon "V0.3 Corrections" sont entièrement terminés.** L'étape suivante est le **premier déploiement interne gratuit**, pour que Kevin et Jean-Paul puissent accéder à la plateforme depuis leur poste de travail et démarrer leurs premiers tests réels — pas encore planifié en détail dans ce document. Le Jalon 3 (traçabilité, qualité, coûts) ne démarrera qu'après ce déploiement, et sera cadré avec l'utilisateur avant tout code, comme pour chaque jalon précédent.
