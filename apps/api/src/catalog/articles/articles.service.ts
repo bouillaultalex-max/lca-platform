@@ -42,11 +42,48 @@ export class ArticlesService {
     id: string,
     dto: UpdateArticleDto,
   ): Promise<Article> {
-    await this.findOne(siteId, id);
+    const existing = await this.findOne(siteId, id);
+
+    if (dto.type && dto.type !== existing.type) {
+      await this.assertTypeCanBeChanged(id);
+    }
+
     try {
       return await this.prisma.article.update({ where: { id }, data: dto });
     } catch (error) {
       throw this.toFriendlyError(error, dto.openSiReference);
+    }
+  }
+
+  /**
+   * Le type ne peut être changé que si l'article n'a encore jamais été utilisé :
+   * aucune recette, aucun stock, aucune généalogie de lot. Un import ou un
+   * `StockItem` n'a pas besoin d'être vérifié séparément (voir design validé) :
+   * un `StockItem` n'existe que si `stockLots`/`stockMovements` existent déjà.
+   */
+  private async assertTypeCanBeChanged(id: string): Promise<void> {
+    const usage = await this.prisma.article.findUnique({
+      where: { id },
+      select: {
+        _count: {
+          select: {
+            recipeLines: true,
+            recipesAsFinishedProduct: true,
+            stockLots: true,
+            stockMovements: true,
+            genealogyLines: true,
+          },
+        },
+      },
+    });
+
+    const isUsed = Object.values(usage?._count ?? {}).some(
+      (count) => count > 0,
+    );
+    if (isUsed) {
+      throw new ConflictException(
+        'Le type de cet article ne peut plus être modifié car il est déjà utilisé dans le stock, une recette ou une production. Désactivez cet article et créez-en un nouveau.',
+      );
     }
   }
 

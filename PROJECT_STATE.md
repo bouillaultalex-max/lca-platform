@@ -2,7 +2,7 @@
 
 Document de suivi vivant, à mettre à jour à la fin de chaque jalon. Contrairement aux autres documents de `docs/` (qui décrivent l'architecture cible), celui-ci décrit **l'état réel du dépôt aujourd'hui**.
 
-Dernière mise à jour : **2026-07-08** — **Audit V0.3 + mini-jalon "V0.3 Corrections" terminés** : écran de gestion des machines, modification des articles existants (y compris `unitsPerCarton`/`densityKgPerL`), e-mail utilisateur modifiable, protection anti-auto-retrait d'administrateur, tableau de bord corrigé, recherche Catalogue — livrés et vérifiés en navigateur, avant le premier déploiement interne.
+Dernière mise à jour : **2026-07-08** — Premiers tests utilisateurs réels en cours (Kevin, Jean-Paul), accès via tunnel Cloudflare au serveur de développement. Deux corrections livrées suite à ces tests : changement de type d'article encadré (autorisé uniquement si jamais utilisé), et correction générale du rechargement (F5) sur toutes les routes React (le proxy Vite interceptait certaines pages dont le chemin coïncidait avec un préfixe d'API).
 
 ## 1. Statut
 
@@ -12,7 +12,7 @@ Dernière mise à jour : **2026-07-08** — **Audit V0.3 + mini-jalon "V0.3 Corr
 | Jalon 1 — Socle technique | ✅ Terminé et vérifié (tests, build, navigateur) |
 | Jalon 2 — Cœur production (catalogue, stock, batching, production, lots, imports) | ✅ **Terminé** — `catalog` ✅, `stock` ✅, `batching` ✅, `production` ✅, `import-export` ✅ (backend + frontend) |
 | Jalon 2.5 — Gestion des utilisateurs | ✅ **Terminé** — fonctions métier, comptes nominatifs, première connexion, historique de connexion, écran Administration |
-| Audit V0.3 + mini-jalon "V0.3 Corrections" | ✅ **Terminé** — écran Machines, modification d'articles, e-mail modifiable, protection anti-auto-retrait admin, tableau de bord et Catalogue corrigés |
+| Audit V0.3 + mini-jalon "V0.3 Corrections" | ✅ **Terminé** — écran Machines, modification d'articles, e-mail modifiable, protection anti-auto-retrait admin, tableau de bord et Catalogue corrigés, changement de type d'article encadré, correction générale du rechargement (F5) |
 | Jalon 3 — Traçabilité, qualité, coûts | Non démarré (démarre après le premier déploiement interne) |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré |
 
@@ -159,6 +159,11 @@ Adresses e-mail provisoires (`@lca-mes.local`), à corriger via « Modifier » d
 - **Catalogue** : recherche par désignation/référence (alignée sur Stock) ; lien vers `/catalog` dans Recettes converti en navigation React Router (évitait un rechargement complet de page).
 - Aucune statistique/rapport Direction, aucun développement du Jalon 3 — périmètre volontairement resserré à ces corrections avant déploiement.
 
+### V0.3 : améliore l'expérience des premiers tests utilisateurs
+Corrections issues des tout premiers tests réels (Kevin, Jean-Paul) via tunnel Cloudflare vers le serveur de développement :
+- **Changement de type d'article encadré** (`PATCH /catalog/articles/:id`) : autorisé uniquement si l'article n'a jamais été utilisé — vérification de 5 relations (`recipeLines`, `recipesAsFinishedProduct`, `stockLots`, `stockMovements`, `genealogyLines`) ; message d'erreur explicite sinon. Corrige les erreurs de saisie sur le type sans permettre de corrompre un historique déjà utilisé.
+- **Rechargement (F5) cassé sur `/catalog`, `/stock`, `/production`** : ces routes React coïncidaient avec des préfixes proxysés vers l'API dans `apps/web/vite.config.ts` — un F5 était intercepté par le proxy et renvoyait une erreur JSON brute du backend au lieu de l'app. Corrigé **génériquement** via un `bypass` sur chaque entrée du proxy, basé sur l'en-tête `Accept` (une navigation de page annonce `text/html`, un appel API du frontend non) — fonctionne pour toute route React actuelle ou future, sans liste à maintenir. Bug découvert et corrigé en environnement de développement uniquement (tunnel Cloudflare) ; le comportement en production (`ServeStaticModule`) n'était probablement pas affecté mais n'a pas été vérifié formellement.
+
 ## 7. Décisions métier confirmées
 
 Voir `docs/regles-metier.md` pour le détail complet.
@@ -202,6 +207,8 @@ Voir `docs/regles-metier.md` pour le détail complet.
 28. **Un administrateur système ne peut pas retirer son propre statut `isSystemAdmin`** (protection symétrique à celle contre l'auto-désactivation) — vérifiée côté UI et côté API.
 29. **`unitsPerCarton`/`densityKgPerL` doivent rester modifiables après création**, pas seulement à la création — sans quoi les fonctionnalités carton (Stock) et masse (Production) restent inertes pour tout article réel.
 30. **Le mini-jalon "V0.3 Corrections" est officiellement clôturé** : écran Machines, modification d'articles, Administration et tableau de bord corrigés, vérifié en navigateur.
+31. **Le type d'un article ne peut être changé que s'il n'a jamais été utilisé** (aucune recette, aucun stock, aucun mouvement, aucune généalogie) — sinon désactivation + recréation, comme documenté à l'utilisateur.
+32. **Le proxy Vite doit distinguer une navigation de page d'un appel API via l'en-tête `Accept`**, pas via une liste de routes — toute nouvelle route React est automatiquement couverte.
 
 ## 8. Points encore ouverts (à trancher pendant le Jalon 2/3, non bloquants pour continuer)
 
@@ -218,4 +225,4 @@ Voir `docs/regles-metier.md` pour le détail complet.
 
 ## 9. Prochaine étape
 
-**L'audit V0.3 et le mini-jalon "V0.3 Corrections" sont entièrement terminés.** L'étape suivante est le **premier déploiement interne gratuit**, pour que Kevin et Jean-Paul puissent accéder à la plateforme depuis leur poste de travail et démarrer leurs premiers tests réels — pas encore planifié en détail dans ce document. Le Jalon 3 (traçabilité, qualité, coûts) ne démarrera qu'après ce déploiement, et sera cadré avec l'utilisateur avant tout code, comme pour chaque jalon précédent.
+**Les premiers tests utilisateurs réels sont en cours** (Kevin, Jean-Paul), via tunnel Cloudflare vers le serveur de développement. Les corrections remontées par ces tests sont traitées au fil de l'eau (changement de type d'article, rechargement F5) plutôt qu'en un seul lot en fin de phase. Le Jalon 3 (traçabilité, qualité, coûts) ne démarrera qu'une fois ces tests jugés suffisants, et sera cadré avec l'utilisateur avant tout code, comme pour chaque jalon précédent.

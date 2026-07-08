@@ -10,6 +10,7 @@ describe('ArticlesService', () => {
     article: {
       findMany: jest.Mock;
       findFirst: jest.Mock;
+      findUnique: jest.Mock;
       create: jest.Mock;
       update: jest.Mock;
     };
@@ -35,6 +36,7 @@ describe('ArticlesService', () => {
       article: {
         findMany: jest.fn(),
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
       },
@@ -133,6 +135,87 @@ describe('ArticlesService', () => {
           currentUnitCost: 1,
         }),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('update', () => {
+    const zeroUsage = {
+      _count: {
+        recipeLines: 0,
+        recipesAsFinishedProduct: 0,
+        stockLots: 0,
+        stockMovements: 0,
+        genealogyLines: 0,
+      },
+    };
+
+    it('modifie un article sans vérifier l’usage si le type n’est pas fourni', async () => {
+      prisma.article.findFirst.mockResolvedValue(article);
+      prisma.article.update.mockResolvedValue({
+        ...article,
+        name: 'Nouveau nom',
+      });
+
+      const result = await service.update(siteId, article.id, {
+        name: 'Nouveau nom',
+      });
+
+      expect(prisma.article.findUnique).not.toHaveBeenCalled();
+      expect(result.name).toBe('Nouveau nom');
+    });
+
+    it('modifie un article sans vérifier l’usage si le type fourni est identique à l’existant', async () => {
+      prisma.article.findFirst.mockResolvedValue(article);
+      prisma.article.update.mockResolvedValue(article);
+
+      await service.update(siteId, article.id, {
+        type: article.type,
+        name: article.name,
+      });
+
+      expect(prisma.article.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('autorise le changement de type si l’article n’a jamais été utilisé', async () => {
+      prisma.article.findFirst.mockResolvedValue(article);
+      prisma.article.findUnique.mockResolvedValue(zeroUsage);
+      prisma.article.update.mockResolvedValue({
+        ...article,
+        type: ArticleType.PACKAGING,
+      });
+
+      const result = await service.update(siteId, article.id, {
+        type: ArticleType.PACKAGING,
+      });
+
+      expect(result.type).toBe(ArticleType.PACKAGING);
+    });
+
+    it.each([
+      ['recipeLines', { ...zeroUsage._count, recipeLines: 1 }],
+      [
+        'recipesAsFinishedProduct',
+        { ...zeroUsage._count, recipesAsFinishedProduct: 1 },
+      ],
+      ['stockLots', { ...zeroUsage._count, stockLots: 1 }],
+      ['stockMovements', { ...zeroUsage._count, stockMovements: 1 }],
+      ['genealogyLines', { ...zeroUsage._count, genealogyLines: 1 }],
+    ])('refuse le changement de type si %s > 0', async (_label, counts) => {
+      prisma.article.findFirst.mockResolvedValue(article);
+      prisma.article.findUnique.mockResolvedValue({ _count: counts });
+
+      await expect(
+        service.update(siteId, article.id, { type: ArticleType.PACKAGING }),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.article.update).not.toHaveBeenCalled();
+    });
+
+    it('lève NotFoundException si l’article à modifier n’existe pas sur ce site', async () => {
+      prisma.article.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update(siteId, 'inconnu', { name: 'x' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

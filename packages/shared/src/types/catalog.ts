@@ -40,8 +40,13 @@ export interface CreateArticleRequest {
   densityKgPerL?: number;
 }
 
-/** Le type d'article n'est jamais modifiable après création (voir UpdateArticleDto backend). */
+/**
+ * Le type d'article n'est modifiable que si l'article n'a jamais été utilisé
+ * (aucune recette, aucun stock, aucune généalogie) — voir ArticlesService.update()
+ * backend, qui refuse la requête avec un message explicite dans le cas contraire.
+ */
 export interface UpdateArticleRequest {
+  type?: ArticleType;
   openSiReference?: string;
   name?: string;
   unitOfMeasure?: string;

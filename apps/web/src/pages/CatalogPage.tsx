@@ -20,6 +20,7 @@ const emptyForm = {
 };
 
 type EditForm = {
+  type: ArticleType;
   openSiReference: string;
   name: string;
   unitOfMeasure: string;
@@ -30,6 +31,7 @@ type EditForm = {
 
 function toEditForm(article: Article): EditForm {
   return {
+    type: article.type,
     openSiReference: article.openSiReference,
     name: article.name,
     unitOfMeasure: article.unitOfMeasure,
@@ -120,6 +122,7 @@ export function CatalogPage() {
     setEditError(null);
     try {
       await api.updateArticle(token, id, {
+        type: editForm.type,
         openSiReference: editForm.openSiReference,
         name: editForm.name,
         unitOfMeasure: editForm.unitOfMeasure,
@@ -310,7 +313,19 @@ export function CatalogPage() {
                   <tr key={article.id} className={article.active ? '' : 'opacity-50'}>
                     {isEditing && editForm ? (
                       <>
-                        <td className="px-4 py-2 text-gray-500">{ARTICLE_TYPE_LABELS[article.type]}</td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={editForm.type}
+                            onChange={(e) => setEditForm({ ...editForm, type: e.target.value as ArticleType })}
+                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                          >
+                            {ARTICLE_TYPES.map((type) => (
+                              <option key={type} value={type}>
+                                {ARTICLE_TYPE_LABELS[type]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.openSiReference}

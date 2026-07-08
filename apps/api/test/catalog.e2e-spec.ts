@@ -152,6 +152,79 @@ describe('Catalog (e2e)', () => {
     });
   });
 
+  describe('PATCH /catalog/articles/:id — changement de type encadré', () => {
+    const createdStockLotIds: string[] = [];
+
+    afterAll(async () => {
+      if (createdStockLotIds.length > 0) {
+        await prisma.stockLot.deleteMany({
+          where: { id: { in: createdStockLotIds } },
+        });
+      }
+    });
+
+    it('autorise le changement de type si l’article n’a jamais été utilisé', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'MATIERE_PREMIERE',
+          openSiReference: `${testOpenSiReferencePrefix}UNUSED`,
+          name: 'Article inutilisé',
+          unitOfMeasure: 'L',
+          currentUnitCost: 1,
+        })
+        .expect(201);
+      const articleId = (createResponse.body as { id: string }).id;
+
+      const patchResponse = await request(app.getHttpServer())
+        .patch(`/catalog/articles/${articleId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ type: 'PACKAGING' })
+        .expect(200);
+
+      expect((patchResponse.body as { type: string }).type).toBe('PACKAGING');
+    });
+
+    it('refuse le changement de type si l’article est déjà utilisé (409, message explicite)', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'MATIERE_PREMIERE',
+          openSiReference: `${testOpenSiReferencePrefix}USED`,
+          name: 'Article déjà utilisé',
+          unitOfMeasure: 'L',
+          currentUnitCost: 1,
+        })
+        .expect(201);
+      const articleId = (createResponse.body as { id: string }).id;
+
+      const site = await prisma.site.findFirstOrThrow();
+      const stockLot = await prisma.stockLot.create({
+        data: {
+          siteId: site.id,
+          articleId,
+          supplierLotNumber: 'E2E-LOT-TYPE-TEST',
+          receivedQuantity: 10,
+          remainingQuantity: 10,
+          receivedAt: new Date(),
+        },
+      });
+      createdStockLotIds.push(stockLot.id);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/catalog/articles/${articleId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ type: 'PACKAGING' })
+        .expect(409);
+
+      expect((response.body as { message: string }).message).toBe(
+        'Le type de cet article ne peut plus être modifié car il est déjà utilisé dans le stock, une recette ou une production. Désactivez cet article et créez-en un nouveau.',
+      );
+    });
+  });
+
   describe('GET /catalog/machines', () => {
     it('autorise RESPONSABLE_LABORATOIRE (200)', () => {
       return request(app.getHttpServer())
