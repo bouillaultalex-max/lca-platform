@@ -55,14 +55,15 @@ Audit de la plateforme selon 4 profils (administrateur, responsable laboratoire,
 
 **Livrable** : plateforme prête pour le premier déploiement interne (Kevin et Jean-Paul), sans les manques identifiés à l'audit. Build/lint/tests verts (241 tests unitaires + 39 e2e), vérifié en navigateur.
 
-## V0.3 : premiers tests utilisateurs — corrections ✅ Terminé le 2026-07-08
+## V0.3 : premiers tests utilisateurs — corrections ✅ Terminé le 2026-07-09
 
-Accès réel de Kevin et Jean-Paul au serveur de développement via tunnel Cloudflare. Corrections traitées au fil de l'eau suite à ces premiers tests :
+Accès réel de Kevin et Jean-Paul au serveur de développement via tunnel Cloudflare. Corrections et petites fonctionnalités traitées au fil de l'eau suite à ces premiers tests :
 
 - ✅ Changement de type d'un article encadré (`PATCH /catalog/articles/:id`) : autorisé uniquement si l'article n'a jamais été utilisé (aucune recette, aucun stock, aucun mouvement de stock, aucune généalogie de lot) ; message d'erreur explicite sinon ; sélecteur de type ajouté à l'édition du Catalogue.
 - ✅ Correction générale du rechargement (F5) sur toutes les routes React : certaines pages (`/catalog`, `/stock`, `/production`) coïncidaient avec des préfixes proxysés vers l'API dans `apps/web/vite.config.ts`, causant une erreur JSON brute au lieu de l'application. Corrigé via un `bypass` du proxy basé sur l'en-tête `Accept` (navigation de page vs. appel API), sans liste de routes à maintenir — couvre toute route React actuelle ou future.
+- ✅ Système de retours utilisateurs intégré : bouton "💡 Faire un retour" (type Bug/Idée/Amélioration/Question, priorité Normale/Importante/Bloquante, message), page courante et utilisateur enregistrés automatiquement, ainsi que la version applicative (contexte figé pour une relecture plus tard). Écran `/admin/feedback` (consultation + marquage "traité") réservé aux administrateurs système. Collecte simple, sans commentaires ni assignation ni notifications.
 
-**Livrable** : build/lint/tests verts (250 tests unitaires + 41 e2e), vérifié en navigateur (accès direct, F5, navigation, appels API sur toutes les routes).
+**Livrable** : build/lint/tests verts (255 tests unitaires + 50 e2e), vérifié en navigateur (accès direct, F5, navigation, appels API sur toutes les routes ; parcours complet du système de retours).
 
 ## Jalon 3 — Traçabilité, qualité, coûts
 

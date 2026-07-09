@@ -35,6 +35,34 @@ enum AuditAction {
   @@map("audit_action")
 }
 
+/// Type d'un retour utilisateur (voir Feedback, collecte des premiers tests V0.3).
+enum FeedbackType {
+  BUG
+  IDEE
+  AMELIORATION
+  QUESTION
+
+  @@map("feedback_type")
+}
+
+/// Priorité déclarée par l'utilisateur, pour trier rapidement les retours pendant
+/// les premiers tests — pas de calcul automatique, une saisie simple.
+enum FeedbackPriority {
+  NORMALE
+  IMPORTANTE
+  BLOQUANTE
+
+  @@map("feedback_priority")
+}
+
+/// Volontairement limité à 2 statuts : pas de workflow, juste "à regarder" / "vu".
+enum FeedbackStatus {
+  NOUVEAU
+  TRAITE
+
+  @@map("feedback_status")
+}
+
 /// Type d'article (voir docs/modele-donnees.md §1) : une table unique pour matières
 /// premières, packaging et produits finis, distingués par ce type.
 enum ArticleType {
@@ -152,6 +180,7 @@ model Site {
   exportLogs           ExportLog[]
   expectedRequirements ExpectedRequirement[]
   columnMappingRules   ColumnMappingRule[]
+  feedbackEntries      Feedback[]
 
   @@map("sites")
 }
@@ -201,12 +230,13 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  auditLogs      AuditLog[]
-  loginHistory   LoginHistory[]
-  stockMovements StockMovement[]
-  batchesCreated Batch[]
-  importLogs     ImportLog[]
-  exportLogs     ExportLog[]
+  auditLogs       AuditLog[]
+  loginHistory    LoginHistory[]
+  stockMovements  StockMovement[]
+  batchesCreated  Batch[]
+  importLogs      ImportLog[]
+  exportLogs      ExportLog[]
+  feedbackEntries Feedback[]
 
   @@map("users")
 }
@@ -247,6 +277,27 @@ model LoginHistory {
   @@index([userId])
   @@index([email])
   @@map("login_history")
+}
+
+/// Retour utilisateur (bug/idée/amélioration/question) collecté pendant les premiers
+/// tests réels (V0.3) — journal simple, append-only : pas de commentaires, pas
+/// d'assignation, pas de notifications. `appVersion` fige le contexte applicatif au
+/// moment du signalement, pour être compréhensible en le relisant bien plus tard.
+model Feedback {
+  id         String           @id @default(uuid())
+  siteId     String           @map("site_id")
+  site       Site             @relation(fields: [siteId], references: [id])
+  userId     String           @map("user_id")
+  user       User             @relation(fields: [userId], references: [id])
+  type       FeedbackType
+  priority   FeedbackPriority @default(NORMALE)
+  message    String
+  pageUrl    String           @map("page_url")
+  appVersion String           @map("app_version")
+  status     FeedbackStatus   @default(NOUVEAU)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@map("feedback")
 }
 
 // ---------------------------------------------------------------------------

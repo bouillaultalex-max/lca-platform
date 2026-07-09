@@ -5,3 +5,4 @@ export * from './types/catalog';
 export * from './types/stock';
 export * from './types/production';
 export * from './types/import';
+export * from './types/feedback';

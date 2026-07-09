@@ -46,6 +46,8 @@ import type {
   CreateUserRequest,
   UpdateUserRequest,
   CreatedUserResult,
+  Feedback,
+  CreateFeedbackRequest,
   ResetPasswordResponse,
 } from '@lca-mes/shared';
 
@@ -326,4 +328,12 @@ export const api = {
       buildImportFormData(file, mappingCorrections),
       token,
     ),
+
+  createFeedback: (token: string, payload: CreateFeedbackRequest): Promise<Feedback> =>
+    request<Feedback>('/feedback', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  listFeedback: (token: string): Promise<Feedback[]> => request<Feedback[]>('/feedback', {}, token),
+
+  markFeedbackAsTreated: (token: string, id: string): Promise<Feedback> =>
+    request<Feedback>(`/feedback/${id}/treated`, { method: 'PATCH' }, token),
 };

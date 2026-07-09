@@ -9,6 +9,7 @@ import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { ImportsPage } from './pages/imports/ImportsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
+import { FeedbackPage } from './pages/admin/FeedbackPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
 function App() {
@@ -28,6 +29,14 @@ function App() {
         element={
           <ProtectedRoute requireSystemAdmin>
             <AdminUsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/feedback"
+        element={
+          <ProtectedRoute requireSystemAdmin>
+            <FeedbackPage />
           </ProtectedRoute>
         }
       />

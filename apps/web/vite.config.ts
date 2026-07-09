@@ -45,6 +45,7 @@ export default defineConfig({
       '/batching': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
       '/production': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
       '/import-export': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
+      '/feedback': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
       '/health': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
     },
   },

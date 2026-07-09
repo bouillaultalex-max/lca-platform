@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { hasFullAccess } from '@lca-mes/shared';
 import { useAuth } from '../auth/useAuth';
+import { FeedbackButton } from './FeedbackButton';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-3 py-1.5 text-sm font-medium transition ${
@@ -26,6 +27,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <p className="text-sm text-gray-500">Laboratoire LCA Distribution</p>
           </div>
           <div className="flex items-center gap-3">
+            <FeedbackButton />
             <NavLink to="/change-password" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
               Changer mon mot de passe
             </NavLink>
@@ -65,9 +67,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             Stock
           </NavLink>
           {user.isSystemAdmin && (
-            <NavLink to="/admin/users" className={navLinkClass}>
-              Administration
-            </NavLink>
+            <>
+              <NavLink to="/admin/users" className={navLinkClass}>
+                Administration
+              </NavLink>
+              <NavLink to="/admin/feedback" className={navLinkClass}>
+                Retours
+              </NavLink>
+            </>
           )}
         </nav>
       </header>
