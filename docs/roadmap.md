@@ -65,11 +65,19 @@ Accès réel de Kevin et Jean-Paul au serveur de développement via tunnel Cloud
 
 **Livrable** : build/lint/tests verts (255 tests unitaires + 50 e2e), vérifié en navigateur (accès direct, F5, navigation, appels API sur toutes les routes ; parcours complet du système de retours).
 
+## V0.3 : tableau de bord de synthèse + correction générale du repli SPA en production ✅ Terminé le 2026-07-12
+
+- ✅ Tableau de bord : ajout d'une section "Vue d'ensemble" avec 7 cartes de synthèse (articles, recettes actives, machines actives, lots en stock, productions ouvertes, retours non traités, besoins importés en attente), agrégées côté serveur (`GET /dashboard/summary`), ouvertes à tous les rôles authentifiés. Aucune modification métier, aucun nouveau composant frontend (réutilise `SummaryCard`, déjà utilisé par Imports).
+- ✅ **Bug de production corrigé** : `ServeStaticModule` cassait le SPA (404 JSON brut) sur `/catalog`, `/stock`, `/production` lors d'un accès direct ou d'un F5 **en production uniquement** — motif d'exclusion `{*path}` matchant à tort le chemin nu. Investigation approfondie : `/catalog/recipes` et `/catalog/machines` sont à la fois des pages React et de vrais endpoints API au même chemin littéral, ce qu'aucun filtrage par chemin ne peut résoudre. Corrigé **génériquement** par un nouveau middleware (`spaFallbackMiddleware`) qui distingue une navigation de page d'un appel API via l'en-tête `Accept` — même principe que le correctif Vite du 2026-07-08, désormais symétrique côté serveur en production.
+
+**Livrable** : build/lint/tests verts (264 tests unitaires + 52 e2e), vérifié en conditions de production réelles (build + fichiers statiques, serveur dédié) : accès direct, F5, navigation normale et appels API sur toutes les routes concernées, y compris les collisions littérales (`/catalog/recipes`, `/catalog/machines`) ; `/health` et `/api/docs` non affectés.
+
 ## Jalon 3 — Traçabilité, qualité, coûts
 
 - Module `traceability` : généalogie du lot (matières premières + packaging consommés)
 - Module `quality` : contrôle qualité simple par lot
 - Module `costing` : calcul et historisation du coût matière + packaging par flacon
+- **Module `planning` / ordonnancement** — ajouté à la roadmap le 2026-07-09, priorité identifiée après les premiers tests utilisateurs (voir `PROJECT_STATE.md` §8 pour le détail complet). Documenté ici comme futur module prioritaire ; conception et code non démarrés.
 
 **Livrable** : chaque lot est intégralement traçable (généalogie), contrôlé qualité, et son coût par flacon est calculé et figé.
 

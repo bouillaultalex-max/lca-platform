@@ -2,9 +2,15 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { spaFallbackMiddleware } from './spa-fallback.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Doit être enregistré avant ServeStaticModule (initialisé plus tard, lors de
+  // app.listen()) pour intercepter en priorité toute navigation de page — voir
+  // spa-fallback.middleware.ts pour le détail du problème résolu.
+  app.use(spaFallbackMiddleware);
 
   app.useGlobalPipes(
     new ValidationPipe({

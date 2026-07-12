@@ -48,6 +48,7 @@ import type {
   CreatedUserResult,
   Feedback,
   CreateFeedbackRequest,
+  DashboardSummary,
   ResetPasswordResponse,
 } from '@lca-mes/shared';
 
@@ -336,4 +337,7 @@ export const api = {
 
   markFeedbackAsTreated: (token: string, id: string): Promise<Feedback> =>
     request<Feedback>(`/feedback/${id}/treated`, { method: 'PATCH' }, token),
+
+  getDashboardSummary: (token: string): Promise<DashboardSummary> =>
+    request<DashboardSummary>('/dashboard/summary', {}, token),
 };
