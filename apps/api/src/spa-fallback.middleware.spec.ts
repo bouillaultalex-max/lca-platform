@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Request, Response } from 'express';
 import { spaFallbackMiddleware } from './spa-fallback.middleware';
@@ -36,13 +36,22 @@ describe('spaFallbackMiddleware', () => {
   });
 
   describe('quand le build frontend existe', () => {
+    // `apps/api/public/` est un dossier suivi par git (placeholder `.gitkeep`,
+    // repli en développement) : on ne le crée/supprime que s'il n'existait pas
+    // déjà, pour ne jamais effacer ce placeholder au nettoyage.
+    const publicDirPreexisted = existsSync(PUBLIC_DIR);
+
     beforeAll(() => {
       mkdirSync(PUBLIC_DIR, { recursive: true });
       writeFileSync(INDEX_HTML_PATH, '<!doctype html><title>test</title>');
     });
 
     afterAll(() => {
-      rmSync(PUBLIC_DIR, { recursive: true, force: true });
+      if (publicDirPreexisted) {
+        rmSync(INDEX_HTML_PATH, { force: true });
+      } else {
+        rmSync(PUBLIC_DIR, { recursive: true, force: true });
+      }
     });
 
     it('sert index.html pour une navigation de page (Accept: text/html) sur une route partagée', () => {

@@ -91,7 +91,7 @@ docker compose up -d --build
 
 | Nom | Email | Rôle logiciel | Fonction métier | Administrateur système |
 |---|---|---|---|---|
-| Alexandre Bouillault | `alexandre.bouillault@lca-mes.local` | `RESPONSABLE_ADJOINT` | Responsable adjoint | Oui |
+| Alexandre Bouillault | `alexbouillault.lca@gmail.com` | `RESPONSABLE_ADJOINT` | Responsable adjoint | Oui |
 | Kevin Prian | `kevin.prian@lca-mes.local` | `RESPONSABLE_LABORATOIRE` | Responsable laboratoire | Non |
 | Jean-Paul Gouveia | `jean-paul.gouveia@lca-mes.local` | `DIRECTION` | Directeur des opérations | Non |
 

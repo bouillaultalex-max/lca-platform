@@ -21,7 +21,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, UserRole } from '../generated/prisma/client';
 
 const DEFAULT_SITE_NAME = 'Laboratoire LCA Distribution';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'alexandre.bouillault@lca-mes.local';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'alexbouillault.lca@gmail.com';
 const ADMIN_FULL_NAME = process.env.ADMIN_FULL_NAME ?? 'Alexandre Bouillault';
 const ADMIN_JOB_TITLE = process.env.ADMIN_JOB_TITLE ?? 'Responsable adjoint';
 
