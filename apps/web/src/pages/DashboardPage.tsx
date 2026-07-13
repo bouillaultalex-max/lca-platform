@@ -30,7 +30,7 @@ export function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm">
         <p className="text-lg font-medium text-gray-900">Bonjour {firstName} 👋</p>
         {user.lastLoginAt && (
           <p className="mt-1 text-sm text-gray-500">
@@ -43,7 +43,7 @@ export function DashboardPage() {
               {user.jobTitle.name}
             </span>
           )}
-          <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+          <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand">
             {USER_ROLE_LABELS[user.role]}
           </span>
           <span

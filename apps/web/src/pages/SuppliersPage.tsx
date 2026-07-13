@@ -5,7 +5,10 @@ import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 
 const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
+
+const rowClass = (active: boolean) =>
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${active ? '' : 'opacity-50'}`;
 
 const emptyForm = { name: '', contactName: '', phone: '', email: '' };
 
@@ -118,11 +121,11 @@ export function SuppliersPage() {
         préserve l'historique.
       </p>
 
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer un fournisseur</h3>
         <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nom</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Nom</label>
             <input
               required
               value={form.name}
@@ -132,7 +135,7 @@ export function SuppliersPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">
               Contact <span className="font-normal text-gray-400">(optionnel)</span>
             </label>
             <input
@@ -142,7 +145,7 @@ export function SuppliersPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">
               Téléphone <span className="font-normal text-gray-400">(optionnel)</span>
             </label>
             <input
@@ -152,7 +155,7 @@ export function SuppliersPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">
               E-mail <span className="font-normal text-gray-400">(optionnel)</span>
             </label>
             <input
@@ -168,7 +171,7 @@ export function SuppliersPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Création…' : 'Créer le fournisseur'}
             </button>
@@ -176,7 +179,7 @@ export function SuppliersPage() {
         </form>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
         {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
         {isLoading ? (
           <p className="p-4 text-sm text-gray-500">Chargement…</p>
@@ -203,28 +206,28 @@ export function SuppliersPage() {
               {suppliers.map((supplier) => {
                 const isEditing = editingId === supplier.id;
                 return (
-                  <tr key={supplier.id} className={supplier.active ? '' : 'opacity-50'}>
+                  <tr key={supplier.id} className={rowClass(supplier.active)}>
                     {isEditing && editForm ? (
                       <>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.name}
                             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.contactName}
                             onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.phone}
                             onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -232,7 +235,7 @@ export function SuppliersPage() {
                             type="email"
                             value={editForm.email}
                             onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2 text-gray-500">{supplier.active ? 'Actif' : 'Désactivé'}</td>
@@ -240,7 +243,7 @@ export function SuppliersPage() {
                           {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
                           <button
                             onClick={() => void handleSaveEdit(supplier.id)}
-                            className="mr-2 text-xs font-medium text-blue-600 hover:underline"
+                            className="mr-2 text-xs font-medium text-brand hover:underline"
                           >
                             Enregistrer
                           </button>
@@ -275,7 +278,7 @@ export function SuppliersPage() {
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           <button
                             onClick={() => startEdit(supplier)}
-                            className="mr-3 text-xs text-blue-600 hover:underline"
+                            className="mr-3 text-xs text-brand hover:underline"
                           >
                             Modifier
                           </button>

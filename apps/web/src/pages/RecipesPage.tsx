@@ -15,6 +15,9 @@ function emptyLine(): LineDraft {
   return { articleId: '', quantityPerUnit: '', unit: '' };
 }
 
+const rowClass = (archived: boolean) =>
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${archived ? 'opacity-60' : ''}`;
+
 export function RecipesPage() {
   const { token } = useAuth();
 
@@ -142,11 +145,11 @@ export function RecipesPage() {
       {loadError && <p className="mt-4 text-sm text-red-600">{loadError}</p>}
 
       <div className="mt-6">
-        <label className="mb-1 block text-sm font-medium text-gray-700">Produit fini</label>
+        <label className="mb-1.5 block text-xs font-medium text-gray-500">Produit fini</label>
         <select
           value={selectedProductId}
           onChange={(e) => setSelectedProductId(e.target.value)}
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full max-w-md rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
         >
           <option value="">— Sélectionner un produit fini —</option>
           {finishedProducts.map((product) => (
@@ -157,7 +160,7 @@ export function RecipesPage() {
         </select>
         {finishedProducts.length === 0 && (
           <p className="mt-2 text-sm text-gray-500">
-            Aucun produit fini actif. Créez-en un dans le <Link className="underline" to="/catalog">catalogue</Link>{' '}
+            Aucun produit fini actif. Créez-en un dans le <Link className="text-brand underline" to="/catalog">catalogue</Link>{' '}
             (type « Produit fini ») avant de créer une recette.
           </p>
         )}
@@ -165,8 +168,8 @@ export function RecipesPage() {
 
       {selectedProductId && (
         <>
-          <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <h3 className="border-b border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900">
+          <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
+            <h3 className="border-b border-brand-border px-4 py-2 text-sm font-semibold text-gray-900">
               Historique des versions
             </h3>
             {isLoadingRecipes ? (
@@ -190,7 +193,7 @@ export function RecipesPage() {
                     </tr>
                   )}
                   {recipes.map((recipe) => (
-                    <tr key={recipe.id} className={recipe.status === 'ARCHIVEE' ? 'opacity-60' : ''}>
+                    <tr key={recipe.id} className={rowClass(recipe.status === 'ARCHIVEE')}>
                       <td className="px-4 py-2">{recipe.format} ml</td>
                       <td className="px-4 py-2">v{recipe.version}</td>
                       <td className="px-4 py-2">
@@ -207,7 +210,7 @@ export function RecipesPage() {
                       <td className="px-4 py-2 text-right">
                         <button
                           onClick={() => setSelectedRecipeId(recipe.id === selectedRecipeId ? null : recipe.id)}
-                          className="mr-3 text-xs text-blue-600 hover:underline"
+                          className="mr-3 text-xs text-brand hover:underline"
                         >
                           {recipe.id === selectedRecipeId ? 'Masquer' : 'Voir la composition'}
                         </button>
@@ -227,7 +230,7 @@ export function RecipesPage() {
             )}
 
             {selectedRecipe && (
-              <div className="border-t border-gray-200 px-4 py-3">
+              <div className="border-t border-brand-border px-4 py-3">
                 <h4 className="mb-2 text-sm font-semibold text-gray-900">
                   Composition — v{selectedRecipe.version} ({selectedRecipe.format} ml)
                 </h4>
@@ -242,24 +245,24 @@ export function RecipesPage() {
             )}
           </div>
 
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer une nouvelle version</h3>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Format (ml)</label>
+                <label className="mb-1.5 block text-xs font-medium text-gray-500">Format (ml)</label>
                 <input
                   required
                   type="number"
                   min="1"
                   value={format}
                   onChange={(e) => setFormat(e.target.value)}
-                  className="w-40 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-40 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                 />
               </div>
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-700">Lignes de composition</label>
+                  <label className="block text-xs font-medium text-gray-500">Lignes de composition</label>
                   <span className="text-xs text-gray-500">
                     Total matières premières :{' '}
                     <span className={percentageTotal === 100 ? 'font-medium text-green-700' : 'font-medium text-amber-700'}>
@@ -276,7 +279,7 @@ export function RecipesPage() {
                         required
                         value={line.articleId}
                         onChange={(e) => updateLine(index, { articleId: e.target.value })}
-                        className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="flex-1 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                       >
                         <option value="">— Article —</option>
                         {ingredientArticles.map((article) => (
@@ -293,14 +296,14 @@ export function RecipesPage() {
                         placeholder="Quantité / %"
                         value={line.quantityPerUnit}
                         onChange={(e) => updateLine(index, { quantityPerUnit: e.target.value })}
-                        className="w-36 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                       />
                       <input
                         required
                         placeholder="Unité (%, unité...)"
                         value={line.unit}
                         onChange={(e) => updateLine(index, { unit: e.target.value })}
-                        className="w-36 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                       />
                       <button
                         type="button"
@@ -317,7 +320,7 @@ export function RecipesPage() {
                 <button
                   type="button"
                   onClick={addLine}
-                  className="mt-2 text-xs font-medium text-blue-600 hover:underline"
+                  className="mt-2 text-xs font-medium text-brand hover:underline"
                 >
                   + Ajouter une ligne
                 </button>
@@ -328,7 +331,7 @@ export function RecipesPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? 'Création…' : 'Créer la version'}
               </button>

@@ -72,6 +72,14 @@ Accès réel de Kevin et Jean-Paul au serveur de développement via tunnel Cloud
 
 **Livrable** : build/lint/tests verts (264 tests unitaires + 52 e2e), vérifié en conditions de production réelles (build + fichiers statiques, serveur dédié) : accès direct, F5, navigation normale et appels API sur toutes les routes concernées, y compris les collisions littérales (`/catalog/recipes`, `/catalog/machines`) ; `/health` et `/api/docs` non affectés.
 
+## V0.4 — Refonte de la navigation (idée future, ajoutée le 2026-07-13, non implémentée)
+
+Ajoutée pendant le mini-jalon esthétique "Identité Maison Fuel" : la navigation horizontale actuelle (barre de liens sous le header) reste en place pour ce mini-jalon, mais ne passera pas à l'échelle indéfiniment à mesure que de nouveaux modules s'ajoutent (Jalon 3 : traçabilité/qualité/coûts ; futurs modules identifiés : Planning, Achats, CRM, BI...).
+
+**Objectif** : remplacer la navigation horizontale par une sidebar (menu latéral) moderne, capable d'accueillir un nombre croissant de modules sans dégrader la lisibilité ni la densité d'information sur un écran d'ordinateur portable.
+
+Non conçu, non codé — à cadrer explicitement avec l'utilisateur avant tout développement, comme chaque jalon précédent.
+
 ## Jalon 3 — Traçabilité, qualité, coûts
 
 - Module `traceability` : généalogie du lot (matières premières + packaging consommés)

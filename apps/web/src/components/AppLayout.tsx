@@ -5,8 +5,8 @@ import { useAuth } from '../auth/useAuth';
 import { FeedbackButton } from './FeedbackButton';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-3 py-1.5 text-sm font-medium transition ${
-    isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+  `border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
+    isActive ? 'border-accent text-white' : 'border-transparent text-white/70 hover:text-white'
   }`;
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -19,28 +19,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const fullAccess = hasFullAccess(user.role);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">LCA-MES</h1>
-            <p className="text-sm text-gray-500">Laboratoire LCA Distribution</p>
-          </div>
+    <div className="min-h-screen bg-brand-bg">
+      <header className="bg-brand-dark px-6 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
+            <div>
+              <p className="text-sm font-medium text-white">Maison Fuel Platform</p>
+              <p className="text-xs text-white/60">Manufacturing Execution System</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
             <FeedbackButton />
-            <NavLink to="/change-password" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
+            <NavLink to="/change-password" className="text-sm text-white/70 transition-colors hover:text-white">
               Changer mon mot de passe
             </NavLink>
             <button
               onClick={logout}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-100"
+              className="rounded-md border border-white/25 px-3 py-1.5 text-sm text-white transition-colors hover:bg-white/10"
             >
               Se déconnecter
             </button>
           </div>
         </div>
 
-        <nav className="mt-4 flex gap-1">
+        <nav className="mt-4 flex flex-wrap gap-4">
           <NavLink to="/dashboard" className={navLinkClass}>
             Tableau de bord
           </NavLink>

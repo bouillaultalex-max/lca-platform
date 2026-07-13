@@ -113,7 +113,7 @@ function WizardStepper({ currentStep }: { currentStep: WizardStepId }) {
                 isDone
                   ? 'rounded-full bg-green-50 px-2.5 py-1 font-medium text-green-700'
                   : isCurrent
-                    ? 'rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700'
+                    ? 'rounded-full bg-brand/10 px-2.5 py-1 font-medium text-brand'
                     : 'rounded-full bg-gray-100 px-2.5 py-1 text-gray-500'
               }
             >
@@ -156,7 +156,7 @@ function FileDropZone({
       }}
       onClick={() => inputRef.current?.click()}
       className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center transition ${
-        isDragging ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:bg-gray-50'
+        isDragging ? 'border-brand bg-brand/5' : 'border-brand-border bg-white hover:bg-gray-50'
       }`}
     >
       <input
@@ -403,7 +403,7 @@ export function ImportsPage() {
           type="button"
           onClick={() => setActiveTab('wizard')}
           className={`rounded-t-md px-4 py-2 text-sm font-medium transition ${
-            activeTab === 'wizard' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700'
+            activeTab === 'wizard' ? 'border-b-2 border-accent text-brand' : 'text-gray-500 hover:text-gray-700'
           }`}
         >
           Nouvel import
@@ -412,7 +412,7 @@ export function ImportsPage() {
           type="button"
           onClick={() => setActiveTab('history')}
           className={`rounded-t-md px-4 py-2 text-sm font-medium transition ${
-            activeTab === 'history' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-gray-700'
+            activeTab === 'history' ? 'border-b-2 border-accent text-brand' : 'text-gray-500 hover:text-gray-700'
           }`}
         >
           Historique
@@ -441,7 +441,7 @@ export function ImportsPage() {
                   key={option.type}
                   type="button"
                   onClick={() => handleSelectType(option.type)}
-                  className="flex flex-col items-start rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
+                  className="flex flex-col items-start rounded-xl border border-brand-border bg-white p-4 text-left shadow-sm transition-colors hover:border-brand hover:shadow-md"
                 >
                   <span className="text-3xl">{option.emoji}</span>
                   <span className="mt-2 font-semibold text-gray-900">{option.title}</span>
@@ -478,7 +478,7 @@ export function ImportsPage() {
                   type="button"
                   onClick={() => setStep('preview')}
                   disabled={!previewResult.mappingComplete}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Continuer vers l'aperçu →
                 </button>

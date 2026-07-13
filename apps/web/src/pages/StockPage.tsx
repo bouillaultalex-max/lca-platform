@@ -35,7 +35,7 @@ function StockStatusBadge({ isLowStock }: { isLowStock: boolean | null }) {
 }
 
 const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
 
 export function StockPage() {
   const { token, user } = useAuth();
@@ -183,7 +183,7 @@ export function StockPage() {
             </select>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
             {isLoadingItems ? (
               <p className="p-4 text-sm text-gray-500">Chargement…</p>
             ) : (
@@ -208,8 +208,8 @@ export function StockPage() {
                     <tr
                       key={item.id}
                       onClick={() => setSelectedArticleId(item.articleId)}
-                      className={`cursor-pointer ${
-                        item.articleId === selectedArticleId ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      className={`cursor-pointer transition-colors odd:bg-white even:bg-gray-50/60 ${
+                        item.articleId === selectedArticleId ? 'bg-brand/10' : 'hover:bg-brand-bg'
                       }`}
                     >
                       <td className="px-3 py-2">
@@ -236,12 +236,12 @@ export function StockPage() {
         {/* Colonne droite : détail de l'article sélectionné */}
         <div>
           {!selectedItem ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-gray-300 p-8 text-sm text-gray-500">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-brand-border p-8 text-sm text-gray-500">
               Sélectionnez un article pour voir le détail de son stock.
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
                 <h3 className="text-sm font-semibold text-gray-900">{selectedItem.article.name}</h3>
                 <p className="mt-1 text-sm text-gray-600">
                   Stock disponible :{' '}
@@ -255,7 +255,7 @@ export function StockPage() {
                   <>
                     <div className="mt-3 flex items-end gap-2">
                       <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-700">Seuil minimum</label>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-500">Seuil minimum</label>
                         <input
                           type="number"
                           min="0"
@@ -266,7 +266,7 @@ export function StockPage() {
                       </div>
                       <button
                         onClick={() => void handleSaveThreshold()}
-                        className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100"
+                        className="rounded-md border border-brand-border px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
                       >
                         Enregistrer
                       </button>
@@ -275,7 +275,7 @@ export function StockPage() {
 
                     <button
                       onClick={() => setReceiveModalOpen(true)}
-                      className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                      className="mt-4 rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
                     >
                       Réceptionner un lot
                     </button>
@@ -287,8 +287,8 @@ export function StockPage() {
                 )}
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-                <h4 className="border-b border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900">
+              <div className="overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
+                <h4 className="border-b border-brand-border px-4 py-2 text-sm font-semibold text-gray-900">
                   Lots (ordre FIFO — le plus ancien en premier)
                 </h4>
                 {isLoadingLots ? (
@@ -314,7 +314,7 @@ export function StockPage() {
                       )}
                       {lots.map((lot) => (
                         <Fragment key={lot.id}>
-                          <tr>
+                          <tr className="transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg">
                             <td className="px-3 py-2 font-mono text-xs">{lot.supplierLotNumber}</td>
                             <td className="px-3 py-2">{lot.receivedAt.slice(0, 10)}</td>
                             <td className="px-3 py-2">{lot.receivedQuantity}</td>
@@ -323,7 +323,7 @@ export function StockPage() {
                               {canWrite && (
                                 <button
                                   onClick={() => setAdjustLot(lot)}
-                                  className="mr-3 text-xs text-blue-600 hover:underline"
+                                  className="mr-3 text-xs text-brand hover:underline"
                                 >
                                   Ajuster
                                 </button>
@@ -439,11 +439,11 @@ function ReceiveStockLotModal({
     <Modal title="Réceptionner un lot" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">N° de lot fournisseur</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">N° de lot fournisseur</label>
           <input required value={supplierLotNumber} onChange={(e) => setSupplierLotNumber(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Quantité reçue ({unitOfMeasure})</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité reçue ({unitOfMeasure})</label>
           <input
             required
             type="number"
@@ -455,15 +455,15 @@ function ReceiveStockLotModal({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Date de réception</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Date de réception</label>
           <input required type="date" value={receivedAt} onChange={(e) => setReceivedAt(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Date de péremption (optionnel)</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Date de péremption (optionnel)</label>
           <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Commentaire (optionnel)</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Commentaire (optionnel)</label>
           <input value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} />
         </div>
 
@@ -472,7 +472,7 @@ function ReceiveStockLotModal({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Réception…' : 'Réceptionner'}
         </button>
@@ -521,7 +521,7 @@ function AdjustStockLotModal({
       <form onSubmit={handleSubmit} className="space-y-3">
         <p className="text-sm text-gray-600">Quantité actuellement enregistrée : {lot.remainingQuantity}</p>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Quantité physiquement constatée</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité physiquement constatée</label>
           <input
             required
             type="number"
@@ -539,7 +539,7 @@ function AdjustStockLotModal({
           </p>
         )}
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Commentaire (optionnel)</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Commentaire (optionnel)</label>
           <input value={comment} onChange={(e) => setComment(e.target.value)} className={inputClass} />
         </div>
 
@@ -548,7 +548,7 @@ function AdjustStockLotModal({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Enregistrement…' : "Enregistrer l'ajustement"}
         </button>

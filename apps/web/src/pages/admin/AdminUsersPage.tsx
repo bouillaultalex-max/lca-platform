@@ -32,6 +32,9 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString('fr-FR');
 }
 
+const rowClass = (active: boolean) =>
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${active ? '' : 'opacity-50'}`;
+
 export function AdminUsersPage() {
   const { token, user: currentUser } = useAuth();
 
@@ -228,35 +231,35 @@ export function AdminUsersPage() {
       )}
 
       {/* Création d'un compte utilisateur */}
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer un compte utilisateur</h3>
         <form onSubmit={handleCreateUser} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nom complet</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Nom complet</label>
             <input
               required
               value={userForm.fullName}
               onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Adresse e-mail</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Adresse e-mail</label>
             <input
               required
               type="email"
               value={userForm.email}
               onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Fonction métier</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Fonction métier</label>
             <select
               required
               value={userForm.jobTitleId}
               onChange={(e) => setUserForm({ ...userForm, jobTitleId: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             >
               <option value="">Sélectionner…</option>
               {activeJobTitles.map((jobTitle) => (
@@ -267,11 +270,11 @@ export function AdminUsersPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Rôle logiciel</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Rôle logiciel</label>
             <select
               value={userForm.role}
               onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             >
               {ROLES.map((role) => (
                 <option key={role} value={role}>
@@ -296,7 +299,7 @@ export function AdminUsersPage() {
             <button
               type="submit"
               disabled={isCreatingUser}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isCreatingUser ? 'Création…' : 'Créer le compte'}
             </button>
@@ -305,7 +308,7 @@ export function AdminUsersPage() {
       </div>
 
       {/* Liste des utilisateurs */}
-      <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
         {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
         {isLoading ? (
           <p className="p-4 text-sm text-gray-500">Chargement…</p>
@@ -334,14 +337,14 @@ export function AdminUsersPage() {
               {users.map((user) => {
                 const isEditing = editingUserId === user.id;
                 return (
-                  <tr key={user.id} className={user.active ? '' : 'opacity-50'}>
+                  <tr key={user.id} className={rowClass(user.active)}>
                     {isEditing && editForm ? (
                       <>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.fullName}
                             onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -349,14 +352,14 @@ export function AdminUsersPage() {
                             type="email"
                             value={editForm.email}
                             onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
                           <select
                             value={editForm.jobTitleId}
                             onChange={(e) => setEditForm({ ...editForm, jobTitleId: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           >
                             <option value="">—</option>
                             {activeJobTitles.map((jobTitle) => (
@@ -370,7 +373,7 @@ export function AdminUsersPage() {
                           <select
                             value={editForm.role}
                             onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           >
                             {ROLES.map((role) => (
                               <option key={role} value={role}>
@@ -400,7 +403,7 @@ export function AdminUsersPage() {
                           {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
                           <button
                             onClick={() => void handleSaveEdit(user.id)}
-                            className="mr-2 text-xs font-medium text-blue-600 hover:underline"
+                            className="mr-2 text-xs font-medium text-brand hover:underline"
                           >
                             Enregistrer
                           </button>
@@ -423,7 +426,7 @@ export function AdminUsersPage() {
                         <td className="px-4 py-2">{USER_ROLE_LABELS[user.role]}</td>
                         <td className="px-4 py-2">
                           {user.isSystemAdmin ? (
-                            <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                            <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand">
                               Administrateur
                             </span>
                           ) : (
@@ -450,7 +453,7 @@ export function AdminUsersPage() {
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           <button
                             onClick={() => startEdit(user)}
-                            className="mr-3 text-xs text-blue-600 hover:underline"
+                            className="mr-3 text-xs text-brand hover:underline"
                           >
                             Modifier
                           </button>
@@ -488,7 +491,7 @@ export function AdminUsersPage() {
       </div>
 
       {/* Fonctions métier */}
-      <div className="mt-10 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mt-10 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
         <h3 className="mb-1 text-sm font-semibold text-gray-900">Fonctions métier</h3>
         <p className="mb-4 text-xs text-gray-500">
           Utilisées pour attribuer une fonction précise à chaque utilisateur (tableau de bord personnalisé,
@@ -496,18 +499,18 @@ export function AdminUsersPage() {
         </p>
         <form onSubmit={handleCreateJobTitle} className="flex items-end gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nom de la fonction</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Nom de la fonction</label>
             <input
               required
               value={jobTitleName}
               onChange={(e) => setJobTitleName(e.target.value)}
               placeholder="Ex : Responsable adjoint"
-              className="w-64 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-64 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
             />
           </div>
           <button
             type="submit"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
           >
             Ajouter
           </button>

@@ -5,7 +5,7 @@ import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 
 const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
 
 function parseFormats(value: string): number[] {
   return value
@@ -18,6 +18,9 @@ function parseFormats(value: string): number[] {
 function formatFormats(formats: number[]): string {
   return formats.join(', ');
 }
+
+const rowClass = (active: boolean) =>
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${active ? '' : 'opacity-50'}`;
 
 const emptyForm = { name: '', supportedFormats: '' };
 
@@ -117,11 +120,11 @@ export function MachinesPage() {
         batchs déjà réalisés.
       </p>
 
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer une machine</h3>
         <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nom</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Nom</label>
             <input
               required
               value={form.name}
@@ -131,7 +134,7 @@ export function MachinesPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Formats supportés (ml)</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Formats supportés (ml)</label>
             <input
               required
               value={form.supportedFormats}
@@ -144,7 +147,7 @@ export function MachinesPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Création…' : 'Créer la machine'}
             </button>
@@ -155,7 +158,7 @@ export function MachinesPage() {
         </form>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
         {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
         {isLoading ? (
           <p className="p-4 text-sm text-gray-500">Chargement…</p>
@@ -180,21 +183,21 @@ export function MachinesPage() {
               {machines.map((machine) => {
                 const isEditing = editingId === machine.id;
                 return (
-                  <tr key={machine.id} className={machine.active ? '' : 'opacity-50'}>
+                  <tr key={machine.id} className={rowClass(machine.active)}>
                     {isEditing && editForm ? (
                       <>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.name}
                             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.supportedFormats}
                             onChange={(e) => setEditForm({ ...editForm, supportedFormats: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2 text-gray-500">{machine.active ? 'Active' : 'Désactivée'}</td>
@@ -202,7 +205,7 @@ export function MachinesPage() {
                           {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
                           <button
                             onClick={() => void handleSaveEdit(machine.id)}
-                            className="mr-2 text-xs font-medium text-blue-600 hover:underline"
+                            className="mr-2 text-xs font-medium text-brand hover:underline"
                           >
                             Enregistrer
                           </button>
@@ -235,7 +238,7 @@ export function MachinesPage() {
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           <button
                             onClick={() => startEdit(machine)}
-                            className="mr-3 text-xs text-blue-600 hover:underline"
+                            className="mr-3 text-xs text-brand hover:underline"
                           >
                             Modifier
                           </button>

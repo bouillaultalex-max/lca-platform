@@ -14,7 +14,7 @@ const FEEDBACK_TYPES: FeedbackType[] = ['BUG', 'IDEE', 'AMELIORATION', 'QUESTION
 const FEEDBACK_PRIORITIES: FeedbackPriority[] = ['NORMALE', 'IMPORTANTE', 'BLOQUANTE'];
 
 const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
 
 export function FeedbackButton() {
   const { token } = useAuth();
@@ -65,7 +65,7 @@ export function FeedbackButton() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-100"
+        className="rounded-md border border-accent px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent hover:text-white"
       >
         💡 Faire un retour
       </button>
@@ -77,7 +77,7 @@ export function FeedbackButton() {
               <p className="text-sm text-gray-700">Merci, votre retour a été enregistré.</p>
               <button
                 onClick={handleClose}
-                className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
               >
                 Fermer
               </button>
@@ -85,7 +85,7 @@ export function FeedbackButton() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Type</label>
+                <label className="mb-1.5 block text-xs font-medium text-gray-500">Type</label>
                 <select value={type} onChange={(e) => setType(e.target.value as FeedbackType)} className={inputClass}>
                   {FEEDBACK_TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -96,7 +96,7 @@ export function FeedbackButton() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Priorité</label>
+                <label className="mb-1.5 block text-xs font-medium text-gray-500">Priorité</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as FeedbackPriority)}
@@ -111,7 +111,7 @@ export function FeedbackButton() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Message</label>
+                <label className="mb-1.5 block text-xs font-medium text-gray-500">Message</label>
                 <textarea
                   required
                   rows={4}
@@ -127,7 +127,7 @@ export function FeedbackButton() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? 'Envoi…' : 'Envoyer'}
               </button>

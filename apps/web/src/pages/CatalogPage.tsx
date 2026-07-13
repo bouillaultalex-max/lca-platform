@@ -16,7 +16,10 @@ function canHaveSupplier(type: ArticleType): boolean {
 }
 
 const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
+
+const rowClass = (active: boolean) =>
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${active ? '' : 'opacity-50'}`;
 
 const emptyForm = {
   type: 'MATIERE_PREMIERE' as ArticleType,
@@ -187,11 +190,11 @@ export function CatalogPage() {
         stock, lots) sans suppression physique.
       </p>
 
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
         <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer un article</h3>
         <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Type</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Type</label>
             <select
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value as ArticleType })}
@@ -205,7 +208,7 @@ export function CatalogPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Référence OpenSi</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Référence OpenSi</label>
             <input
               required
               value={form.openSiReference}
@@ -214,7 +217,7 @@ export function CatalogPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Désignation</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Désignation</label>
             <input
               required
               value={form.name}
@@ -223,7 +226,7 @@ export function CatalogPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Unité</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Unité</label>
             <input
               required
               placeholder="L, kg, unité..."
@@ -233,7 +236,7 @@ export function CatalogPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Coût unitaire</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Coût unitaire</label>
             <input
               required
               type="number"
@@ -245,7 +248,7 @@ export function CatalogPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">
               Unités par carton <span className="font-normal text-gray-400">(optionnel)</span>
             </label>
             <input
@@ -259,7 +262,7 @@ export function CatalogPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">
               Densité, kg/L <span className="font-normal text-gray-400">(matières premières, optionnel)</span>
             </label>
             <input
@@ -274,7 +277,7 @@ export function CatalogPage() {
           </div>
           {canHaveSupplier(form.type) && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
+              <label className="mb-1.5 block text-xs font-medium text-gray-500">
                 Fournisseur principal <span className="font-normal text-gray-400">(optionnel)</span>
               </label>
               <select
@@ -297,7 +300,7 @@ export function CatalogPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Création…' : 'Créer l’article'}
             </button>
@@ -327,7 +330,7 @@ export function CatalogPage() {
         </select>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="mt-4 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
         {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
         {isLoading ? (
           <p className="p-4 text-sm text-gray-500">Chargement…</p>
@@ -358,14 +361,14 @@ export function CatalogPage() {
               {filteredArticles.map((article) => {
                 const isEditing = editingId === article.id;
                 return (
-                  <tr key={article.id} className={article.active ? '' : 'opacity-50'}>
+                  <tr key={article.id} className={rowClass(article.active)}>
                     {isEditing && editForm ? (
                       <>
                         <td className="px-4 py-2">
                           <select
                             value={editForm.type}
                             onChange={(e) => setEditForm({ ...editForm, type: e.target.value as ArticleType })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           >
                             {ARTICLE_TYPES.map((type) => (
                               <option key={type} value={type}>
@@ -378,21 +381,21 @@ export function CatalogPage() {
                           <input
                             value={editForm.openSiReference}
                             onChange={(e) => setEditForm({ ...editForm, openSiReference: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.name}
                             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
                           <input
                             value={editForm.unitOfMeasure}
                             onChange={(e) => setEditForm({ ...editForm, unitOfMeasure: e.target.value })}
-                            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-20 rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -402,7 +405,7 @@ export function CatalogPage() {
                             step="0.0001"
                             value={editForm.currentUnitCost}
                             onChange={(e) => setEditForm({ ...editForm, currentUnitCost: e.target.value })}
-                            className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-24 rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -412,7 +415,7 @@ export function CatalogPage() {
                             step="1"
                             value={editForm.unitsPerCarton}
                             onChange={(e) => setEditForm({ ...editForm, unitsPerCarton: e.target.value })}
-                            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-20 rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -422,7 +425,7 @@ export function CatalogPage() {
                             step="0.01"
                             value={editForm.densityKgPerL}
                             onChange={(e) => setEditForm({ ...editForm, densityKgPerL: e.target.value })}
-                            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            className="w-20 rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -430,7 +433,7 @@ export function CatalogPage() {
                             <select
                               value={editForm.supplierId}
                               onChange={(e) => setEditForm({ ...editForm, supplierId: e.target.value })}
-                              className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                              className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                             >
                               <option value="">Aucun</option>
                               {activeSuppliers.map((supplier) => (
@@ -448,7 +451,7 @@ export function CatalogPage() {
                           {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
                           <button
                             onClick={() => void handleSaveEdit(article.id)}
-                            className="mr-2 text-xs font-medium text-blue-600 hover:underline"
+                            className="mr-2 text-xs font-medium text-brand hover:underline"
                           >
                             Enregistrer
                           </button>
@@ -489,7 +492,7 @@ export function CatalogPage() {
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           <button
                             onClick={() => startEdit(article)}
-                            className="mr-3 text-xs text-blue-600 hover:underline"
+                            className="mr-3 text-xs text-brand hover:underline"
                           >
                             Modifier
                           </button>

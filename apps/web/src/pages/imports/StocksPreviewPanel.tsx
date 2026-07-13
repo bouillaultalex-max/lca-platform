@@ -126,7 +126,7 @@ export function StocksPreviewPanel({
             type="button"
             onClick={onConfirm}
             disabled={isConfirming}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isConfirming ? 'Confirmation en cours…' : "Confirmer l'import"}
           </button>

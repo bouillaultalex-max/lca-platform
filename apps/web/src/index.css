@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+/*
+ * Identité visuelle Maison Fuel (mini-jalon esthétique, voir PROJECT_STATE.md).
+ * Palette validée avec l'utilisateur — l'indigo est la couleur dominante
+ * structurelle (header, navigation, boutons primaires), le framboise reste un
+ * accent ponctuel (jamais une grande surface). Vert/ambre/rouge (Tailwind par
+ * défaut) gardent exclusivement leur sens fonctionnel existant et ne sont pas
+ * redéfinis ici.
+ */
+@theme {
+  --color-brand: #2b2465;
+  --color-brand-dark: #15133f;
+  --color-brand-mid: #423b85;
+  --color-brand-bg: #eef0f7;
+  --color-brand-border: #c7cce3;
+  --color-accent: #e63462;
+  --color-accent-dark: #c81f5c;
+}

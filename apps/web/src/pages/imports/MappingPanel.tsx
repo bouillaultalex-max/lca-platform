@@ -3,7 +3,7 @@ import type { ColumnMappingSuggestion, MappingCorrection } from '@lca-mes/shared
 import { describeRecognizedField } from './importFormatting';
 
 const selectClass =
-  'w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-brand-border px-2 py-1.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
 
 interface MappingPanelProps {
   mapping: ColumnMappingSuggestion;
@@ -116,7 +116,7 @@ export function MappingPanel({ mapping, pendingCorrections, onApplyCorrection }:
                       💡 La colonne « {hint.suggestedColumnName} » pourrait convenir.{' '}
                       <button
                         type="button"
-                        className="font-medium text-blue-700 hover:underline"
+                        className="font-medium text-brand hover:underline"
                         onClick={() => onApplyCorrection(field.fieldKey, hint.suggestedColumnName)}
                       >
                         Utiliser cette colonne

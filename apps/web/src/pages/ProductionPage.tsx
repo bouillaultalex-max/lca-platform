@@ -17,7 +17,7 @@ import { AppLayout } from '../components/AppLayout';
 import { Modal } from '../components/Modal';
 
 const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+  'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
 
 const STATUS_FILTERS: Array<{ value: BatchStatus | ''; label: string }> = [
   { value: '', label: 'Tous statuts' },
@@ -82,7 +82,7 @@ function StepTracker({ status, currentStep }: { status: BatchStatus; currentStep
                 isDone
                   ? 'rounded-full bg-green-50 px-2.5 py-1 font-medium text-green-700'
                   : isCurrent
-                    ? 'rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700'
+                    ? 'rounded-full bg-brand/10 px-2.5 py-1 font-medium text-brand'
                     : 'rounded-full bg-gray-100 px-2.5 py-1 text-gray-500'
               }
             >
@@ -99,7 +99,7 @@ function StepTracker({ status, currentStep }: { status: BatchStatus; currentStep
 function StatusBadge({ status }: { status: BatchStatus }) {
   const classes: Record<BatchStatus, string> = {
     PLANIFIE: 'bg-gray-100 text-gray-600',
-    EN_COURS: 'bg-blue-50 text-blue-700',
+    EN_COURS: 'bg-brand/10 text-brand',
     TERMINE: 'bg-green-50 text-green-700',
     ANNULE: 'bg-red-50 text-red-700',
   };
@@ -272,13 +272,13 @@ export function ProductionPage() {
             </select>
             <button
               onClick={() => setCreateModalOpen(true)}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
             >
               + Créer un batch
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
             {isLoadingBatches ? (
               <p className="p-4 text-sm text-gray-500">Chargement…</p>
             ) : (
@@ -305,7 +305,7 @@ export function ProductionPage() {
                         setSelectedBatchId(batch.id);
                         setClosureBanner(null);
                       }}
-                      className={`cursor-pointer ${batch.id === selectedBatchId ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                      className={`cursor-pointer transition-colors odd:bg-white even:bg-gray-50/60 ${batch.id === selectedBatchId ? 'bg-brand/10' : 'hover:bg-brand-bg'}`}
                     >
                       <td className="px-3 py-2">
                         <div className="font-medium text-gray-900">{batchLabel(batch)}</div>
@@ -328,12 +328,12 @@ export function ProductionPage() {
         {/* Colonne droite : détail du batch sélectionné */}
         <div>
           {!selectedBatch ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-gray-300 p-8 text-sm text-gray-500">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-brand-border p-8 text-sm text-gray-500">
               Sélectionnez un batch pour voir son détail.
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-gray-900">{batchLabel(selectedBatch)}</h3>
                   <StatusBadge status={selectedBatch.status} />
@@ -355,12 +355,12 @@ export function ProductionPage() {
                 )}
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
                 <h4 className="mb-2 text-sm font-semibold text-gray-900">Préparation (aperçu)</h4>
                 <PreparationPreview ingredients={preparation} isLoading={isLoadingPreparation} />
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
                 <h4 className="mb-3 text-sm font-semibold text-gray-900">Étapes de production</h4>
                 <StepTracker status={selectedBatch.status} currentStep={selectedBatch.currentStep} />
 
@@ -370,7 +370,7 @@ export function ProductionPage() {
                   (selectedBatch.status === 'EN_COURS' && selectedBatch.currentStep !== 'CONDITIONNEMENT')) && (
                   <button
                     onClick={() => void handleAdvanceStep()}
-                    className="mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                    className="mt-3 rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
                   >
                     {selectedBatch.status === 'PLANIFIE' ? 'Démarrer la production' : 'Passer à l’étape suivante'}
                   </button>
@@ -378,13 +378,13 @@ export function ProductionPage() {
               </div>
 
               {selectedBatch.status === 'EN_COURS' && (
-                <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
                   <div className="mb-2 flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-gray-900">Arrêts</h4>
                     {!openStop && (
                       <button
                         onClick={() => setStartStopModalOpen(true)}
-                        className="text-xs font-medium text-blue-600 hover:underline"
+                        className="text-xs font-medium text-brand hover:underline"
                       >
                         Signaler un arrêt
                       </button>
@@ -410,7 +410,7 @@ export function ProductionPage() {
                           {stop.endedAt === null && (
                             <button
                               onClick={() => setEndStopTarget(stop)}
-                              className="text-xs text-blue-600 hover:underline"
+                              className="text-xs text-brand hover:underline"
                             >
                               Clôturer l’arrêt
                             </button>
@@ -553,7 +553,7 @@ function CreateBatchModal({
     <Modal title="Créer un batch" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Produit fini</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Produit fini</label>
           <select
             required
             value={productId}
@@ -575,7 +575,7 @@ function CreateBatchModal({
 
         {productId && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Recette (version active)</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Recette (version active)</label>
             <select
               required
               value={recipeId}
@@ -600,7 +600,7 @@ function CreateBatchModal({
 
         {recipeId && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Machine (compatible avec le format)</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Machine (compatible avec le format)</label>
             <select required value={machineId} onChange={(e) => setMachineId(e.target.value)} className={inputClass}>
               <option value="">— Sélectionner —</option>
               {compatibleMachines.map((m) => (
@@ -616,7 +616,7 @@ function CreateBatchModal({
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Quantité à produire</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité à produire</label>
           <input
             required
             type="number"
@@ -639,7 +639,7 @@ function CreateBatchModal({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Création…' : 'Créer le batch'}
         </button>
@@ -682,11 +682,11 @@ function StartStopModal({
     <Modal title="Signaler un arrêt" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Motif</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Motif</label>
           <input required value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Début</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Début</label>
           <input
             required
             type="datetime-local"
@@ -699,7 +699,7 @@ function StartStopModal({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Enregistrement…' : 'Ouvrir l’arrêt'}
         </button>
@@ -741,7 +741,7 @@ function EndStopModal({
     <Modal title={`Clôturer l’arrêt — ${stop.reason}`} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Fin</label>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Fin</label>
           <input
             required
             type="datetime-local"
@@ -754,7 +754,7 @@ function EndStopModal({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Enregistrement…' : 'Clôturer l’arrêt'}
         </button>
@@ -803,7 +803,7 @@ function CloseBatchSection({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
       <h4 className="mb-3 text-sm font-semibold text-gray-900">Clôture du batch</h4>
 
       {blocked ? (
@@ -812,7 +812,7 @@ function CloseBatchSection({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Quantité conforme</label>
+              <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité conforme</label>
               <input
                 required
                 type="number"
@@ -823,7 +823,7 @@ function CloseBatchSection({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Rebuts</label>
+              <label className="mb-1.5 block text-xs font-medium text-gray-500">Rebuts</label>
               <input
                 required
                 type="number"
@@ -835,7 +835,7 @@ function CloseBatchSection({
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Heure de fin</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">Heure de fin</label>
             <input
               required
               type="datetime-local"
@@ -864,7 +864,7 @@ function CloseBatchSection({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'Clôture…' : 'Clôturer le batch'}
           </button>

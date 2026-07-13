@@ -18,6 +18,9 @@ const priorityBadgeClass: Record<string, string> = {
   BLOQUANTE: 'bg-red-50 text-red-700',
 };
 
+const rowClass = (treated: boolean) =>
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${treated ? 'opacity-60' : ''}`;
+
 export function FeedbackPage() {
   const { token } = useAuth();
   const [entries, setEntries] = useState<Feedback[]>([]);
@@ -59,7 +62,7 @@ export function FeedbackPage() {
         pas d'assignation.
       </p>
 
-      <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
         {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
         {isLoading ? (
           <p className="p-4 text-sm text-gray-500">Chargement…</p>
@@ -87,7 +90,7 @@ export function FeedbackPage() {
                 </tr>
               )}
               {entries.map((entry) => (
-                <tr key={entry.id} className={entry.status === 'TRAITE' ? 'opacity-60' : ''}>
+                <tr key={entry.id} className={rowClass(entry.status === 'TRAITE')}>
                   <td className="px-4 py-2 whitespace-nowrap text-gray-500">{formatDate(entry.createdAt)}</td>
                   <td className="px-4 py-2">{entry.user.fullName}</td>
                   <td className="px-4 py-2">{FEEDBACK_TYPE_LABELS[entry.type]}</td>
@@ -103,7 +106,7 @@ export function FeedbackPage() {
                     <span
                       className={
                         entry.status === 'NOUVEAU'
-                          ? 'rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700'
+                          ? 'rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand'
                           : 'rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700'
                       }
                     >
@@ -114,7 +117,7 @@ export function FeedbackPage() {
                     {entry.status === 'NOUVEAU' && (
                       <button
                         onClick={() => void handleMarkAsTreated(entry)}
-                        className="text-xs text-blue-600 hover:underline"
+                        className="text-xs text-brand hover:underline"
                       >
                         Marquer comme traité
                       </button>
