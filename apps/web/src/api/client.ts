@@ -9,6 +9,9 @@ import type {
   Machine,
   CreateMachineRequest,
   UpdateMachineRequest,
+  Supplier,
+  CreateSupplierRequest,
+  UpdateSupplierRequest,
   Recipe,
   CreateRecipeRequest,
   StockItem,
@@ -221,6 +224,17 @@ export const api = {
 
   deactivateMachine: (token: string, id: string): Promise<Machine> =>
     request<Machine>(`/catalog/machines/${id}`, { method: 'DELETE' }, token),
+
+  listSuppliers: (token: string): Promise<Supplier[]> => request<Supplier[]>('/catalog/suppliers', {}, token),
+
+  createSupplier: (token: string, payload: CreateSupplierRequest): Promise<Supplier> =>
+    request<Supplier>('/catalog/suppliers', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  updateSupplier: (token: string, id: string, payload: UpdateSupplierRequest): Promise<Supplier> =>
+    request<Supplier>(`/catalog/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  deactivateSupplier: (token: string, id: string): Promise<Supplier> =>
+    request<Supplier>(`/catalog/suppliers/${id}`, { method: 'DELETE' }, token),
 
   listBatches: (token: string): Promise<Batch[]> => request<Batch[]>('/batching/batches', {}, token),
 

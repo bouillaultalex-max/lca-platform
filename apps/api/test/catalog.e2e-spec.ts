@@ -81,10 +81,21 @@ describe('Catalog (e2e)', () => {
     }
   });
 
+  const testSupplierNamePrefix = 'E2E-CATALOG-TEST-SUPPLIER-';
+  const createdSupplierIds: string[] = [];
+
   afterAll(async () => {
     if (prisma) {
       await prisma.article.deleteMany({
         where: { openSiReference: { startsWith: testOpenSiReferencePrefix } },
+      });
+      if (createdSupplierIds.length > 0) {
+        await prisma.supplier.deleteMany({
+          where: { id: { in: createdSupplierIds } },
+        });
+      }
+      await prisma.supplier.deleteMany({
+        where: { name: { startsWith: testSupplierNamePrefix } },
       });
       await prisma.user.deleteMany({
         where: { email: { in: Object.values(emails) } },
@@ -222,6 +233,142 @@ describe('Catalog (e2e)', () => {
       expect((response.body as { message: string }).message).toBe(
         'Le type de cet article ne peut plus être modifié car il est déjà utilisé dans le stock, une recette ou une production. Désactivez cet article et créez-en un nouveau.',
       );
+    });
+  });
+
+  describe('GET /catalog/suppliers', () => {
+    it('refuse une requête sans token (401)', () => {
+      return request(app.getHttpServer()).get('/catalog/suppliers').expect(401);
+    });
+
+    it('autorise RESPONSABLE_LABORATOIRE (200)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/suppliers')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(200);
+    });
+
+    it('refuse DIRECTION même en lecture seule (403)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/suppliers')
+        .set('Authorization', `Bearer ${tokens.direction}`)
+        .expect(403);
+    });
+  });
+
+  describe('POST /catalog/suppliers', () => {
+    it('autorise RESPONSABLE_LABORATOIRE à créer un fournisseur (201)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/catalog/suppliers')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          name: `${testSupplierNamePrefix}Sensient`,
+          email: 'contact@sensient.example',
+        })
+        .expect(201);
+      createdSupplierIds.push((response.body as { id: string }).id);
+    });
+
+    it('refuse DAF (403)', () => {
+      return request(app.getHttpServer())
+        .post('/catalog/suppliers')
+        .set('Authorization', `Bearer ${tokens.daf}`)
+        .send({ name: `${testSupplierNamePrefix}Rejected` })
+        .expect(403);
+    });
+  });
+
+  describe('Fournisseur principal sur une matière première ou un packaging', () => {
+    it('autorise l’assignation d’un fournisseur principal valide à une matière première', async () => {
+      const supplierResponse = await request(app.getHttpServer())
+        .post('/catalog/suppliers')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testSupplierNamePrefix}Valide` })
+        .expect(201);
+      const supplierId = (supplierResponse.body as { id: string }).id;
+      createdSupplierIds.push(supplierId);
+
+      const articleResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'MATIERE_PREMIERE',
+          openSiReference: `${testOpenSiReferencePrefix}SUPPLIER-OK`,
+          name: 'Matière première avec fournisseur',
+          unitOfMeasure: 'L',
+          currentUnitCost: 1,
+          supplierId,
+        })
+        .expect(201);
+
+      expect((articleResponse.body as { supplierId: string }).supplierId).toBe(
+        supplierId,
+      );
+    });
+
+    it('autorise l’assignation d’un fournisseur principal valide à un packaging (retour Kevin)', async () => {
+      const supplierResponse = await request(app.getHttpServer())
+        .post('/catalog/suppliers')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testSupplierNamePrefix}Packaging` })
+        .expect(201);
+      const supplierId = (supplierResponse.body as { id: string }).id;
+      createdSupplierIds.push(supplierId);
+
+      const articleResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PACKAGING',
+          openSiReference: `${testOpenSiReferencePrefix}SUPPLIER-PKG-OK`,
+          name: 'Packaging avec fournisseur',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 1,
+          supplierId,
+        })
+        .expect(201);
+
+      expect((articleResponse.body as { supplierId: string }).supplierId).toBe(
+        supplierId,
+      );
+    });
+
+    it('refuse un fournisseur principal sur un article de type produit fini (400)', async () => {
+      const supplierResponse = await request(app.getHttpServer())
+        .post('/catalog/suppliers')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testSupplierNamePrefix}NonPF` })
+        .expect(201);
+      const supplierId = (supplierResponse.body as { id: string }).id;
+      createdSupplierIds.push(supplierId);
+
+      return request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}SUPPLIER-PF`,
+          name: 'Produit fini ne devrait pas avoir de fournisseur',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 1,
+          supplierId,
+        })
+        .expect(400);
+    });
+
+    it('refuse un fournisseur principal introuvable sur ce site (404)', () => {
+      return request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'MATIERE_PREMIERE',
+          openSiReference: `${testOpenSiReferencePrefix}SUPPLIER-404`,
+          name: 'Matière première avec fournisseur inconnu',
+          unitOfMeasure: 'L',
+          currentUnitCost: 1,
+          supplierId: '00000000-0000-0000-0000-000000000000',
+        })
+        .expect(404);
     });
   });
 

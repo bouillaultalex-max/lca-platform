@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ARTICLE_TYPE_LABELS, type Article, type ArticleType } from '@lca-mes/shared';
+import { ARTICLE_TYPE_LABELS, type Article, type ArticleType, type Supplier } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 
 const ARTICLE_TYPES: ArticleType[] = ['MATIERE_PREMIERE', 'PACKAGING', 'PRODUIT_FINI'];
+
+/**
+ * Fournisseur principal autorisé pour les matières premières et le packaging,
+ * jamais pour un produit fini (retour Kevin : le laboratoire gère aussi les
+ * commandes de packaging) — voir la même règle côté ArticlesService.
+ */
+function canHaveSupplier(type: ArticleType): boolean {
+  return type === 'MATIERE_PREMIERE' || type === 'PACKAGING';
+}
 
 const inputClass =
   'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
@@ -17,6 +26,7 @@ const emptyForm = {
   currentUnitCost: '',
   unitsPerCarton: '',
   densityKgPerL: '',
+  supplierId: '',
 };
 
 type EditForm = {
@@ -27,6 +37,7 @@ type EditForm = {
   currentUnitCost: string;
   unitsPerCarton: string;
   densityKgPerL: string;
+  supplierId: string;
 };
 
 function toEditForm(article: Article): EditForm {
@@ -38,12 +49,14 @@ function toEditForm(article: Article): EditForm {
     currentUnitCost: String(article.currentUnitCost),
     unitsPerCarton: article.unitsPerCarton === null ? '' : String(article.unitsPerCarton),
     densityKgPerL: article.densityKgPerL === null ? '' : String(article.densityKgPerL),
+    supplierId: article.supplierId ?? '',
   };
 }
 
 export function CatalogPage() {
   const { token } = useAuth();
   const [articles, setArticles] = useState<Article[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [filterType, setFilterType] = useState<ArticleType | ''>('');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -77,6 +90,19 @@ export function CatalogPage() {
     void loadArticles(filterType || undefined);
   }, [loadArticles, filterType]);
 
+  useEffect(() => {
+    if (!token) return;
+    api
+      .listSuppliers(token)
+      .then(setSuppliers)
+      .catch(() => {
+        /* Non bloquant : le tableau affichera simplement "—" si la liste échoue à charger. */
+      });
+  }, [token]);
+
+  const supplierById = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier])), [suppliers]);
+  const activeSuppliers = useMemo(() => suppliers.filter((supplier) => supplier.active), [suppliers]);
+
   const filteredArticles = useMemo(() => {
     const searchLower = search.trim().toLowerCase();
     if (!searchLower) return articles;
@@ -101,6 +127,7 @@ export function CatalogPage() {
         currentUnitCost: Number(form.currentUnitCost),
         unitsPerCarton: form.unitsPerCarton ? Number(form.unitsPerCarton) : undefined,
         densityKgPerL: form.densityKgPerL ? Number(form.densityKgPerL) : undefined,
+        supplierId: canHaveSupplier(form.type) && form.supplierId ? form.supplierId : undefined,
       });
       setForm(emptyForm);
       await loadArticles(filterType || undefined);
@@ -129,6 +156,7 @@ export function CatalogPage() {
         currentUnitCost: Number(editForm.currentUnitCost),
         unitsPerCarton: editForm.unitsPerCarton ? Number(editForm.unitsPerCarton) : undefined,
         densityKgPerL: editForm.densityKgPerL ? Number(editForm.densityKgPerL) : undefined,
+        supplierId: canHaveSupplier(editForm.type) && editForm.supplierId ? editForm.supplierId : undefined,
       });
       setEditingId(null);
       setEditForm(null);
@@ -244,6 +272,25 @@ export function CatalogPage() {
               className={inputClass}
             />
           </div>
+          {canHaveSupplier(form.type) && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Fournisseur principal <span className="font-normal text-gray-400">(optionnel)</span>
+              </label>
+              <select
+                value={form.supplierId}
+                onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
+                className={inputClass}
+              >
+                <option value="">Aucun</option>
+                {activeSuppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="sm:col-span-2 lg:col-span-4">
             {formError && <p className="mb-2 text-sm text-red-600">{formError}</p>}
@@ -295,6 +342,7 @@ export function CatalogPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Coût unitaire</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Unités/carton</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Densité kg/L</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Fournisseur</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Statut</th>
                 <th className="px-4 py-2" />
               </tr>
@@ -302,7 +350,7 @@ export function CatalogPage() {
             <tbody className="divide-y divide-gray-100">
               {filteredArticles.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan={10} className="px-4 py-6 text-center text-gray-500">
                     Aucun article.
                   </td>
                 </tr>
@@ -377,6 +425,24 @@ export function CatalogPage() {
                             className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
                           />
                         </td>
+                        <td className="px-4 py-2">
+                          {canHaveSupplier(editForm.type) ? (
+                            <select
+                              value={editForm.supplierId}
+                              onChange={(e) => setEditForm({ ...editForm, supplierId: e.target.value })}
+                              className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                            >
+                              <option value="">Aucun</option>
+                              {activeSuppliers.map((supplier) => (
+                                <option key={supplier.id} value={supplier.id}>
+                                  {supplier.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-gray-500">{article.active ? 'Actif' : 'Désactivé'}</td>
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
@@ -406,6 +472,9 @@ export function CatalogPage() {
                         <td className="px-4 py-2">{Number(article.currentUnitCost).toFixed(4)}</td>
                         <td className="px-4 py-2">{article.unitsPerCarton ?? '—'}</td>
                         <td className="px-4 py-2">{article.densityKgPerL ?? '—'}</td>
+                        <td className="px-4 py-2">
+                          {article.supplierId ? (supplierById.get(article.supplierId)?.name ?? '—') : '—'}
+                        </td>
                         <td className="px-4 py-2">
                           <span
                             className={

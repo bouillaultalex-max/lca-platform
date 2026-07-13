@@ -27,6 +27,8 @@ export interface Article {
   unitsPerCarton: number | null;
   /** Densité (kg/L), matières premières uniquement — voir docs/regles-metier.md §12. */
   densityKgPerL: string | null;
+  /** Fournisseur principal, matières premières uniquement — un seul par matière en V0.9. */
+  supplierId: string | null;
   active: boolean;
 }
 
@@ -38,6 +40,7 @@ export interface CreateArticleRequest {
   currentUnitCost: number;
   unitsPerCarton?: number;
   densityKgPerL?: number;
+  supplierId?: string;
 }
 
 /**
@@ -53,6 +56,30 @@ export interface UpdateArticleRequest {
   currentUnitCost?: number;
   unitsPerCarton?: number;
   densityKgPerL?: number;
+  supplierId?: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  active: boolean;
+}
+
+export interface CreateSupplierRequest {
+  name: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface UpdateSupplierRequest {
+  name?: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface Machine {

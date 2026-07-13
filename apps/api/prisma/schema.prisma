@@ -170,6 +170,7 @@ model Site {
   jobTitles            JobTitle[]
   articles             Article[]
   machines             Machine[]
+  suppliers            Supplier[]
   recipes              Recipe[]
   stockLots            StockLot[]
   stockItems           StockItem[]
@@ -325,6 +326,12 @@ model Article {
   /// §12). Optionnelle, saisie manuelle article par article, aucune valeur par défaut :
   /// si absente, le batching affiche le volume et signale "densité manquante" pour la masse.
   densityKgPerL   Decimal?    @map("density_kg_per_l")
+  /// Fournisseur principal, matières premières et packaging uniquement — jamais
+  /// produit fini (voir SuppliersService/ArticlesService) — un seul fournisseur
+  /// par article en V0.9, jamais de prix ni de commandes ici (voir Supplier
+  /// ci-dessous). Forcé à null si le type de l'article devient PRODUIT_FINI.
+  supplierId      String?     @map("supplier_id")
+  supplier        Supplier?   @relation(fields: [supplierId], references: [id])
   active          Boolean     @default(true)
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
@@ -339,6 +346,26 @@ model Article {
 
   @@unique([siteId, openSiReference])
   @@map("articles")
+}
+
+/// Fournisseur d'une matière première (V0.3). Volontairement limité à une fiche
+/// simple (coordonnées) : ni prix, ni commandes, ni fournisseurs multiples par
+/// matière — ces évolutions pourront s'appuyer sur cette table sans la restructurer.
+model Supplier {
+  id          String   @id @default(uuid())
+  siteId      String   @map("site_id")
+  site        Site     @relation(fields: [siteId], references: [id])
+  name        String
+  contactName String?  @map("contact_name")
+  phone       String?
+  email       String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  articles Article[]
+
+  @@map("suppliers")
 }
 
 model Machine {

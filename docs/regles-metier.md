@@ -107,3 +107,10 @@ Conséquences :
 - **Première connexion / mot de passe temporaire** : `mustChangePassword` bloque tout endpoint hors `GET /auth/me` et `POST /auth/change-password` tant que le mot de passe n'a pas été changé.
 - **`LoginHistory` distinct d'`AuditLog`** : `AuditLog` reste réservé aux actions métier (création/modification/désactivation de compte...) ; `LoginHistory` enregistre chaque tentative de connexion (réussie ou non), avec email, IP et navigateur si disponibles — sert de base à une détection d'anomalies future, non construite en V0.9.
 - **Amorçage** : le tout premier administrateur système est créé par un script dédié (`prisma/bootstrap-admin.ts`, distinct du `seed.ts` de développement), puisque l'écran d'administration exige déjà un administrateur pour être utilisé. Les comptes suivants sont créés par cet administrateur via l'écran Administration.
+
+## 14. Fournisseurs (V0.3)
+
+- **Fournisseur principal autorisé pour `MATIERE_PREMIERE` et `PACKAGING`, jamais pour `PRODUIT_FINI`.** Décision initiale (limitée aux matières premières) élargie au packaging suite à un retour utilisateur de Kevin (responsable laboratoire) : le laboratoire gère aussi les commandes de packaging, pas seulement de matières premières.
+- **Un seul fournisseur principal par article** en V0.9 — pas de gestion de plusieurs fournisseurs, pas de prix, pas de commandes. `Supplier` est une entité autonome dédiée, pensée pour accueillir ces évolutions futures sans restructuration.
+- **Effacement automatique** : si un article change de type vers `PRODUIT_FINI`, son fournisseur principal (s'il existait) est effacé automatiquement — jamais de donnée orpheline ou incohérente. Un changement vers `PACKAGING` (ou entre `MATIERE_PREMIERE`/`PACKAGING`) conserve le fournisseur déjà assigné.
+- **Fournisseur = fiche simple** (nom, contact, téléphone, e-mail, actif) ; "suppression" = désactivation, comme les autres entités du catalogue.

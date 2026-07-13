@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
   Min,
   MinLength,
 } from 'class-validator';
@@ -59,4 +60,12 @@ export class CreateArticleDto {
   @IsNumber()
   @IsPositive({ message: 'La densité doit être positive.' })
   densityKgPerL?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Fournisseur principal, matières premières et packaging uniquement — jamais produit fini (voir ArticlesService). Un seul fournisseur principal par article en V0.9.',
+  })
+  @IsOptional()
+  @IsUUID()
+  supplierId?: string;
 }
