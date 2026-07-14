@@ -3,6 +3,7 @@ import { ARTICLE_TYPE_LABELS, type Article, type ArticleType, type Supplier } fr
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
+import { matchesArticleSearch } from '../utils/matchesArticleSearch';
 
 const ARTICLE_TYPES: ArticleType[] = ['MATIERE_PREMIERE', 'PACKAGING', 'PRODUIT_FINI'];
 
@@ -106,15 +107,13 @@ export function CatalogPage() {
   const supplierById = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier])), [suppliers]);
   const activeSuppliers = useMemo(() => suppliers.filter((supplier) => supplier.active), [suppliers]);
 
-  const filteredArticles = useMemo(() => {
-    const searchLower = search.trim().toLowerCase();
-    if (!searchLower) return articles;
-    return articles.filter(
-      (article) =>
-        article.name.toLowerCase().includes(searchLower) ||
-        article.openSiReference.toLowerCase().includes(searchLower),
-    );
-  }, [articles, search]);
+  const filteredArticles = useMemo(
+    () =>
+      articles.filter((article) =>
+        matchesArticleSearch(article, article.supplierId ? (supplierById.get(article.supplierId)?.name ?? null) : null, search),
+      ),
+    [articles, search, supplierById],
+  );
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -310,11 +309,20 @@ export function CatalogPage() {
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <input
-          placeholder="Rechercher (désignation, référence)..."
+          placeholder="Rechercher (désignation, référence, fournisseur, type)..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className={`${inputClass} max-w-xs`}
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="text-xs text-gray-500 hover:text-brand hover:underline"
+          >
+            Effacer la recherche
+          </button>
+        )}
         <label className="text-sm font-medium text-gray-700">Filtrer par type :</label>
         <select
           value={filterType}
@@ -329,6 +337,10 @@ export function CatalogPage() {
           ))}
         </select>
       </div>
+
+      <p className="mt-2 text-xs text-gray-500">
+        {filteredArticles.length} article{filteredArticles.length !== 1 ? 's' : ''} sur {articles.length}
+      </p>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
         {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
@@ -354,7 +366,7 @@ export function CatalogPage() {
               {filteredArticles.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-4 py-6 text-center text-gray-500">
-                    Aucun article.
+                    {articles.length === 0 ? 'Aucun article.' : 'Aucun article ne correspond à votre recherche.'}
                   </td>
                 </tr>
               )}
