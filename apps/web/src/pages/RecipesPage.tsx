@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import type { Article, CreateRecipeLineRequest, Recipe, RecipeDraft } from '@lca-mes/shared';
+import type { Article, CreateRecipeLineRequest, Recipe, RecipeDraft, Supplier } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
+import { ArticleSearchSelect } from '../components/ArticleSearchSelect';
 import { useRecipeDraftAutosave, type RecipeDraftAutosaveContent } from '../hooks/useRecipeDraftAutosave';
 
 interface LineDraft {
@@ -36,6 +37,7 @@ export function RecipesPage() {
   const { token } = useAuth();
 
   const [articles, setArticles] = useState<Article[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -63,6 +65,16 @@ export function RecipesPage() {
       .catch((err: unknown) => setLoadError(err instanceof ApiError ? err.message : 'Impossible de charger les articles.'));
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    api
+      .listSuppliers(token)
+      .then(setSuppliers)
+      .catch(() => {
+        /* Non bloquant : le sélecteur d'ingrédient affichera simplement le fournisseur en moins. */
+      });
+  }, [token]);
+
   const finishedProducts = useMemo(
     () => articles.filter((article) => article.type === 'PRODUIT_FINI' && article.active),
     [articles],
@@ -72,6 +84,7 @@ export function RecipesPage() {
     [articles],
   );
   const articleById = useMemo(() => new Map(articles.map((article) => [article.id, article])), [articles]);
+  const supplierById = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier])), [suppliers]);
 
   const loadRecipes = useCallback(
     async (productId: string) => {
@@ -225,6 +238,10 @@ export function RecipesPage() {
     event.preventDefault();
     if (!token || !selectedProductId) return;
     setFormError(null);
+    if (lines.some((line) => !line.articleId)) {
+      setFormError('Veuillez sélectionner un article pour chaque ligne.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const payloadLines: CreateRecipeLineRequest[] = lines.map((line) => ({
@@ -473,19 +490,13 @@ export function RecipesPage() {
                   <div className="space-y-2">
                     {lines.map((line, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <select
-                          required
+                        <ArticleSearchSelect
+                          id={`recipe-line-${index}-article`}
+                          articles={ingredientArticles}
+                          supplierById={supplierById}
                           value={line.articleId}
-                          onChange={(e) => updateLine(index, { articleId: e.target.value })}
-                          className="flex-1 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                        >
-                          <option value="">— Article —</option>
-                          {ingredientArticles.map((article) => (
-                            <option key={article.id} value={article.id}>
-                              {article.name} ({article.type === 'MATIERE_PREMIERE' ? 'MP' : 'Packaging'})
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(articleId) => updateLine(index, { articleId })}
+                        />
                         <input
                           required
                           type="number"

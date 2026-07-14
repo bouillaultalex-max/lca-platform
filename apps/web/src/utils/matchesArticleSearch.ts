@@ -1,12 +1,5 @@
 import { ARTICLE_TYPE_LABELS, type Article } from '@lca-mes/shared';
-
-/** Retire les accents et harmonise la casse, pour une comparaison insensible aux deux. */
-function normalize(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
-}
+import { normalizeText } from './normalizeText';
 
 /**
  * Recherche instantanée du Catalogue (voir CatalogPage) : insensible à la casse et aux
@@ -19,7 +12,7 @@ export function matchesArticleSearch(
   supplierName: string | null,
   searchTerm: string,
 ): boolean {
-  const term = normalize(searchTerm.trim());
+  const term = normalizeText(searchTerm.trim());
   if (!term) return true;
 
   const haystacks = [
@@ -28,5 +21,5 @@ export function matchesArticleSearch(
     supplierName ?? '',
     ARTICLE_TYPE_LABELS[article.type],
   ];
-  return haystacks.some((value) => normalize(value).includes(term));
+  return haystacks.some((value) => normalizeText(value).includes(term));
 }
