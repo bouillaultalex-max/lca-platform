@@ -9,6 +9,40 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'border-accent text-white' : 'border-transparent text-white/70 hover:text-white'
   }`;
 
+interface NavItem {
+  to: string;
+  label: string;
+}
+
+/**
+ * Chaque route de la barre de navigation est une destination exacte (aucune n'est
+ * pensée comme "section parente" d'une autre) : `end` est donc systématiquement
+ * appliqué au rendu, pour que NavLink exige une correspondance exacte plutôt que par
+ * préfixe (sinon "/catalog" resterait actif sur "/catalog/recipes", "/catalog/machines"
+ * etc., dont il est un préfixe — bug corrigé le 2026-07-14).
+ */
+function buildNavItems(fullAccess: boolean, isSystemAdmin: boolean): NavItem[] {
+  const items: NavItem[] = [{ to: '/dashboard', label: 'Tableau de bord' }];
+  if (fullAccess) {
+    items.push(
+      { to: '/catalog', label: 'Catalogue' },
+      { to: '/catalog/recipes', label: 'Recettes' },
+      { to: '/catalog/machines', label: 'Machines' },
+      { to: '/catalog/suppliers', label: 'Fournisseurs' },
+      { to: '/production', label: 'Production' },
+      { to: '/imports', label: 'Imports' },
+    );
+  }
+  items.push({ to: '/stock', label: 'Stock' });
+  if (isSystemAdmin) {
+    items.push(
+      { to: '/admin/users', label: 'Administration' },
+      { to: '/admin/feedback', label: 'Retours' },
+    );
+  }
+  return items;
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
 
@@ -17,6 +51,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const fullAccess = hasFullAccess(user.role);
+  const navItems = buildNavItems(fullAccess, user.isSystemAdmin);
 
   return (
     <div className="min-h-screen bg-brand-bg">
@@ -43,44 +78,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="mt-4 flex flex-wrap gap-4">
-          <NavLink to="/dashboard" className={navLinkClass}>
-            Tableau de bord
-          </NavLink>
-          {fullAccess && (
-            <>
-              <NavLink to="/catalog" className={navLinkClass}>
-                Catalogue
-              </NavLink>
-              <NavLink to="/catalog/recipes" className={navLinkClass}>
-                Recettes
-              </NavLink>
-              <NavLink to="/catalog/machines" className={navLinkClass}>
-                Machines
-              </NavLink>
-              <NavLink to="/catalog/suppliers" className={navLinkClass}>
-                Fournisseurs
-              </NavLink>
-              <NavLink to="/production" className={navLinkClass}>
-                Production
-              </NavLink>
-              <NavLink to="/imports" className={navLinkClass}>
-                Imports
-              </NavLink>
-            </>
-          )}
-          <NavLink to="/stock" className={navLinkClass}>
-            Stock
-          </NavLink>
-          {user.isSystemAdmin && (
-            <>
-              <NavLink to="/admin/users" className={navLinkClass}>
-                Administration
-              </NavLink>
-              <NavLink to="/admin/feedback" className={navLinkClass}>
-                Retours
-              </NavLink>
-            </>
-          )}
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end className={navLinkClass}>
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
       </header>
 
