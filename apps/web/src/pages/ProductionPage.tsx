@@ -5,6 +5,7 @@ import {
   BATCH_STEP_ORDER,
   type Article,
   type Batch,
+  type BatchFeasibilityReport,
   type BatchStatus,
   type BatchStop,
   type IngredientQuantity,
@@ -134,7 +135,13 @@ export function ProductionPage() {
   const [endStopTarget, setEndStopTarget] = useState<BatchStop | null>(null);
 
   const [closureBanner, setClosureBanner] = useState<{ batchId: string; lotNumber: string } | null>(null);
+  const [launchBanner, setLaunchBanner] = useState<{ batchId: string; message: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Analyse de faisabilité (retour métier de Kevin) : non null tant que le modal de
+  // détail (stocks insuffisants) doit rester affiché — voir handleAdvanceStep.
+  const [feasibilityReport, setFeasibilityReport] = useState<BatchFeasibilityReport | null>(null);
+  const [isCheckingFeasibility, setIsCheckingFeasibility] = useState(false);
 
   const articlesById = useMemo(() => new Map(articles.map((a) => [a.id, a])), [articles]);
   const machinesById = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
@@ -233,12 +240,48 @@ export function ProductionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBatch?.id, token]);
 
+  /**
+   * Le tout premier passage (statut PLANIFIE, "Démarrer la production") déclenche
+   * d'abord une analyse de faisabilité (retour métier de Kevin) : recalcule les besoins
+   * réels de la recette pour la quantité planifiée et les compare aux stocks
+   * disponibles. Si les stocks sont insuffisants, le lancement est bloqué et un modal de
+   * détail s'affiche (voir BatchFeasibilityModal) ; sinon le lancement se poursuit
+   * immédiatement, sans étape de confirmation supplémentaire. Les étapes suivantes
+   * (déjà EN_COURS) ne repassent jamais par ce contrôle : elles ne consomment aucun
+   * stock supplémentaire dans ce modèle. Le serveur revérifie de toute façon la
+   * faisabilité de manière indépendante au moment du lancement réel (voir
+   * BatchStepsService.advance côté backend) — ce contrôle frontend n'est qu'un aperçu.
+   */
   async function handleAdvanceStep() {
     if (!token || !selectedBatch) return;
     setActionError(null);
+
+    const isLaunch = selectedBatch.status === 'PLANIFIE';
+    if (isLaunch) {
+      setIsCheckingFeasibility(true);
+      try {
+        const report = await api.getBatchFeasibility(token, selectedBatch.id);
+        if (!report.isFeasible) {
+          setFeasibilityReport(report);
+          return;
+        }
+      } catch (err) {
+        setActionError(err instanceof ApiError ? err.message : 'Impossible de vérifier la faisabilité du lancement.');
+        return;
+      } finally {
+        setIsCheckingFeasibility(false);
+      }
+    }
+
     try {
       await api.advanceBatchStep(token, selectedBatch.id);
       await loadBatches();
+      if (isLaunch) {
+        setLaunchBanner({
+          batchId: selectedBatch.id,
+          message: 'Tous les composants nécessaires sont disponibles — le batch peut être lancé.',
+        });
+      }
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : 'Impossible de faire progresser le batch.');
     }
@@ -304,6 +347,8 @@ export function ProductionPage() {
                       onClick={() => {
                         setSelectedBatchId(batch.id);
                         setClosureBanner(null);
+                        setLaunchBanner(null);
+                        setFeasibilityReport(null);
                       }}
                       className={`cursor-pointer transition-colors odd:bg-white even:bg-gray-50/60 ${batch.id === selectedBatchId ? 'bg-brand/10' : 'hover:bg-brand-bg'}`}
                     >
@@ -353,6 +398,11 @@ export function ProductionPage() {
                     Lot {closureBanner.lotNumber} généré.
                   </p>
                 )}
+                {launchBanner && launchBanner.batchId === selectedBatch.id && (
+                  <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+                    {launchBanner.message}
+                  </p>
+                )}
               </div>
 
               <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
@@ -370,9 +420,14 @@ export function ProductionPage() {
                   (selectedBatch.status === 'EN_COURS' && selectedBatch.currentStep !== 'CONDITIONNEMENT')) && (
                   <button
                     onClick={() => void handleAdvanceStep()}
-                    className="mt-3 rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+                    disabled={isCheckingFeasibility}
+                    className="mt-3 rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {selectedBatch.status === 'PLANIFIE' ? 'Démarrer la production' : 'Passer à l’étape suivante'}
+                    {isCheckingFeasibility
+                      ? 'Vérification des stocks…'
+                      : selectedBatch.status === 'PLANIFIE'
+                        ? 'Démarrer la production'
+                        : 'Passer à l’étape suivante'}
                   </button>
                 )}
               </div>
@@ -468,6 +523,23 @@ export function ProductionPage() {
           onSuccess={async () => {
             setEndStopTarget(null);
             await loadStops(selectedBatch.id);
+          }}
+        />
+      )}
+
+      {feasibilityReport && selectedBatch && (
+        <BatchFeasibilityModal
+          batch={selectedBatch}
+          report={feasibilityReport}
+          onClose={() => setFeasibilityReport(null)}
+          onQuantityAdjusted={async (message) => {
+            setFeasibilityReport(null);
+            await loadBatches();
+            setLaunchBanner({ batchId: selectedBatch.id, message });
+          }}
+          onReturnToPlanning={() => {
+            setFeasibilityReport(null);
+            setSelectedBatchId(null);
           }}
         />
       )}
@@ -644,6 +716,108 @@ function CreateBatchModal({
           {isSubmitting ? 'Création…' : 'Créer le batch'}
         </button>
       </form>
+    </Modal>
+  );
+}
+
+function BatchFeasibilityModal({
+  batch,
+  report,
+  onClose,
+  onQuantityAdjusted,
+  onReturnToPlanning,
+}: {
+  batch: Batch;
+  report: BatchFeasibilityReport;
+  onClose: () => void;
+  onQuantityAdjusted: (message: string) => void | Promise<void>;
+  onReturnToPlanning: () => void;
+}) {
+  const { token } = useAuth();
+  const [isAdjusting, setIsAdjusting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleAdjustQuantity() {
+    if (!token || report.maxFeasibleQuantity === null || report.maxFeasibleQuantity <= 0) return;
+    setError(null);
+    setIsAdjusting(true);
+    try {
+      await api.updateBatchPlannedQuantity(token, batch.id, report.maxFeasibleQuantity);
+      await onQuantityAdjusted(`Quantité ajustée à ${report.maxFeasibleQuantity} flacons.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Impossible de modifier la quantité.');
+    } finally {
+      setIsAdjusting(false);
+    }
+  }
+
+  return (
+    <Modal title="Lancement impossible" onClose={onClose} widthClassName="max-w-2xl">
+      <p className="text-sm font-medium text-red-600">
+        Ce batch ne peut pas être lancé car les stocks sont insuffisants.
+      </p>
+
+      <div className="mt-4 overflow-x-auto rounded-md border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium text-gray-500">Article</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-500">Référence</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-500">Nécessaire</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-500">Disponible</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-500">Manquant</th>
+              <th className="px-3 py-2 text-left font-medium text-gray-500">Unité</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {report.shortages.map((shortage) => (
+              <tr key={shortage.articleId}>
+                <td className="px-3 py-2 font-medium text-gray-900">{shortage.articleName}</td>
+                <td className="px-3 py-2 font-mono text-xs text-gray-600">{shortage.articleReference}</td>
+                <td className="px-3 py-2 text-right text-gray-700">{shortage.quantityNeeded.toFixed(2)}</td>
+                <td className="px-3 py-2 text-right text-gray-700">{shortage.quantityAvailable.toFixed(2)}</td>
+                <td className="px-3 py-2 text-right font-medium text-red-600">{shortage.quantityMissing.toFixed(2)}</td>
+                <td className="px-3 py-2 text-gray-600">{shortage.unit}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="mt-4 text-sm font-medium text-gray-900">
+        {report.maxFeasibleQuantity === 0
+          ? 'Avec les stocks actuels, aucun flacon ne peut être produit.'
+          : `Avec les stocks actuels, la quantité maximale produisible est de ${report.maxFeasibleQuantity} flacons.`}
+      </p>
+
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md border border-brand-border bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-brand-bg"
+        >
+          Annuler le lancement
+        </button>
+        {report.maxFeasibleQuantity !== null && report.maxFeasibleQuantity > 0 && (
+          <button
+            type="button"
+            disabled={isAdjusting}
+            onClick={() => void handleAdjustQuantity()}
+            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isAdjusting ? 'Modification…' : `Modifier automatiquement la quantité à ${report.maxFeasibleQuantity}`}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onReturnToPlanning}
+          className="rounded-md border border-brand-border bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-brand-bg"
+        >
+          Retourner au planning
+        </button>
+      </div>
     </Modal>
   );
 }

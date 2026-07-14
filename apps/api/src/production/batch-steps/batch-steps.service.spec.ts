@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BatchStepsService } from './batch-steps.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BatchFeasibilityService } from '../../batching/batch-feasibility/batch-feasibility.service';
 import { BatchStatus, BatchStep } from '../../../generated/prisma/client';
 
 describe('BatchStepsService', () => {
@@ -12,6 +13,7 @@ describe('BatchStepsService', () => {
       update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
     };
   };
+  let batchFeasibilityService: { checkFeasibility: jest.Mock };
 
   const siteId = 'site-1';
   const batchId = 'batch-1';
@@ -19,9 +21,18 @@ describe('BatchStepsService', () => {
   const baseBatch = {
     id: batchId,
     siteId,
+    recipeId: 'recipe-1',
     status: BatchStatus.PLANIFIE,
     currentStep: null as BatchStep | null,
     startedAt: null as Date | null,
+    plannedQuantity: 500,
+  };
+
+  const feasible = {
+    isFeasible: true,
+    requestedQuantity: 500,
+    shortages: [],
+    maxFeasibleQuantity: null,
   };
 
   beforeEach(async () => {
@@ -31,11 +42,18 @@ describe('BatchStepsService', () => {
         update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
       },
     };
+    batchFeasibilityService = {
+      checkFeasibility: jest.fn().mockResolvedValue(feasible),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BatchStepsService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: BatchFeasibilityService,
+          useValue: batchFeasibilityService,
+        },
       ],
     }).compile();
 
@@ -62,6 +80,58 @@ describe('BatchStepsService', () => {
     expect(updateArgs.data.currentStep).toBe(BatchStep.PREPARATION);
     expect(updateArgs.data.status).toBe(BatchStatus.EN_COURS);
     expect(updateArgs.data.startedAt).toBeInstanceOf(Date);
+  });
+
+  it('vérifie la faisabilité avec la recette et la quantité planifiée du batch au premier démarrage', async () => {
+    prisma.batch.findFirst.mockResolvedValue(baseBatch);
+    prisma.batch.update.mockResolvedValue({});
+
+    await service.advance(siteId, batchId);
+
+    expect(batchFeasibilityService.checkFeasibility).toHaveBeenCalledWith(
+      siteId,
+      baseBatch.recipeId,
+      baseBatch.plannedQuantity,
+    );
+  });
+
+  it('rejette le lancement si les stocks sont insuffisants, sans écrire quoi que ce soit', async () => {
+    prisma.batch.findFirst.mockResolvedValue(baseBatch);
+    batchFeasibilityService.checkFeasibility.mockResolvedValue({
+      isFeasible: false,
+      requestedQuantity: 500,
+      shortages: [
+        {
+          articleId: 'mp-1',
+          articleName: 'Parfum lavande',
+          articleReference: 'MP-LAVANDE',
+          unit: 'L',
+          quantityNeeded: 50,
+          quantityAvailable: 30,
+          quantityMissing: 20,
+        },
+      ],
+      maxFeasibleQuantity: 300,
+    });
+
+    await expect(service.advance(siteId, batchId)).rejects.toThrow(
+      'Ce batch ne peut pas être lancé car les stocks sont insuffisants.',
+    );
+    expect(prisma.batch.update).not.toHaveBeenCalled();
+  });
+
+  it('ne revérifie jamais la faisabilité pour les étapes suivantes (déjà EN_COURS)', async () => {
+    prisma.batch.findFirst.mockResolvedValue({
+      ...baseBatch,
+      status: BatchStatus.EN_COURS,
+      currentStep: BatchStep.PREPARATION,
+      startedAt: new Date(),
+    });
+    prisma.batch.update.mockResolvedValue({});
+
+    await service.advance(siteId, batchId);
+
+    expect(batchFeasibilityService.checkFeasibility).not.toHaveBeenCalled();
   });
 
   it('ne réécrase pas startedAt si déjà défini au premier démarrage', async () => {

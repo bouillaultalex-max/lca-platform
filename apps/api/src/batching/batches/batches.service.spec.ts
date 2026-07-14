@@ -9,7 +9,12 @@ describe('BatchesService', () => {
   let prisma: {
     recipe: { findFirst: jest.Mock };
     machine: { findFirst: jest.Mock };
-    batch: { findMany: jest.Mock; findFirst: jest.Mock; create: jest.Mock };
+    batch: {
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+    };
   };
 
   const siteId = 'site-1';
@@ -40,7 +45,12 @@ describe('BatchesService', () => {
     prisma = {
       recipe: { findFirst: jest.fn() },
       machine: { findFirst: jest.fn() },
-      batch: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+      batch: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -150,5 +160,53 @@ describe('BatchesService', () => {
         orderBy: { createdAt: 'desc' },
       });
     });
+  });
+
+  describe('updatePlannedQuantity', () => {
+    const planifieBatch = {
+      id: 'batch-1',
+      siteId,
+      status: BatchStatus.PLANIFIE,
+      plannedQuantity: 3600,
+    };
+
+    it('lève NotFoundException si le batch est introuvable sur ce site', async () => {
+      prisma.batch.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updatePlannedQuantity(siteId, 'inconnu', 2480),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.batch.update).not.toHaveBeenCalled();
+    });
+
+    it('modifie la quantité planifiée d’un batch encore PLANIFIE', async () => {
+      prisma.batch.findFirst.mockResolvedValue(planifieBatch);
+      prisma.batch.update.mockResolvedValue({
+        ...planifieBatch,
+        plannedQuantity: 2480,
+      });
+
+      await service.updatePlannedQuantity(siteId, 'batch-1', 2480);
+
+      expect(prisma.batch.update).toHaveBeenCalledWith({
+        where: { id: 'batch-1' },
+        data: { plannedQuantity: 2480 },
+      });
+    });
+
+    it.each([BatchStatus.EN_COURS, BatchStatus.TERMINE, BatchStatus.ANNULE])(
+      'rejette la modification d’un batch au statut %s',
+      async (status) => {
+        prisma.batch.findFirst.mockResolvedValue({
+          ...planifieBatch,
+          status,
+        });
+
+        await expect(
+          service.updatePlannedQuantity(siteId, 'batch-1', 2480),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.batch.update).not.toHaveBeenCalled();
+      },
+    );
   });
 });

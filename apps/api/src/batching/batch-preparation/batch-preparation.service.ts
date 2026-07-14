@@ -10,6 +10,8 @@ export interface MaterialQuantity {
   kind: 'MATIERE_PREMIERE';
   articleId: string;
   articleName: string;
+  /** Référence OpenSi de l'article, pour affichage (ex : tableau de faisabilité). */
+  articleReference: string;
   /** Volume nécessaire, en litres. */
   volumeL: number;
   /** Masse nécessaire en kg ; `null` si la densité de l'article n'est pas renseignée. */
@@ -20,6 +22,8 @@ export interface PackagingQuantity {
   kind: 'PACKAGING';
   articleId: string;
   articleName: string;
+  /** Référence OpenSi de l'article, pour affichage (ex : tableau de faisabilité). */
+  articleReference: string;
   /** Quantité absolue nécessaire, dans l'unité de mesure de l'article. */
   quantity: number;
   unit: string;
@@ -69,6 +73,7 @@ export class BatchPreparationService {
           kind: 'MATIERE_PREMIERE',
           articleId: line.article.id,
           articleName: line.article.name,
+          articleReference: line.article.openSiReference,
           volumeL,
           massKg: density === null ? null : volumeL * Number(density),
         };
@@ -78,6 +83,7 @@ export class BatchPreparationService {
         kind: 'PACKAGING',
         articleId: line.article.id,
         articleName: line.article.name,
+        articleReference: line.article.openSiReference,
         quantity: Number(line.quantityPerUnit) * quantityToProduce,
         unit: line.article.unitOfMeasure,
       };

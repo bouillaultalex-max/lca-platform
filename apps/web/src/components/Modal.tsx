@@ -4,14 +4,17 @@ export function Modal({
   title,
   onClose,
   children,
+  widthClassName = 'max-w-md',
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Largeur du modal (classe Tailwind `max-w-*`) ; par défaut identique à avant. */
+  widthClassName?: string;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+      <div className={`w-full ${widthClassName} rounded-lg bg-white p-6 shadow-lg`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-900">{title}</h3>
           <button

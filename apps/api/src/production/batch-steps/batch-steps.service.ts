@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BatchFeasibilityService } from '../../batching/batch-feasibility/batch-feasibility.service';
 import {
   Batch,
   BatchStatus,
@@ -22,12 +23,23 @@ const STEP_ORDER: BatchStep[] = [
 
 @Injectable()
 export class BatchStepsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly batchFeasibilityService: BatchFeasibilityService,
+  ) {}
 
   /**
    * Fait progresser le batch à l'étape suivante. Un batch sans étape (`currentStep`
    * `null`, statut `PLANIFIE`) démarre à `PREPARATION` et passe en `EN_COURS`.
    * Aucun saut ni retour en arrière : toujours l'étape suivante dans `STEP_ORDER`.
+   *
+   * Ce tout premier passage (le "lancement" du batch) est bloqué si les stocks
+   * disponibles ne couvrent pas les besoins de la recette pour la quantité planifiée
+   * (retour métier de Kevin) — revérifié ici indépendamment de ce que le frontend a pu
+   * afficher au préalable (voir GET .../feasibility), pour ne jamais faire confiance à
+   * un état potentiellement obsolète. Les étapes suivantes ne consomment aucun stock
+   * supplémentaire dans ce modèle (la déduction n'a lieu qu'à la clôture) et ne sont
+   * donc pas revérifiées.
    */
   async advance(siteId: string, batchId: string): Promise<Batch> {
     const batch = await this.prisma.batch.findFirst({
@@ -47,6 +59,17 @@ export class BatchStepsService {
     }
 
     if (batch.currentStep === null) {
+      const feasibility = await this.batchFeasibilityService.checkFeasibility(
+        siteId,
+        batch.recipeId,
+        batch.plannedQuantity,
+      );
+      if (!feasibility.isFeasible) {
+        throw new BadRequestException(
+          'Ce batch ne peut pas être lancé car les stocks sont insuffisants.',
+        );
+      }
+
       return this.prisma.batch.update({
         where: { id: batchId },
         data: {

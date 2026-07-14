@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -15,10 +16,15 @@ import {
 } from '@nestjs/swagger';
 import { BatchesService } from './batches.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
+import { UpdatePlannedQuantityDto } from './dto/update-planned-quantity.dto';
 import {
   BatchPreparationService,
   type IngredientQuantity,
 } from '../batch-preparation/batch-preparation.service';
+import {
+  BatchFeasibilityService,
+  type BatchFeasibilityReport,
+} from '../batch-feasibility/batch-feasibility.service';
 import { CurrentUser } from '../../auth/current-user.decorator';
 import { Roles } from '../../auth/roles.decorator';
 import { FULL_ACCESS_ROLES } from '../../auth/roles.constants';
@@ -38,6 +44,7 @@ export class BatchesController {
   constructor(
     private readonly batchesService: BatchesService,
     private readonly batchPreparationService: BatchPreparationService,
+    private readonly batchFeasibilityService: BatchFeasibilityService,
   ) {}
 
   @Get()
@@ -77,6 +84,40 @@ export class BatchesController {
     @Param('id') id: string,
   ): Promise<Batch> {
     return this.batchesService.findOne(user.siteId, id);
+  }
+
+  @Get(':id/feasibility')
+  @ApiOperation({
+    summary:
+      "Analyse de faisabilité du lancement d'un batch : recalcule les besoins réels de la recette pour sa quantité planifiée, les compare aux stocks disponibles, et calcule la quantité maximale produisible si les stocks sont insuffisants. Lecture seule, ne modifie rien.",
+  })
+  async checkFeasibility(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<BatchFeasibilityReport> {
+    const batch = await this.batchesService.findOne(user.siteId, id);
+    return this.batchFeasibilityService.checkFeasibility(
+      user.siteId,
+      batch.recipeId,
+      batch.plannedQuantity,
+    );
+  }
+
+  @Patch(':id/planned-quantity')
+  @ApiOperation({
+    summary:
+      "Modifie la quantité planifiée d'un batch encore PLANIFIE (ex : ajustement à la quantité maximale réellement produisible signalée par l'analyse de faisabilité).",
+  })
+  updatePlannedQuantity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdatePlannedQuantityDto,
+  ): Promise<Batch> {
+    return this.batchesService.updatePlannedQuantity(
+      user.siteId,
+      id,
+      dto.plannedQuantity,
+    );
   }
 
   @Post()

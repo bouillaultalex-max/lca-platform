@@ -25,6 +25,7 @@ describe('BatchPreparationService', () => {
     article: {
       id,
       name: `MP-${id}`,
+      openSiReference: `REF-${id}`,
       type: ArticleType.MATIERE_PREMIERE,
       unitOfMeasure: 'L',
       densityKgPerL: density === null ? null : new Prisma.Decimal(density),
@@ -37,6 +38,7 @@ describe('BatchPreparationService', () => {
     article: {
       id,
       name: `PKG-${id}`,
+      openSiReference: `REF-${id}`,
       type: ArticleType.PACKAGING,
       unitOfMeasure: 'unité',
       densityKgPerL: null,
@@ -92,10 +94,12 @@ describe('BatchPreparationService', () => {
     ) as MaterialQuantity;
     expect(mp.volumeL).toBeCloseTo(50);
     expect(mp.massKg).toBeCloseTo(45); // 50 L * 0.9 kg/L
+    expect(mp.articleReference).toBe('REF-mp-1');
 
     const pkg = result.find((r) => r.kind === 'PACKAGING') as PackagingQuantity;
     expect(pkg.quantity).toBe(500); // 1 * 500
     expect(pkg.unit).toBe('unité');
+    expect(pkg.articleReference).toBe('REF-pkg-1');
   });
 
   it('retourne massKg = null quand la densité n’est pas renseignée', async () => {

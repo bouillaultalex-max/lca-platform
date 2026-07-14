@@ -72,6 +72,17 @@ Accès réel de Kevin et Jean-Paul au serveur de développement via tunnel Cloud
 
 **Livrable** : build/lint/tests verts (264 tests unitaires + 52 e2e), vérifié en conditions de production réelles (build + fichiers statiques, serveur dédié) : accès direct, F5, navigation normale et appels API sur toutes les routes concernées, y compris les collisions littérales (`/catalog/recipes`, `/catalog/machines`) ; `/health` et `/api/docs` non affectés.
 
+## V0.3 : analyse de faisabilité avant lancement de batch ✅ Terminé le 2026-07-14
+
+Retour métier important de Kevin (responsable laboratoire) : le logiciel permettait de lancer un batch même avec des matières premières insuffisantes, le problème n'étant découvert qu'à la clôture — inacceptable pour le laboratoire. Voir ADR 0005 pour le détail des arbitrages.
+
+- ✅ **Nouveau `BatchFeasibilityService`** (module `batching`) : recalcule les besoins réels de la recette pour la quantité planifiée et les compare aux stocks disponibles, en réutilisant sans les modifier `BatchPreparationService` et `computeFifoAllocations` (déjà utilisée par la clôture) — garantit qu'il ne peut jamais y avoir de divergence entre le contrôle au lancement et celui, inchangé, à la clôture.
+- ✅ Le passage `PLANIFIE` → `EN_COURS` (`BatchStepsService.advance`) est désormais bloqué côté serveur si les stocks sont insuffisants, sans aucune écriture partielle. Endpoint de consultation dédié (`GET /batching/batches/:id/feasibility`) pour un aperçu avant lancement, revérifié indépendamment au moment réel du lancement (même principe que la prévisualisation des imports OpenSi).
+- ✅ Calcul automatique de la quantité maximale réellement produisible (composant limitant), avec ajustement de la quantité du batch uniquement sur action explicite de l'utilisateur (`PATCH /batching/batches/:id/planned-quantity`, réservé à un batch encore `PLANIFIE`).
+- ✅ Aucune décrémentation de stock au lancement, aucun changement de la vérification déjà existante à la clôture.
+
+**Livrable** : build/lint/tests verts (306 tests unitaires + 78 e2e), vérifié en navigateur (stock insuffisant, ajustement automatique de quantité, relance réussie, lancement direct si stock suffisant, retour à la liste des batchs).
+
 ## V0.4 — Refonte de la navigation (idée future, ajoutée le 2026-07-13, non implémentée)
 
 Ajoutée pendant le mini-jalon esthétique "Identité Maison Fuel" : la navigation horizontale actuelle (barre de liens sous le header) reste en place pour ce mini-jalon, mais ne passera pas à l'échelle indéfiniment à mesure que de nouveaux modules s'ajoutent (Jalon 3 : traçabilité/qualité/coûts ; futurs modules identifiés : Planning, Achats, CRM, BI...).

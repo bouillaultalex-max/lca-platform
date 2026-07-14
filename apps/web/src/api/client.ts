@@ -25,6 +25,7 @@ import type {
   Batch,
   CreateBatchRequest,
   IngredientQuantity,
+  BatchFeasibilityReport,
   BatchStop,
   CreateBatchStopRequest,
   EndBatchStopRequest,
@@ -275,6 +276,16 @@ export const api = {
 
   createBatch: (token: string, payload: CreateBatchRequest): Promise<Batch> =>
     request<Batch>('/batching/batches', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  getBatchFeasibility: (token: string, batchId: string): Promise<BatchFeasibilityReport> =>
+    request<BatchFeasibilityReport>(`/batching/batches/${batchId}/feasibility`, {}, token),
+
+  updateBatchPlannedQuantity: (token: string, batchId: string, plannedQuantity: number): Promise<Batch> =>
+    request<Batch>(
+      `/batching/batches/${batchId}/planned-quantity`,
+      { method: 'PATCH', body: JSON.stringify({ plannedQuantity }) },
+      token,
+    ),
 
   advanceBatchStep: (token: string, batchId: string): Promise<Batch> =>
     request<Batch>(`/production/batches/${batchId}/advance-step`, { method: 'POST' }, token),

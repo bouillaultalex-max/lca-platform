@@ -76,4 +76,28 @@ export class BatchesService {
       },
     });
   }
+
+  /**
+   * Modifie la quantité planifiée d'un batch, par exemple pour l'ajuster à la quantité
+   * maximale réellement produisible signalée par l'analyse de faisabilité (voir
+   * BatchFeasibilityService). Autorisé uniquement tant que le batch n'a pas démarré :
+   * redimensionner un batch déjà en cours ou clôturé changerait rétroactivement les
+   * besoins déjà vérifiés (ou déjà consommés) pour ce batch.
+   */
+  async updatePlannedQuantity(
+    siteId: string,
+    id: string,
+    plannedQuantity: number,
+  ): Promise<Batch> {
+    const batch = await this.findOne(siteId, id);
+    if (batch.status !== BatchStatus.PLANIFIE) {
+      throw new BadRequestException(
+        'Seule la quantité d’un batch encore planifié peut être modifiée.',
+      );
+    }
+    return this.prisma.batch.update({
+      where: { id },
+      data: { plannedQuantity },
+    });
+  }
 }

@@ -98,6 +98,16 @@ Conséquences :
 - Le calcul de masse **ne s'applique pas au packaging** (quantité déjà exprimée en unités absolues, pas de notion de volume/masse à convertir).
 - Cette règle reste volontairement simple pour la V0.9 : pas de gestion avancée de conversion (température, viscosité...), pas de densité "type" par famille de produit codée en dur.
 
+### Vérification de faisabilité avant lancement (V0.3)
+
+**Décision confirmée (2026-07-14)**, suite à un retour métier important de Kevin (responsable laboratoire) : le logiciel permettait de lancer un batch même lorsque les matières premières disponibles étaient insuffisantes, le problème n'étant découvert qu'à la clôture — inacceptable pour le laboratoire (temps et matière déjà engagés).
+
+- **Le passage du statut `PLANIFIE` à `EN_COURS` (lancement du batch) est désormais systématiquement précédé d'une analyse de faisabilité côté serveur** : les besoins réels de la recette pour la quantité planifiée (mêmes formules qu'au §12 ci-dessus) sont comparés aux stocks réellement disponibles (`StockLot.remainingQuantity`). Si un ou plusieurs composants sont insuffisants, le lancement est **interdit** et **aucun statut n'est modifié** — un tableau détaillé (article, référence, quantité nécessaire, quantité disponible, quantité manquante, unité) est présenté à l'utilisateur.
+- **Quantité maximale réellement produisible** : lorsque les stocks sont insuffisants, le logiciel calcule automatiquement (jamais une saisie manuelle) la quantité maximale produisible avec les stocks actuels, en identifiant le ou les composants limitants — le minimum, sur l'ensemble des composants de la recette, du stock disponible divisé par le taux de consommation par unité, toujours arrondi à l'entier inférieur.
+- **Aucune modification automatique** : si la quantité produisible est inférieure à la quantité demandée, l'utilisateur choisit explicitement entre annuler le lancement, ajuster la quantité du batch à la quantité maximale calculée, ou revenir à la liste des batchs — jamais d'ajustement silencieux.
+- **La vérification existante à la clôture du batch reste inchangée et obligatoire**, y compris pour un batch dont le lancement a été validé : les stocks peuvent évoluer entre le lancement et la fin de production (autre batch, ajustement d'inventaire, correction). Les deux vérifications (lancement et clôture) réutilisent la même logique de calcul, pour garantir qu'elles ne puissent jamais diverger.
+- **Aucune décrémentation de stock au lancement** : la déduction de stock reste exclusivement réalisée à la clôture (voir §3), sauf introduction future d'un système de réservation de stock (non prévu en V0.9).
+
 ## 13. Gestion des utilisateurs (Jalon 2.5)
 
 - **Fonction métier (`JobTitle`) distincte du rôle logiciel (`role`)** : la fonction métier est une entité dédiée (pas un texte libre), un utilisateur en a exactement une. Elle sert à terme au tableau de bord personnalisé, aux statistiques par fonction, à de futures communications internes — elle n'accorde aucune permission par elle-même.

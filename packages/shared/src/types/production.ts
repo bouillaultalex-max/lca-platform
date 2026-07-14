@@ -56,6 +56,8 @@ export interface MaterialQuantity {
   kind: 'MATIERE_PREMIERE';
   articleId: string;
   articleName: string;
+  /** Référence OpenSi de l'article, pour affichage (ex : tableau de faisabilité). */
+  articleReference: string;
   volumeL: number;
   /** `null` si la densité de l'article n'est pas renseignée. */
   massKg: number | null;
@@ -65,11 +67,36 @@ export interface PackagingQuantity {
   kind: 'PACKAGING';
   articleId: string;
   articleName: string;
+  /** Référence OpenSi de l'article, pour affichage (ex : tableau de faisabilité). */
+  articleReference: string;
   quantity: number;
   unit: string;
 }
 
 export type IngredientQuantity = MaterialQuantity | PackagingQuantity;
+
+/** Détail d'un composant dont le stock disponible ne couvre pas le besoin de la recette. */
+export interface ComponentShortage {
+  articleId: string;
+  articleName: string;
+  articleReference: string;
+  unit: string;
+  quantityNeeded: number;
+  quantityAvailable: number;
+  quantityMissing: number;
+}
+
+/**
+ * Analyse de faisabilité d'un lancement de batch (voir retour métier de Kevin) : compare
+ * les besoins réels de la recette, pour la quantité planifiée, aux stocks disponibles.
+ * `maxFeasibleQuantity` n'est calculé (non `null`) que si `isFeasible` est `false`.
+ */
+export interface BatchFeasibilityReport {
+  isFeasible: boolean;
+  requestedQuantity: number;
+  shortages: ComponentShortage[];
+  maxFeasibleQuantity: number | null;
+}
 
 export interface BatchStop {
   id: string;
