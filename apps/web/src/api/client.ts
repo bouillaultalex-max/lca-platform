@@ -14,6 +14,8 @@ import type {
   UpdateSupplierRequest,
   Recipe,
   CreateRecipeRequest,
+  RecipeDraft,
+  SaveRecipeDraftRequest,
   StockItem,
   StockLot,
   StockMovement,
@@ -191,6 +193,32 @@ export const api = {
 
   archiveRecipe: (token: string, id: string): Promise<Recipe> =>
     request<Recipe>(`/catalog/recipes/${id}`, { method: 'DELETE' }, token),
+
+  /** `undefined` (204) signifie qu'aucun brouillon n'existe pour ce produit — état normal. */
+  getRecipeDraft: (token: string, finishedProductId: string): Promise<RecipeDraft | undefined> =>
+    request<RecipeDraft | undefined>(
+      `/catalog/recipes/drafts?finishedProductId=${finishedProductId}`,
+      {},
+      token,
+    ),
+
+  /**
+   * `keepalive` permet à la requête de survivre à une navigation/fermeture d'onglet
+   * (autosave déclenché juste avant que la page se ferme) — voir hook d'autosave.
+   */
+  saveRecipeDraft: (
+    token: string,
+    payload: SaveRecipeDraftRequest,
+    opts?: { keepalive?: boolean },
+  ): Promise<RecipeDraft> =>
+    request<RecipeDraft>(
+      '/catalog/recipes/drafts',
+      { method: 'PUT', body: JSON.stringify(payload), keepalive: opts?.keepalive },
+      token,
+    ),
+
+  deleteRecipeDraft: (token: string, id: string): Promise<void> =>
+    request<void>(`/catalog/recipes/drafts/${id}`, { method: 'DELETE' }, token),
 
   listStockItems: (token: string, type?: ArticleType): Promise<StockItem[]> =>
     request<StockItem[]>(`/stock/items${type ? `?type=${type}` : ''}`, {}, token),

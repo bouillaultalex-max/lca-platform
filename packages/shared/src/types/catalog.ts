@@ -128,3 +128,40 @@ export interface CreateRecipeRequest {
   format: number;
   lines: CreateRecipeLineRequest[];
 }
+
+/**
+ * Brouillon de recette (mini-jalon "Brouillons de recettes") : un seul par
+ * utilisateur et par produit fini, jamais soumis aux contraintes de `RecipeLine`
+ * (une ligne de brouillon peut être partielle/invalide en cours de saisie).
+ */
+export interface RecipeDraftLine {
+  articleId: string | null;
+  quantityPerUnit: string | null;
+  unit: string | null;
+}
+
+export interface RecipeDraft {
+  id: string;
+  finishedProductId: string;
+  content: {
+    format: number | null;
+    lines: RecipeDraftLine[];
+  };
+  updatedAt: string;
+}
+
+export interface SaveRecipeDraftLineRequest {
+  articleId?: string;
+  quantityPerUnit?: string;
+  unit?: string;
+}
+
+export interface SaveRecipeDraftRequest {
+  finishedProductId: string;
+  format?: number | null;
+  lines: SaveRecipeDraftLineRequest[];
+  /** `updatedAt` du brouillon tel que connu par cet onglet, pour détecter un conflit. */
+  expectedUpdatedAt?: string;
+  /** Force l'enregistrement même en cas de conflit détecté (ignore expectedUpdatedAt). */
+  force?: boolean;
+}

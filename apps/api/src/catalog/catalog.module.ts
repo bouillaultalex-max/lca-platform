@@ -7,12 +7,19 @@ import { SuppliersController } from './suppliers/suppliers.controller';
 import { SuppliersService } from './suppliers/suppliers.service';
 import { RecipesController } from './recipes/recipes.controller';
 import { RecipesService } from './recipes/recipes.service';
+import { RecipeDraftsController } from './recipes/drafts/recipe-drafts.controller';
+import { RecipeDraftsService } from './recipes/drafts/recipe-drafts.service';
 
 @Module({
   controllers: [
     ArticlesController,
     MachinesController,
     SuppliersController,
+    // RecipeDraftsController AVANT RecipesController : sa route littérale
+    // "catalog/recipes/drafts" doit être testée avant la route paramétrée
+    // "catalog/recipes/:id" de RecipesController, sinon Express/Nest interprète
+    // "drafts" comme un :id et le routage échoue (404 au lieu du bon contrôleur).
+    RecipeDraftsController,
     RecipesController,
   ],
   providers: [
@@ -20,6 +27,7 @@ import { RecipesService } from './recipes/recipes.service';
     MachinesService,
     SuppliersService,
     RecipesService,
+    RecipeDraftsService,
   ],
 })
 export class CatalogModule {}

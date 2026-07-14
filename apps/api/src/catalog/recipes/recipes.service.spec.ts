@@ -22,6 +22,9 @@ describe('RecipesService', () => {
       update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
       create: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
     };
+    recipeDraft: {
+      deleteMany: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+    };
   };
 
   const siteId = 'site-1';
@@ -80,6 +83,9 @@ describe('RecipesService', () => {
         update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
         create: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
       },
+      recipeDraft: {
+        deleteMany: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+      },
     };
     prisma = {
       article: { findFirst: jest.fn(), findMany: jest.fn() },
@@ -119,6 +125,9 @@ describe('RecipesService', () => {
         id: 'recipe-1',
         version: 1,
         status: RecipeStatus.ACTIVE,
+      });
+      expect(tx.recipeDraft.deleteMany).toHaveBeenCalledWith({
+        where: { siteId, finishedProductId: finishedProduct.id },
       });
     });
 

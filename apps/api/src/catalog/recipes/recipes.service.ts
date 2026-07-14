@@ -81,7 +81,7 @@ export class RecipesService {
         });
       }
 
-      return tx.recipe.create({
+      const recipe = await tx.recipe.create({
         data: {
           siteId,
           finishedProductId: finishedProduct.id,
@@ -98,6 +98,16 @@ export class RecipesService {
         },
         include: { lines: true },
       });
+
+      // Le brouillon éventuel (voir RecipeDraftsService) n'a plus lieu d'être une fois
+      // la recette officiellement créée : supprimé dans la même transaction, quel que
+      // soit l'utilisateur qui l'a rédigé (une recette validée efface le brouillon de
+      // toute l'équipe pour ce produit).
+      await tx.recipeDraft.deleteMany({
+        where: { siteId, finishedProductId: finishedProduct.id },
+      });
+
+      return recipe;
     });
   }
 

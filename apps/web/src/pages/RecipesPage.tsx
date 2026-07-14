@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import type { Article, CreateRecipeLineRequest, Recipe } from '@lca-mes/shared';
+import type { Article, CreateRecipeLineRequest, Recipe, RecipeDraft } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
+import { useRecipeDraftAutosave, type RecipeDraftAutosaveContent } from '../hooks/useRecipeDraftAutosave';
 
 interface LineDraft {
   articleId: string;
@@ -13,6 +14,19 @@ interface LineDraft {
 
 function emptyLine(): LineDraft {
   return { articleId: '', quantityPerUnit: '', unit: '' };
+}
+
+function draftLinesToLineDrafts(draftLines: RecipeDraft['content']['lines']): LineDraft[] {
+  if (draftLines.length === 0) return [emptyLine()];
+  return draftLines.map((line) => ({
+    articleId: line.articleId ?? '',
+    quantityPerUnit: line.quantityPerUnit ?? '',
+    unit: line.unit ?? '',
+  }));
+}
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
 const rowClass = (archived: boolean) =>
@@ -33,6 +47,13 @@ export function RecipesPage() {
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Brouillon de recette (voir docs/adr/0004-brouillons-recettes.md) : un brouillon
+  // existant est proposé (reprendre/supprimer/dupliquer) avant d'afficher le formulaire.
+  const [existingDraft, setExistingDraft] = useState<RecipeDraft | null>(null);
+  const [isCheckingDraft, setIsCheckingDraft] = useState(false);
+  const [draftChoiceMade, setDraftChoiceMade] = useState(false);
+  const [draftActionError, setDraftActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -75,6 +96,68 @@ export function RecipesPage() {
     setSelectedRecipeId(null);
   }, [loadRecipes, selectedProductId]);
 
+  // À chaque changement de produit : formulaire vierge, et vérification d'un brouillon
+  // existant pour ce produit avant de décider quoi afficher (bandeau ou formulaire).
+  useEffect(() => {
+    setFormat('');
+    setLines([emptyLine()]);
+    setFormError(null);
+    setDraftActionError(null);
+    setExistingDraft(null);
+
+    if (!token || !selectedProductId) {
+      setDraftChoiceMade(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsCheckingDraft(true);
+    setDraftChoiceMade(false);
+    api
+      .getRecipeDraft(token, selectedProductId)
+      .then((draft) => {
+        if (cancelled) return;
+        if (draft) {
+          setExistingDraft(draft);
+        } else {
+          setDraftChoiceMade(true);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLoadError(
+          err instanceof ApiError ? err.message : 'Impossible de vérifier l’existence d’un brouillon.',
+        );
+        setDraftChoiceMade(true);
+      })
+      .finally(() => {
+        if (!cancelled) setIsCheckingDraft(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, selectedProductId]);
+
+  const autosaveContent = useMemo<RecipeDraftAutosaveContent>(
+    () => ({
+      format: format === '' ? null : Number(format),
+      lines: lines.map((line) => ({
+        articleId: line.articleId,
+        quantityPerUnit: line.quantityPerUnit,
+        unit: line.unit,
+      })),
+    }),
+    [format, lines],
+  );
+
+  const draftAutosave = useRecipeDraftAutosave(
+    token,
+    selectedProductId,
+    autosaveContent,
+    Boolean(token) && Boolean(selectedProductId) && draftChoiceMade,
+  );
+
   const selectedRecipe = recipes.find((recipe) => recipe.id === selectedRecipeId) ?? null;
 
   const percentageTotal = lines.reduce((total, line) => {
@@ -95,6 +178,49 @@ export function RecipesPage() {
     setLines((current) => current.filter((_, i) => i !== index));
   }
 
+  function handleResumeDraft() {
+    if (!existingDraft) return;
+    setFormat(existingDraft.content.format != null ? String(existingDraft.content.format) : '');
+    setLines(draftLinesToLineDrafts(existingDraft.content.lines));
+    setDraftChoiceMade(true);
+  }
+
+  async function handleDeleteDraft() {
+    if (!existingDraft || !token) return;
+    setDraftActionError(null);
+    try {
+      await api.deleteRecipeDraft(token, existingDraft.id);
+      setExistingDraft(null);
+      setDraftChoiceMade(true);
+    } catch (err) {
+      setDraftActionError(err instanceof ApiError ? err.message : 'Impossible de supprimer le brouillon.');
+    }
+  }
+
+  function handleDuplicateDraft() {
+    if (!existingDraft) return;
+    // Le brouillon enregistré reste intact tant que l'utilisateur ne modifie pas
+    // réellement cette copie locale : aucun enregistrement immédiat ici. La copie ne
+    // remplacera l'original que via l'autosave normal (dès la première vraie
+    // modification), avec l'indicateur "Brouillon enregistré à HH:mm" pour le signaler
+    // clairement — jamais un écrasement silencieux au moment du clic.
+    setFormat('');
+    setLines(draftLinesToLineDrafts(existingDraft.content.lines));
+    setDraftChoiceMade(true);
+    setExistingDraft(null);
+  }
+
+  async function handleReloadAfterConflict() {
+    const server = await draftAutosave.resolveConflictReload();
+    if (server) {
+      setFormat(server.content.format != null ? String(server.content.format) : '');
+      setLines(draftLinesToLineDrafts(server.content.lines));
+    } else {
+      setFormat('');
+      setLines([emptyLine()]);
+    }
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token || !selectedProductId) return;
@@ -111,6 +237,10 @@ export function RecipesPage() {
         format: Number(format),
         lines: payloadLines,
       });
+      // La création réussie efface le brouillon côté serveur (voir RecipesService.create) :
+      // on arrête l'autosave avant de vider le formulaire, sinon un brouillon vide serait
+      // recréé quelques secondes plus tard.
+      draftAutosave.stop();
       setFormat('');
       setLines([emptyLine()]);
       await loadRecipes(selectedProductId);
@@ -133,6 +263,9 @@ export function RecipesPage() {
       setLoadError(err instanceof ApiError ? err.message : 'Impossible d’archiver la recette.');
     }
   }
+
+  const showDraftBanner = Boolean(existingDraft) && !draftChoiceMade;
+  const showForm = draftChoiceMade;
 
   return (
     <AppLayout>
@@ -245,98 +378,177 @@ export function RecipesPage() {
             )}
           </div>
 
-          <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer une nouvelle version</h3>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-500">Format (ml)</label>
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value)}
-                  className="w-40 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                />
-              </div>
+          {isCheckingDraft && (
+            <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 text-sm text-gray-500 shadow-sm">
+              Vérification d’un brouillon existant…
+            </div>
+          )}
 
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="block text-xs font-medium text-gray-500">Lignes de composition</label>
-                  <span className="text-xs text-gray-500">
-                    Total matières premières :{' '}
-                    <span className={percentageTotal === 100 ? 'font-medium text-green-700' : 'font-medium text-amber-700'}>
-                      {percentageTotal}%
-                    </span>{' '}
-                    (doit être 100%)
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  {lines.map((line, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <select
-                        required
-                        value={line.articleId}
-                        onChange={(e) => updateLine(index, { articleId: e.target.value })}
-                        className="flex-1 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                      >
-                        <option value="">— Article —</option>
-                        {ingredientArticles.map((article) => (
-                          <option key={article.id} value={article.id}>
-                            {article.name} ({article.type === 'MATIERE_PREMIERE' ? 'MP' : 'Packaging'})
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        required
-                        type="number"
-                        step="0.0001"
-                        min="0"
-                        placeholder="Quantité / %"
-                        value={line.quantityPerUnit}
-                        onChange={(e) => updateLine(index, { quantityPerUnit: e.target.value })}
-                        className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                      />
-                      <input
-                        required
-                        placeholder="Unité (%, unité...)"
-                        value={line.unit}
-                        onChange={(e) => updateLine(index, { unit: e.target.value })}
-                        className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeLine(index)}
-                        disabled={lines.length === 1}
-                        className="text-xs text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Retirer
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
+          {showDraftBanner && existingDraft && (
+            <div className="mt-6 rounded-xl border border-accent bg-accent/5 p-6 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-900">Un brouillon existe pour ce produit</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Brouillon enregistré à {formatTime(new Date(existingDraft.updatedAt))}.
+              </p>
+              {draftActionError && <p className="mt-2 text-sm text-red-600">{draftActionError}</p>}
+              <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
-                  onClick={addLine}
-                  className="mt-2 text-xs font-medium text-brand hover:underline"
+                  onClick={handleResumeDraft}
+                  className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
                 >
-                  + Ajouter une ligne
+                  Reprendre le brouillon
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDuplicateDraft}
+                  className="rounded-md border border-brand-border bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-brand-bg"
+                >
+                  Dupliquer le brouillon
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteDraft()}
+                  className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                >
+                  Supprimer le brouillon
                 </button>
               </div>
+            </div>
+          )}
 
-              {formError && <p className="text-sm text-red-600">{formError}</p>}
+          {showForm && (
+            <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer une nouvelle version</h3>
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSubmitting ? 'Création…' : 'Créer la version'}
-              </button>
-            </form>
-          </div>
+              {draftAutosave.conflict && (
+                <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4">
+                  <p className="text-sm font-medium text-amber-800">
+                    Ce brouillon a été modifié depuis un autre poste ou un autre onglet.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleReloadAfterConflict()}
+                      className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+                    >
+                      Recharger la dernière version
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void draftAutosave.resolveConflictForce()}
+                      className="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100"
+                    >
+                      Forcer l’enregistrement de ma version
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-500">Format (ml)</label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value)}
+                    className="w-40 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="block text-xs font-medium text-gray-500">Lignes de composition</label>
+                    <span className="text-xs text-gray-500">
+                      Total matières premières :{' '}
+                      <span className={percentageTotal === 100 ? 'font-medium text-green-700' : 'font-medium text-amber-700'}>
+                        {percentageTotal}%
+                      </span>{' '}
+                      (doit être 100%)
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {lines.map((line, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <select
+                          required
+                          value={line.articleId}
+                          onChange={(e) => updateLine(index, { articleId: e.target.value })}
+                          className="flex-1 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                        >
+                          <option value="">— Article —</option>
+                          {ingredientArticles.map((article) => (
+                            <option key={article.id} value={article.id}>
+                              {article.name} ({article.type === 'MATIERE_PREMIERE' ? 'MP' : 'Packaging'})
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          required
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          placeholder="Quantité / %"
+                          value={line.quantityPerUnit}
+                          onChange={(e) => updateLine(index, { quantityPerUnit: e.target.value })}
+                          className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                        />
+                        <input
+                          required
+                          placeholder="Unité (%, unité...)"
+                          value={line.unit}
+                          onChange={(e) => updateLine(index, { unit: e.target.value })}
+                          className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeLine(index)}
+                          disabled={lines.length === 1}
+                          className="text-xs text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addLine}
+                    className="mt-2 text-xs font-medium text-brand hover:underline"
+                  >
+                    + Ajouter une ligne
+                  </button>
+                </div>
+
+                {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+                <div className="flex items-center gap-4">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSubmitting ? 'Création…' : 'Créer la version'}
+                  </button>
+                  <p className="text-xs text-gray-500">
+                    {draftAutosave.isSaving
+                      ? 'Enregistrement du brouillon…'
+                      : draftAutosave.saveError
+                        ? `Échec de l’enregistrement automatique — dernière sauvegarde ${
+                            draftAutosave.lastSavedAt ? `à ${formatTime(draftAutosave.lastSavedAt)}` : 'jamais effectuée'
+                          }.`
+                        : draftAutosave.lastSavedAt
+                          ? `Brouillon enregistré à ${formatTime(draftAutosave.lastSavedAt)}`
+                          : ''}
+                  </p>
+                </div>
+              </form>
+            </div>
+          )}
         </>
       )}
     </AppLayout>

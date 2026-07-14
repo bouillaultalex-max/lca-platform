@@ -172,6 +172,7 @@ model Site {
   machines             Machine[]
   suppliers            Supplier[]
   recipes              Recipe[]
+  recipeDrafts         RecipeDraft[]
   stockLots            StockLot[]
   stockItems           StockItem[]
   stockMovements       StockMovement[]
@@ -238,6 +239,7 @@ model User {
   importLogs      ImportLog[]
   exportLogs      ExportLog[]
   feedbackEntries Feedback[]
+  recipeDrafts    RecipeDraft[]
 
   @@map("users")
 }
@@ -336,13 +338,14 @@ model Article {
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 
-  recipeLines              RecipeLine[]
-  recipesAsFinishedProduct Recipe[]
-  stockLots                StockLot[]
-  stockItem                StockItem?
-  stockMovements           StockMovement[]
-  genealogyLines           LotGenealogy[]
-  expectedRequirements     ExpectedRequirement[]
+  recipeLines                   RecipeLine[]
+  recipesAsFinishedProduct      Recipe[]
+  recipeDraftsAsFinishedProduct RecipeDraft[]
+  stockLots                     StockLot[]
+  stockItem                     StockItem?
+  stockMovements                StockMovement[]
+  genealogyLines                LotGenealogy[]
+  expectedRequirements          ExpectedRequirement[]
 
   @@unique([siteId, openSiReference])
   @@map("articles")
@@ -418,6 +421,31 @@ model RecipeLine {
 
   @@unique([recipeId, articleId])
   @@map("recipe_lines")
+}
+
+/// Brouillon de saisie d'une recette (mini-jalon "Brouillons de recettes", 2026-07-13).
+/// Table volontairement séparée de `Recipe`/`RecipeLine` : un brouillon n'apparaît jamais
+/// dans la liste officielle des recettes et ne subit aucune validation métier (contenu
+/// potentiellement partiel/invalide) — seule la création finale via RecipesService.create
+/// valide et écrit dans `Recipe`. Un seul brouillon par utilisateur et par produit fini
+/// (voir docs/adr/0004-brouillons-recettes.md).
+model RecipeDraft {
+  id                String  @id @default(uuid())
+  siteId            String  @map("site_id")
+  site              Site    @relation(fields: [siteId], references: [id])
+  userId            String  @map("user_id")
+  user              User    @relation(fields: [userId], references: [id])
+  finishedProductId String  @map("finished_product_id")
+  finishedProduct   Article @relation(fields: [finishedProductId], references: [id])
+
+  /// Contenu libre de la saisie en cours : { format: number | null,
+  /// lines: { articleId: string | null; quantityPerUnit: string | null; unit: string | null }[] }
+  content   Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, finishedProductId])
+  @@map("recipe_drafts")
 }
 
 // ---------------------------------------------------------------------------
