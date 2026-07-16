@@ -74,6 +74,7 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 - `quantite`
 - `dateMouvement`
 - `referenceBatch` → FK `Batch` (optionnelle, si liée à une production)
+- `allocationMarche` → FK `BatchMarketAllocation` (optionnelle — voir §4bis) : renseignée pour une sortie de packaging propre à une allocation, laissée vide pour une sortie de matière première (mélange commun, non ventilé par allocation)
 - `utilisateur` → FK `User`
 - `commentaire`
 
@@ -106,15 +107,45 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 
 > Un seul arrêt peut être ouvert (`fin` nulle) à la fois pour un même batch.
 
+## 4bis. Allocation multi-marchés (PRD-11)
+
+**Décision confirmée (2026-07-16)**, voir ADR 0006 et `docs/features/PRD-11-allocation-multi-marches/` : un batch peut être réparti entre plusieurs marchés (destination commerciale ou réglementaire, ex. France, Suisse — notion indépendante du site de production, voir `MASTER_SPECIFICATION.md` §2). Le mélange (matières premières) reste commun à tout le batch ; seul le packaging, les rebuts et le lot final sont propres à chaque allocation.
+
+### Market (Marché)
+Référentiel simple, dans l'esprit de `Supplier`/`Machine` (entité dédiée, pas un texte libre).
+- `code` (ex : `FR`, `CH`)
+- `libelle` (ex : "France", "Suisse")
+- `actif`
+
+### BatchMarketAllocation (Allocation de marché)
+- `batch` → FK `Batch`
+- `marche` → FK `Market`
+- `quantitePrevue` — quantité prévue pour cette allocation ; la somme des `quantitePrevue` de toutes les allocations d'un même batch doit égaler `Batch.quantitePrevue` (invariant vérifié à l'usage, pas un champ recalculé/dupliqué)
+- `quantiteProduite`, `rebuts` — saisis par allocation, plus au niveau du batch global (les champs `Batch.quantiteProduite`/`Batch.rebuts` restent la somme des allocations, pour compatibilité de lecture)
+- lignes de packaging propres à l'allocation (composition qui peut différer par marché — le mélange, lui, reste porté par la `Recipe` commune du batch)
+
+> **Contrainte d'unicité** : `(batch, marche)` — une seule allocation par marché dans un même batch.
+>
+> **Relation avec `Batch`** : `Batch 1──n BatchMarketAllocation`. Un batch destiné à un seul marché n'a qu'une seule allocation (le cas "mono-marché" n'est pas un cas particulier distinct, juste une allocation unique) — **pour les nouveaux batchs**. Les batchs créés avant cette feature n'ont et n'auront jamais d'allocation (voir "Données historiques" ci-dessous).
+>
+> **Répartition de la généalogie matière première** : la ligne de mélange étant commune au batch, sa généalogie (voir §5) est répartie entre les lots de chaque allocation **au prorata des volumes conformes de chaque allocation uniquement** (rebuts exclus de cette clé de répartition — à distinguer de la consommation de packaging, qui elle inclut les rebuts, voir §5).
+>
+> **Coût (Jalon 3, `BatchCost`, non encore construit)** : contrainte actée pour sa conception future — coût du mélange réparti proportionnellement entre allocations (même clé que la généalogie), coût du packaging calculé directement par allocation.
+>
+> **Données historiques** : aucun backfill, aucune modification rétroactive. Les batchs/lots déjà clôturés avant cette feature restent tels quels (relation directe `Lot.batch`, sans allocation) — voir §5 pour le détail du champ `Lot.batch` conservé.
+
 ## 5. Lots & traçabilité
 
 ### Lot
-- `batch` → FK `Batch`
+- `batch` → FK `Batch` (**conservé tel quel, à des fins de lecture et de traçabilité** — voir ci-dessous)
+- `allocation` → FK `BatchMarketAllocation` (**nouveau, optionnel**) : relation directe `BatchMarketAllocation 1──1 Lot` pour tout lot généré depuis cette feature. `null` pour tout lot antérieur (données historiques, voir §4bis) — dans ce cas, `Lot.batch` reste l'unique rattachement, exactement comme avant cette feature.
 - `numeroLot` — généré par un service dédié (`LotNumberGeneratorService`), voir encadré ci-dessous
 - `quantite` (quantité totale produite, rebuts inclus — cohérent avec `docs/regles-metier.md` §3/§5)
 - `dateFabrication`
 - `datePeremption` (optionnelle)
 - `statutQualite` : enum `EN_ATTENTE` / `CONFORME` / `NON_CONFORME` / `BLOQUE`, calculé automatiquement à partir de l'ensemble des `QualityCheck` du lot (règle de calcul exacte à définir au Jalon 3, voir §6)
+
+> **Relation `Batch` ↔ `Lot`** depuis cette feature : `Batch 1──n Lot` (un lot par allocation — voir §4bis), et non plus `Batch 1──1 Lot`. Pour un batch à allocation unique, cela reste dans les faits un seul lot. `Lot.batch` est maintenu à titre de champ dénormalisé (dérivé de `allocation.batch`, jamais modifiable indépendamment) pour ne pas obliger une jointure via l'allocation à chaque lecture "tous les lots d'un batch" — sa cohérence est garantie par la couche service, aucune contrainte native en base ne peut le vérifier automatiquement.
 
 > **Génération du numéro de lot** : convention interne confirmée — 6 chiffres commençant par 455 (ex : `455XXX`), algorithme exact à préciser par l'utilisateur. Pour ne pas coder une règle figée, la génération est isolée dans un `LotNumberGeneratorService` dédié, appelé par le module `production` à la clôture du batch sans connaître le détail de l'algorithme. **Implémentation actuelle (temporaire, Phase D)** : compteur séquentiel par site (`455001`, `455002`...) — à remplacer par l'algorithme réel une fois fourni, sans impacter le reste du MES.
 >
@@ -130,6 +161,8 @@ Table centrale de traçabilité : permet de remonter d'un lot fini vers les lots
 > Chaque lot fini doit posséder au moins une ligne de généalogie avant d'être considéré comme "clôturé" — condition nécessaire pour garantir la capacité de rappel produit. La quantité totale généalogique (rebuts inclus) doit correspondre à la quantité totale déduite du stock (§3).
 >
 > **Implémenté (Phase D, 2026-07-06)** : à la clôture du batch, une ligne `LotGenealogy` est créée **par `StockLot` consommé** (pas par article) — si la sélection FIFO répartit la consommation d'un article sur plusieurs lots de réception, autant de lignes de généalogie sont créées pour cet article. Génération, déduction de stock (FIFO) et création du lot se font dans une seule transaction Prisma ; une rupture de stock sur un ou plusieurs articles annule l'ensemble (aucune écriture partielle), avec un message listant tous les articles manquants.
+>
+> **Allocation multi-marchés (PRD-11, voir §4bis)** : pour un batch réparti entre plusieurs marchés, chaque allocation a son propre lot, donc sa propre généalogie. Les lignes de packaging (propres à l'allocation) sont directement rattachées au lot de cette allocation. Les lignes de matière première (mélange commun) sont réparties entre les lots de chaque allocation **au prorata des volumes conformes uniquement** (rebuts exclus de cette clé de répartition). La consommation de packaging, elle, reste calculée sur la quantité conforme + rebuts de l'allocation (`docs/regles-metier.md` §3, inchangé).
 
 ## 6. Qualité
 
@@ -246,9 +279,14 @@ Recipe 1──n RecipeLine
 Recipe 1──n Batch
 
 Batch 1──n BatchStop
-Batch 1──1 Lot
+Batch 1──n BatchMarketAllocation (voir §4bis — PRD-11)
 Batch 1──1 BatchCost
 Batch 1──n StockMovement (sorties matières/packaging, quantité totale rebuts inclus)
+
+Market 1──n BatchMarketAllocation
+
+BatchMarketAllocation 1──1 Lot
+Batch 1──n Lot (via les allocations — un seul lot pour un batch mono-marché ; `Lot.batch` conservé en lecture, voir §5)
 
 Lot 1──n LotGenealogy
 Lot 1──n QualityCheck
@@ -261,7 +299,10 @@ QualityCheck 1──n QualityCheckAttachment
 - Algorithme exact de génération du numéro de lot (convention confirmée : 6 chiffres commençant par 455, ex. `455XXX` — détail à fournir par l'utilisateur ; isolé dans `LotNumberGeneratorService`, voir §5).
 - Règle exacte de calcul de `Lot.statutQualite` à partir des `QualityCheck` (Jalon 3, voir §6).
 - Formule exacte de `besoinCalculé`/`quantitéSuggérée` (§8).
+- **PRD-11 (allocation multi-marchés, §4bis)** : impact frontend non détaillé (saisie de rebuts/quantité produite par allocation plutôt qu'au niveau batch) — à préciser lors de l'analyse technique de mise en œuvre, hors périmètre de ce document et de l'ADR 0006.
 
 > Décisions confirmées le 2026-07-05 : les rebuts consomment le packaging au même titre que la matière première et sont inclus dans la quantité totale déduite du stock/généalogie (§3, §5) ; `BatchCost.coutUnitaireParFlacon` se calcule sur la quantité totale produite, rebuts inclus (§7) ; le stock est suivi par lot de réception pour permettre une traçabilité amont fine (§3) ; le contrôle qualité est multi-type dès la V0.9 (§6) ; les besoins attendus reflètent le maintien du stock de sécurité (§8).
 >
 > Décisions confirmées le 2026-07-06 : conditionnement en carton (`Article.unitesParCarton`, affichage uniquement, voir §1) ; affectation FIFO des `StockLot` confirmée comme règle par défaut, un ajustement d'inventaire cible toujours un `StockLot` précis (§3) ; `StockItem.seuilMinimum` est la source unique de vérité du seuil de stock (§3, §8, remplace l'ambiguïté précédente avec `ExpectedRequirement.stockMinimum`).
+>
+> Décisions confirmées le 2026-07-16 (PRD-11, voir ADR 0006) : un batch peut être réparti entre plusieurs marchés (`Market`, `BatchMarketAllocation`), une seule allocation par marché et par batch ; chaque allocation génère exactement un lot (`BatchMarketAllocation 1──1 Lot`), `Lot.batch` conservé pour la lecture/traçabilité ; la généalogie de la matière première (mélange commun) est répartie entre allocations au prorata des volumes conformes uniquement ; `StockMovement.allocationMarche` optionnel pour les sorties de packaging ; aucun backfill ni modification rétroactive des données historiques — les batchs déjà clôturés restent mono-marché, sans allocation.

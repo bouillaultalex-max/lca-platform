@@ -1,0 +1,236 @@
+# MASTER BACKLOG — LCA-MES
+
+> Document de référence unique du backlog LCA-MES.
+>
+> Toute nouvelle idée, fonctionnalité, évolution ou dette technique doit être ajoutée ici avant d'être développée.
+>
+> Les développements suivent obligatoirement le workflow :
+>
+> Backlog → Analyse PO → Analyse Architecte → Validation humaine → Développement → QA → Documentation → Terminé
+>
+> Construit à partir de `CLAUDE.md`, `README.md`, `MASTER_SPECIFICATION.md`, `PROJECT_STATE.md` et de l'ensemble de `docs/` (architecture, modèle de données, règles métier, roadmap, ADR 0001-0005). Toute feature listée ci-dessous est justifiée par au moins un de ces documents.
+
+---
+
+# Vision
+
+Créer le logiciel MES de référence pour le pilotage de la production de concentrés de cigarettes électroniques chez LCA Distribution.
+
+Le logiciel doit être :
+
+- simple à utiliser ;
+- extrêmement fiable ;
+- totalement traçable ;
+- évolutif ;
+- orienté métier ;
+- capable d'intégrer progressivement CRM, Achats, R&D, Qualité et IA.
+
+---
+
+# Roadmap
+
+Les documents officiels (`MASTER_SPECIFICATION.md`, `docs/roadmap.md`) ne définissent qu'une **unique version V0.9** (échéance fin août 2026), qui couvre déjà Traçabilité/Qualité/Coûts (Jalon 3) et Exports/Sauvegardes (Jalon 4). Correspondance retenue avec le séquençage `v0.9 → v2.0` :
+
+| Jalon documenté | Statut réel | Version retenue |
+|---|---|---|
+| Jalon 0 — Cadrage | Terminé | — |
+| Jalon 1 — Socle technique | Terminé (2026-07-05) | v0.9 |
+| Jalon 2 — Catalogue & cœur production | Terminé (2026-07-07) | v0.9 |
+| Jalon 2.5 — Gestion des utilisateurs | Terminé (2026-07-07) | v0.9 |
+| Audit + corrections V0.3 (7 itérations, 2026-07-08 → 2026-07-16) | Terminé | v0.9 |
+| Jalon 3 — Traçabilité, qualité, coûts | Non démarré (démarre après le 1er déploiement interne) | v1.0 / v1.2 (Production complète / Qualité) |
+| Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré | v1.1 (Administration) |
+| Post-V0.9 (`logistique`, `r&d`, `planning`) | Non conçu | v1.3 (R&D) / hors périmètre |
+| CRM, Achats (au sens ERP), IA avancée | Jamais mentionnés comme fonctionnalités concrètes | v2.0 (Entreprise) — aspirationnel, aucun contenu documenté |
+
+## v0.9 — Fondation
+
+Disposer d'un MES totalement utilisable au laboratoire.
+
+## v1.0 — Production
+
+Couvrir entièrement la production.
+
+## v1.1 — Administration
+
+Compléter les fonctions administratives.
+
+## v1.2 — Qualité
+
+Gestion qualité complète.
+
+## v1.3 — R&D
+
+Développement de nouvelles recettes.
+
+## v2.0 — Entreprise
+
+Faire de LCA-MES le cœur du système d'information de LCA Distribution.
+
+---
+
+# Epics
+
+Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation" en fin de section pour les cas où plusieurs rattachements étaient plausibles).
+
+## EPIC 01 — Production
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| PRD-01 | Création de batch (recette + machine + format + quantité), validée contre recette active et format machine | Haute | Terminé | V0.9 |
+| PRD-02 | Calcul automatique des quantités de préparation (volume + masse) à partir de la recette | Haute | Terminé | V0.9 |
+| PRD-03 | Workflow 4 étapes (préparation/mélange/incorporation trémie/conditionnement), `BatchStep` distinct de `BatchStatus` | Haute | Terminé | V0.9 |
+| PRD-04 | Gestion des arrêts de batch (motif, durée calculée) | Moyenne | Terminé | V0.9 |
+| PRD-05 | Clôture de batch : génération du lot + déduction stock atomique (transaction unique) | Haute | Terminé | V0.9 |
+| PRD-06 | Analyse de faisabilité avant lancement (`BatchFeasibilityService`, ADR 0005) : blocage si stock insuffisant, quantité max produisible, ajustement explicite | Haute | Terminé | V0.9 |
+| PRD-07 | Génération du numéro de lot (`LotNumberGeneratorService`) | Haute | Terminé (implémentation placeholder — voir DEBT-01) | V0.9 |
+| PRD-08 | Généalogie du lot (`LotGenealogy`) — écran de consultation dédié (module `traceability`) | Moyenne | Non démarré (données déjà générées à la clôture, pas d'écran) | V0.9 (Jalon 3) |
+| PRD-09 | Consultation du numéro de lot après rechargement d'un batch terminé | Faible | Non démarré | V0.9 (Jalon 3) |
+| PRD-10 | Calcul et historisation du coût par flacon (`BatchCost`) | Moyenne | Non démarré | V0.9 (Jalon 3) |
+| PRD-11 | Allocation multi-marchés (un batch réparti entre plusieurs marchés, un lot par allocation — voir ADR-0006 et `docs/features/PRD-11-allocation-multi-marches/`) | P0 | Prête pour développement | V0.9 (Jalon 2) |
+
+## EPIC 02 — Stocks
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| STK-01 | État des stocks par article + mouvements horodatés (`StockMovement`) | Haute | Terminé | V0.9 |
+| STK-02 | Affectation FIFO des `StockLot` à la consommation | Haute | Terminé | V0.9 |
+| STK-03 | Ajustement d'inventaire ciblé sur un `StockLot` précis | Haute | Terminé | V0.9 |
+| STK-04 | Seuil de stock minimum + indicateur stock faible (calculé serveur) | Moyenne | Terminé | V0.9 |
+| STK-05 | Équivalent carton (affichage uniquement) | Faible | Terminé | V0.9 |
+
+## EPIC 03 — Matières Premières
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| MP-01 | Gestion des articles (table unique MP/Packaging/Produit fini) | Haute | Terminé | V0.9 |
+| MP-02 | Modification d'articles existants (`unitsPerCarton`, `densityKgPerL` inclus) | Haute | Terminé | V0.9 |
+| MP-03 | Changement de type d'article encadré (bloqué si déjà utilisé) | Moyenne | Terminé | V0.9 |
+| MP-04 | Densité (`densityKgPerL`) pour le calcul de masse à peser | Moyenne | Terminé | V0.9 |
+| MP-05 | Recettes versionnées (composition %, archivage automatique, immutabilité) | Haute | Terminé | V0.9 |
+| MP-06 | Brouillons de recettes avec autosave (ADR 0004) | Moyenne | Terminé | V0.9 |
+| MP-07 | Sélecteur d'ingrédient recherchable dans les recettes (`ArticleSearchSelect`) | Faible | Terminé | V0.9 |
+| MP-08 | Recherche instantanée du Catalogue (désignation/référence/fournisseur/type) | Faible | Terminé | V0.9 |
+
+## EPIC 04 — Conditionnement
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| CDT-01 | Gestion des machines de conditionnement (CRUD, formats supportés) | Haute | Terminé | V0.9 |
+| CDT-02 | Règle de conditionnement en cartons (10/30/50/100 ml → 100 ; 200 ml → 36) | Faible | Terminé (affichage uniquement) | V0.9 |
+
+## EPIC 05 — Administration
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| ADM-01 | Authentification JWT + 4 rôles (`RESPONSABLE_LABORATOIRE`/`RESPONSABLE_ADJOINT`/`DIRECTION`/`DAF`) | Haute | Terminé | V0.9 |
+| ADM-02 | Gestion des utilisateurs (création, modification, désactivation, réinitialisation mot de passe) | Haute | Terminé | V0.9 |
+| ADM-03 | Fonction métier (`JobTitle`) distincte du rôle logiciel | Faible | Terminé | V0.9 |
+| ADM-04 | Administrateur système (`isSystemAdmin`) indépendant du rôle | Moyenne | Terminé | V0.9 |
+| ADM-05 | Changement de mot de passe obligatoire à la première connexion | Moyenne | Terminé | V0.9 |
+| ADM-06 | Historique de connexion (`LoginHistory`) | Faible | Terminé | V0.9 |
+| ADM-07 | Protection anti-auto-retrait admin (désactivation/statut) | Moyenne | Terminé | V0.9 |
+| ADM-08 | Journal d'audit technique (`AuditLog`, gestion des comptes) | Moyenne | Terminé (périmètre limité aux comptes) | V0.9 |
+| ADM-09 | Tableau de bord (accueil personnalisé + 7 indicateurs de synthèse) | Faible | Terminé | V0.9 |
+| ADM-10 | Tableaux de bord et rapports dédiés `DIRECTION`/`DAF` | Moyenne | Non démarré | V0.9 (Jalon 4) |
+| ADM-11 | Sauvegardes automatiques (`pg_dump` planifié + rotation + restauration testée) | Haute | Non démarré | V0.9 (Jalon 4) |
+| ADM-12 | Refonte de la navigation (sidebar), pour absorber les futurs modules | Faible | Non conçu | V0.4 (nom informel donné par `docs/roadmap.md`) |
+
+## EPIC 06 — Qualité
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| QUA-01 | Contrôle qualité multi-type par lot (`QualityCheck` : visuel/organoleptique/physico-chimique/packaging/documentaire) | Moyenne | Non démarré | V0.9 (Jalon 3) |
+| QUA-02 | Pièces jointes de contrôle qualité (`QualityCheckAttachment`) | Faible | Non démarré | V0.9 (Jalon 3) |
+| QUA-03 | Calcul automatique du statut qualité global du lot | Moyenne | Non démarré (règle exacte à valider — voir DEBT-03) | V0.9 (Jalon 3) |
+
+## EPIC 07 — Communication
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| COM-01 | Système de retours utilisateurs intégré (`Feedback` : type/priorité/statut, écran admin) | Moyenne | Terminé | V0.9 |
+| COM-02 | Notification Make (webhook → agent IA → e-mail) sur chaque retour créé | Moyenne | En cours, non commité | V0.9 |
+
+## EPIC 08 — R&D
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| RD-01 | Recettes expérimentales, essais, validation/rejet, promotion vers le catalogue production | Faible | Non conçu | Post-V0.9 |
+
+## EPIC 09 — CRM
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+
+*Aucune fonctionnalité CRM n'est mentionnée dans un quelconque document — epic vide, conservé pour la roadmap v2.0.*
+
+## EPIC 10 — Achats
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| ACH-01 | Gestion des fournisseurs (`Supplier` CRUD, fournisseur principal MP + Packaging) | Moyenne | Terminé | V0.9 |
+
+## EPIC 11 — IA
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+
+*Aucune fonctionnalité IA n'est mentionnée comme construite ou planifiée en détail ; explicitement hors périmètre V0.9 (`MASTER_SPECIFICATION.md` §5, `README.md`).*
+
+## EPIC 12 — Imports/Exports OpenSi
+
+| ID | Feature | Priorité | Statut | Version |
+|----|---------|----------|--------|---------|
+| IMP-01 | Moteur générique de mapping de colonnes (ADR 0003), réutilisable par de futurs connecteurs | Haute | Terminé | V0.9 |
+| IMP-02 | Import Articles (upsert par référence OpenSi, type immuable) | Haute | Terminé | V0.9 |
+| IMP-03 | Import Stocks (atomique, réutilise la réception de stock) | Haute | Terminé | V0.9 |
+| IMP-04 | Import Besoins attendus (historique append-only) | Moyenne | Terminé | V0.9 |
+| IMP-05 | Import Inventaire | Moyenne | Partiellement terminé (prévisualisation seule, `confirm()` renvoie `501`) | V0.9 |
+| IMP-06 | Écran frontend Imports (assistant 5 étapes + historique) | Haute | Terminé | V0.9 |
+| IMP-07 | Exports vers OpenSi (productions, consommations, mouvements, inventaires, rapports) | Moyenne | Non démarré | V0.9 (Jalon 4) |
+| IMP-08 | Écran de planification à partir des besoins attendus (`besoinCalculé`/`quantitéSuggérée`) | Moyenne | Non démarré (formule à valider — voir DEBT-02) | V0.9 (Jalon 2/3) |
+
+## Décisions d'organisation
+
+Cas où plusieurs rattachements étaient plausibles — arbitrage retenu et justification, plutôt qu'une duplication de la Feature :
+
+- **ACH-01 (Fournisseurs)** → Epic 10 (Achats), plutôt qu'Epic 03 (Matières Premières) ou Epic 04 (Conditionnement). Un fournisseur principal s'applique aux deux types d'articles (`docs/regles-metier.md` §14) : son rattachement naturel est le domaine transversal "achat", pas l'un ou l'autre des deux types.
+- **PRD-10 (Coût par flacon)** → Epic 01 (Production), en l'absence d'epic Finance/Reporting dédié. Le coût est calculé et figé à la clôture du batch (`docs/modele-donnees.md` §7) : c'est une sortie du processus de production, pas un module autonome.
+- **PRD-08 (Généalogie du lot)** → Epic 01 (Production), plutôt qu'un epic "Traçabilité" dédié (le découpage modulaire réel a un module `traceability` séparé — `docs/architecture.md` §3 — mais cet epic n'existe pas dans ce backlog). La généalogie est générée à la clôture d'un batch, donc rattachée au cycle de vie de la production.
+- **MP-05 à MP-08 (Recettes, brouillons, sélecteur d'ingrédient, recherche Catalogue)** → Epic 03 (Matières Premières), plutôt qu'Epic 04 (Conditionnement), bien qu'une recette contienne aussi des lignes de packaging. La recette est structurée autour de la règle des 100 % de matière première (`docs/regles-metier.md` §12), qui en est la contrainte centrale.
+- **CDT-02 (Règle de conditionnement en cartons)** → Epic 04 (Conditionnement), distinct de MP-02 (modification d'articles). MP-02 couvre la possibilité de modifier le champ `unitsPerCarton` sur un article ; CDT-02 couvre la règle métier de correspondance format → carton elle-même (`docs/modele-donnees.md` §1). Deux aspects différents du même champ, pas la même Feature.
+- **ADM-09 (Tableau de bord)** → Epic 05 (Administration), bien qu'il agrège des données de tous les modules (articles, recettes, machines, stock, production, retours, besoins — `PROJECT_STATE.md` §2). Choisi comme écran de pilotage/supervision transversal, pas comme fonctionnalité d'un domaine métier particulier.
+- **COM-02 (Webhook Make)** : travail réellement effectué (code présent, testé, fonctionnel) mais non commité et absent de `PROJECT_STATE.md` au moment de la rédaction de ce backlog — statut "En cours, non commité" retenu explicitement plutôt que "Terminé", pour ne pas anticiper une écriture de documentation qui n'a pas encore eu lieu.
+
+---
+
+# Dette technique
+
+| ID | Sujet | Priorité | Statut |
+|----|-------|----------|--------|
+| DEBT-01 | Algorithme réel de génération du numéro de lot (convention `455XXX` confirmée, détail non fourni) — actuellement un compteur séquentiel placeholder | Haute | En attente d'information utilisateur |
+| DEBT-02 | Formule exacte de `besoinCalculé`/`quantitéSuggérée` (besoins attendus) | Haute | À valider (bloque IMP-08) |
+| DEBT-03 | Règle exacte de calcul du statut qualité global du lot à partir des `QualityCheck` | Moyenne | À valider (bloque QUA-03) |
+| DEBT-04 | Stratégie de réconciliation de l'import Inventaire (granularité lot fournisseur vs quantité globale) | Moyenne | En attente d'un fichier réel OpenSi |
+| DEBT-05 | Notion de "gamme" (regroupement de produits) absente du modèle de données | Moyenne | À préciser (bloque planification par gamme) |
+| DEBT-06 | Docker/`docker-compose.yml` jamais exécutés de bout en bout avec un Docker réel | Faible | À valider avant premier déploiement réel |
+| DEBT-07 | Vulnérabilités npm résiduelles pré-existantes (chaîne `@hono/node-server`/`@prisma/dev`/`prisma`, 3 alertes modérées) | Faible | Surveillé |
+| DEBT-08 | Mot de passe temporaire de Jean-Paul Gouveia non conservé (`mustChangePassword` toujours vrai) | Faible | Réinitialisation manuelle à faire avant sa première utilisation réelle |
+| DEBT-09 | Analyse/détection d'anomalies sur `LoginHistory` (tentatives répétées, IP inhabituelle) | Faible | Non démarré, reportée |
+| DEBT-10 | Bandeau global d'avertissement pour un brouillon référençant un ou plusieurs articles désactivés (le texte de repli par ligne est fait, pas le bandeau récapitulatif) | Faible | Amélioration future non implémentée |
+| DEBT-11 | Intégration du logo SVG officiel Maison Fuel | Faible | Reporté volontairement |
+
+---
+
+# Parking
+
+Idées futures qui ne sont pas encore planifiées : actées comme "à garder à l'esprit" mais non conçues, non planifiées en détail, ou explicitement hors périmètre V0.9.
+
+- **Module `planning` / ordonnancement** — priorité future déjà identifiée par l'utilisateur ("futur module prioritaire", Jalon 3+) mais non conçu ; dépend de DEBT-02 et DEBT-05.
+- **Module `logistique`** (post-V0.9) — expédition, conditionnement cartons, exports transporteurs.
+- **Système de réservation de stock au lancement d'un batch** — explicitement écarté pour la V0.9 dans l'ADR 0005, évolution future distincte.
+- **Évolution FEFO** (péremption) pour l'affectation des stocks, en alternative au FIFO actuel.
+- **Bascule de la recherche du Catalogue vers le backend avec pagination** — à envisager seulement si le catalogue atteint plusieurs milliers d'articles.
+- **Mise en évidence (highlight) du texte correspondant à une recherche** — idée UX, non conçue.
+- Multi-site complet, connexion machine directe (OPC-UA/Modbus/MQTT), gateway edge/IoT, application mobile, IA avancée/optimisation de planning — explicitement hors périmètre V0.9 (`MASTER_SPECIFICATION.md` §5, `README.md`, `CLAUDE.md`).
+- Epics 09 (CRM) et 11 (IA) — aucun contenu documenté à ce jour, réservés pour la roadmap v2.0.
