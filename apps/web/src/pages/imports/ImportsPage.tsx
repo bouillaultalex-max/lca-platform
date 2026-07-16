@@ -25,6 +25,7 @@ import { InventoryPreviewPanel } from './InventoryPreviewPanel';
 import { SuccessScreen } from './SuccessScreen';
 import { ImportHistoryPanel } from './ImportHistoryPanel';
 import { formatImportDate } from './importFormatting';
+import { toArticlesConfirmRow } from './articlesConfirmRow';
 
 type AnyPreviewResult =
   | ArticlesImportPreviewResult
@@ -338,9 +339,9 @@ export function ImportsPage() {
     try {
       if (selectedType === 'ARTICLES') {
         const result = previewResult as ArticlesImportPreviewResult;
-        const rows: ArticleImportRow[] = [...(result.toCreate ?? []), ...(result.toUpdate ?? [])].filter((row) =>
-          selectedLines.has(row.line),
-        );
+        const rows: ArticleImportRow[] = [...(result.toCreate ?? []), ...(result.toUpdate ?? [])]
+          .filter((row) => selectedLines.has(row.line))
+          .map(toArticlesConfirmRow);
         const confirmed = await api.confirmArticlesImport(token, {
           importLogId: result.importLogId,
           rows,
