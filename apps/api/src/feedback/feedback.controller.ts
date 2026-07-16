@@ -22,7 +22,7 @@ export class FeedbackController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateFeedbackDto,
   ): Promise<Feedback> {
-    return this.feedbackService.create(user.siteId, user.id, dto);
+    return this.feedbackService.create(user.siteId, user, dto);
   }
 
   @Get()

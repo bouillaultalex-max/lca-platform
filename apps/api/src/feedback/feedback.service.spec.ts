@@ -1,12 +1,15 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { FeedbackService } from './feedback.service';
+import { FeedbackWebhookService } from './feedback-webhook.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { APP_VERSION } from '../app-version';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user';
 import {
   Feedback,
   FeedbackPriority,
   FeedbackType,
+  UserRole,
 } from '../../generated/prisma/client';
 
 describe('FeedbackService', () => {
@@ -19,9 +22,22 @@ describe('FeedbackService', () => {
       update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
     };
   };
+  let feedbackWebhookService: { notify: jest.Mock };
 
   const siteId = 'site-1';
   const userId = 'user-1';
+
+  const user: AuthenticatedUser = {
+    id: userId,
+    siteId,
+    fullName: 'Kevin Prian',
+    email: 'kevin.prian@lca-mes.local',
+    role: UserRole.RESPONSABLE_LABORATOIRE,
+    jobTitle: null,
+    isSystemAdmin: false,
+    mustChangePassword: false,
+    lastLoginAt: null,
+  };
 
   const feedback: Feedback = {
     id: 'feedback-1',
@@ -45,11 +61,13 @@ describe('FeedbackService', () => {
         update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
       },
     };
+    feedbackWebhookService = { notify: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FeedbackService,
         { provide: PrismaService, useValue: prisma },
+        { provide: FeedbackWebhookService, useValue: feedbackWebhookService },
       ],
     }).compile();
 
@@ -60,7 +78,7 @@ describe('FeedbackService', () => {
     it("enregistre le retour avec siteId/userId dérivés de l'utilisateur courant et la version applicative figée", async () => {
       prisma.feedback.create.mockResolvedValue(feedback);
 
-      const result = await service.create(siteId, userId, {
+      const result = await service.create(siteId, user, {
         type: FeedbackType.BUG,
         priority: FeedbackPriority.IMPORTANTE,
         message: 'Le bouton ne répond pas.',
@@ -85,7 +103,7 @@ describe('FeedbackService', () => {
     it('laisse Prisma appliquer la priorité par défaut (NORMALE) si elle est absente du payload', async () => {
       prisma.feedback.create.mockResolvedValue(feedback);
 
-      await service.create(siteId, userId, {
+      await service.create(siteId, user, {
         type: FeedbackType.IDEE,
         message: 'Une idée.',
         pageUrl: '/stock',
@@ -95,6 +113,46 @@ describe('FeedbackService', () => {
         data: Record<string, unknown>;
       };
       expect(createCallArgs.data.priority).toBeUndefined();
+    });
+
+    it('notifie le webhook Make avec le payload construit après succès de la création', async () => {
+      prisma.feedback.create.mockResolvedValue(feedback);
+
+      await service.create(siteId, user, {
+        type: FeedbackType.BUG,
+        message: 'Le bouton ne répond pas.',
+        pageUrl: '/catalog',
+      });
+
+      expect(feedbackWebhookService.notify).toHaveBeenCalledTimes(1);
+      expect(feedbackWebhookService.notify).toHaveBeenCalledWith({
+        feedbackId: feedback.id,
+        user: user.fullName,
+        email: user.email,
+        type: feedback.type,
+        priority: feedback.priority,
+        page: feedback.pageUrl,
+        message: feedback.message,
+        version: feedback.appVersion,
+        status: feedback.status,
+        createdAt: feedback.createdAt.toISOString(),
+        siteId: feedback.siteId,
+      });
+    });
+
+    it("n'appelle jamais le webhook Make si la création en base échoue", async () => {
+      prisma.feedback.create.mockRejectedValue(
+        new BadRequestException('échec'),
+      );
+
+      await expect(
+        service.create(siteId, user, {
+          type: FeedbackType.BUG,
+          message: 'Le bouton ne répond pas.',
+          pageUrl: '/catalog',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(feedbackWebhookService.notify).not.toHaveBeenCalled();
     });
   });
 

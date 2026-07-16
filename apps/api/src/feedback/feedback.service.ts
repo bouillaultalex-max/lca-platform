@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
+import {
+  FeedbackWebhookService,
+  buildFeedbackWebhookPayload,
+} from './feedback-webhook.service';
 import { APP_VERSION } from '../app-version';
+import type { AuthenticatedUser } from '../auth/types/authenticated-user';
 import { Feedback, Prisma } from '../../generated/prisma/client';
 
 export type FeedbackWithUser = Prisma.FeedbackGetPayload<{
@@ -15,17 +20,26 @@ export type FeedbackWithUser = Prisma.FeedbackGetPayload<{
  */
 @Injectable()
 export class FeedbackService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly feedbackWebhookService: FeedbackWebhookService,
+  ) {}
 
-  create(
+  /**
+   * Notifie un scénario Make (voir FeedbackWebhookService) uniquement après succès
+   * de l'écriture en base — jamais avant, jamais si la création échoue. L'appel est
+   * non bloquant (voir `notify()`) : il n'ajoute aucun délai à la réponse renvoyée
+   * ici, même si Make est lent ou indisponible.
+   */
+  async create(
     siteId: string,
-    userId: string,
+    user: AuthenticatedUser,
     dto: CreateFeedbackDto,
   ): Promise<Feedback> {
-    return this.prisma.feedback.create({
+    const feedback = await this.prisma.feedback.create({
       data: {
         siteId,
-        userId,
+        userId: user.id,
         type: dto.type,
         priority: dto.priority,
         message: dto.message,
@@ -33,6 +47,12 @@ export class FeedbackService {
         appVersion: APP_VERSION,
       },
     });
+
+    this.feedbackWebhookService.notify(
+      buildFeedbackWebhookPayload(feedback, user),
+    );
+
+    return feedback;
   }
 
   findAll(siteId: string): Promise<FeedbackWithUser[]> {

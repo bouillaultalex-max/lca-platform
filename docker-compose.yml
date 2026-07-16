@@ -39,6 +39,9 @@ services:
       JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-28800}
       PORT: 3000
       NODE_ENV: production
+      # Optionnelle (voir FeedbackWebhookService) : une chaîne vide équivaut à une
+      # variable absente, aucune régression si elle n'est pas définie dans .env.
+      MAKE_FEEDBACK_WEBHOOK_URL: ${MAKE_FEEDBACK_WEBHOOK_URL:-}
     ports:
       - '3000:3000'
 

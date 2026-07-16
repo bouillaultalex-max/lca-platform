@@ -18,4 +18,9 @@ export const envValidationSchema = Joi.object({
   // chaîne ("8h") pour rester un type simple (number) côté JwtModule, sans dépendre
   // du type "StringValue" interne au package `ms`.
   JWT_EXPIRES_IN_SECONDS: Joi.number().integer().positive().default(28800),
+  // Webhook Make du système de retours (voir FeedbackWebhookService) : optionnelle,
+  // le système de retours fonctionne normalement si elle est absente. Une chaîne
+  // vide (ligne présente mais non renseignée, cas courant en copiant .env.example)
+  // est traitée exactement comme une variable absente, jamais comme une erreur.
+  MAKE_FEEDBACK_WEBHOOK_URL: Joi.string().uri().allow('').optional(),
 });
