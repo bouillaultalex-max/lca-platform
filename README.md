@@ -95,7 +95,7 @@ docker-compose.yml, apps/api/Dockerfile   # déploiement (optionnel)
 **Hors périmètre** (évolutions futures) : connexion machine (OPC-UA/Modbus/MQTT), gateway edge, IoT, multi-site complet, application mobile, IA avancée, optimisation de planning.
 
 ## Utilisateurs et rôles
-Test Webhook n8n
+Test Webhook n8n 2
 | Rôle | Accès |
 |---|---|
 | `RESPONSABLE_LABORATOIRE` | Complet |
