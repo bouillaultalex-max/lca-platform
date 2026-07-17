@@ -31,6 +31,22 @@ Table unique pour matières premières, packaging et produits finis, distingués
 - `formatsSupportes` (ex : [50, 100, 200] ml)
 - `actif`
 
+### Market (Marché) — voir §4bis, ADR 0006 (PRD-11)
+Référentiel simple, dans l'esprit de `Supplier`/`Machine`.
+- `code` (ex : `FR`, `CH`)
+- `libelle` (ex : "France", "Suisse")
+- `actif`
+
+### ProductFamily (Famille commerciale) — voir §4bis, ADR 0006 (PRD-11)
+Regroupe les déclinaisons commerciales d'un même produit par marché (ex. "Recharge Lavande" → déclinaison France, déclinaison Suisse). **Concept distinct de la future notion de "gamme"** (`MASTER_BACKLOG.md`, DEBT-05, regroupement de produits pour la planification) — non fusionnés à ce stade.
+- `nom`
+- `actif`
+
+> **Ajouts sur `Article`** (pertinents uniquement pour `type = PRODUIT_FINI`) :
+> - `familleCommerciale` → FK `ProductFamily`, optionnelle.
+> - `marche` → FK `Market`, optionnelle — ne peut être renseignée que si `familleCommerciale` l'est aussi (règle de service).
+> - Contrainte d'unicité `(familleCommerciale, marche)` : une famille ne peut jamais avoir deux déclinaisons pour le même marché — garanti par la base, pas seulement par la saisie.
+
 ## 2. Recettes
 
 ### Recipe (Recette)
@@ -74,7 +90,7 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 - `quantite`
 - `dateMouvement`
 - `referenceBatch` → FK `Batch` (optionnelle, si liée à une production)
-- `allocationMarche` → FK `BatchMarketAllocation` (optionnelle — voir §4bis) : renseignée pour une sortie de packaging propre à une allocation, laissée vide pour une sortie de matière première (mélange commun, non ventilé par allocation)
+- `allocation` → FK `BatchProductAllocation` (optionnelle — voir §4bis) : renseignée pour une sortie de packaging propre à une allocation, laissée vide pour une sortie de matière première (mélange commun, non ventilé par allocation)
 - `utilisateur` → FK `User`
 - `commentaire`
 
@@ -107,38 +123,47 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 
 > Un seul arrêt peut être ouvert (`fin` nulle) à la fois pour un même batch.
 
-## 4bis. Allocation multi-marchés (PRD-11)
+## 4bis. Allocation multi-produits (PRD-11)
 
-**Décision confirmée (2026-07-16)**, voir ADR 0006 et `docs/features/PRD-11-allocation-multi-marches/` : un batch peut être réparti entre plusieurs marchés (destination commerciale ou réglementaire, ex. France, Suisse — notion indépendante du site de production, voir `MASTER_SPECIFICATION.md` §2). Le mélange (matières premières) reste commun à tout le batch ; seul le packaging, les rebuts et le lot final sont propres à chaque allocation.
+**Décision révisée le 2026-07-17** (voir ADR 0006 et `docs/features/PRD-11-allocation-multi-marches/` pour l'historique complet des itérations) : un batch représente un run physique unique autour d'**un seul mélange commun**. Il produit une ou plusieurs sorties commerciales (`BatchProductAllocation`), chacune portant un produit fini, une recette figée résolue automatiquement (jamais choisie directement par l'utilisateur), éventuellement un marché, et ses propres quantités. Le mélange (matières premières) reste commun à tout le batch ; seuls le packaging (dérivé de la recette de chaque allocation), les rebuts et le lot final sont propres à chaque allocation.
 
-### Market (Marché)
-Référentiel simple, dans l'esprit de `Supplier`/`Machine` (entité dédiée, pas un texte libre).
-- `code` (ex : `FR`, `CH`)
-- `libelle` (ex : "France", "Suisse")
-- `actif`
+**Principe directeur** : la recette reste la source unique de vérité de la composition d'un produit (matière première **et** packaging) — aucune saisie libre de packaging dans le batch. Un batch = un seul mélange ; plusieurs allocations = plusieurs produits finis utilisant ce même mélange.
 
-### BatchMarketAllocation (Allocation de marché)
+### BatchProductAllocation (renommée depuis `BatchMarketAllocation`, généralisée)
 - `batch` → FK `Batch`
-- `marche` → FK `Market`
-- `quantitePrevue` — quantité prévue pour cette allocation ; la somme des `quantitePrevue` de toutes les allocations d'un même batch doit égaler `Batch.quantitePrevue` (invariant vérifié à l'usage, pas un champ recalculé/dupliqué)
-- `quantiteProduite`, `rebuts` — saisis par allocation, plus au niveau du batch global (les champs `Batch.quantiteProduite`/`Batch.rebuts` restent la somme des allocations, pour compatibilité de lecture)
-- lignes de packaging propres à l'allocation (composition qui peut différer par marché — le mélange, lui, reste porté par la `Recipe` commune du batch)
+- `produit` → FK `Article` (type `PRODUIT_FINI`) — identifie la sortie commerciale
+- `recette` → FK `Recipe` — définition technique réellement utilisée, **figée à la création de l'allocation** (immuable ensuite, même principe que `Batch.recette` aujourd'hui) ; le serveur vérifie systématiquement que `recette.produitFini` correspond à `produit`
+- `marche` → FK `Market`, **optionnelle** — présente uniquement si le produit appartient à une famille commerciale
+- `quantitePrevue`
+- `quantiteProduite`, `rebuts` — nulles jusqu'à la clôture, saisies par allocation (les champs `Batch.quantiteProduite`/`Batch.rebuts` restent la somme des allocations, voir ci-dessous)
 
-> **Contrainte d'unicité** : `(batch, marche)` — une seule allocation par marché dans un même batch.
+> **Contraintes d'unicité** : `(batch, produit)` dans tous les cas ; `(batch, marche)` quand `marche` est renseignée — un même produit ou un même marché ne peut apparaître qu'une fois dans un batch.
 >
-> **Relation avec `Batch`** : `Batch 1──n BatchMarketAllocation`. Un batch destiné à un seul marché n'a qu'une seule allocation (le cas "mono-marché" n'est pas un cas particulier distinct, juste une allocation unique) — **pour les nouveaux batchs**. Les batchs créés avant cette feature n'ont et n'auront jamais d'allocation (voir "Données historiques" ci-dessous).
+> **Relation avec `Batch`** : `Batch 1──n BatchProductAllocation`. **Tout nouveau batch possède au moins une allocation**, y compris un batch standard sur un produit sans famille commerciale — ce n'est pas un cas particulier, un seul chemin de traitement est utilisé par `BatchClosureService` (et les autres services concernés) quel que soit le nombre d'allocations. Les batchs créés avant cette feature n'ont et n'auront jamais d'allocation (voir "Données historiques" ci-dessous).
 >
-> **Répartition de la généalogie matière première** : la ligne de mélange étant commune au batch, sa généalogie (voir §5) est répartie entre les lots de chaque allocation **au prorata des volumes conformes de chaque allocation uniquement** (rebuts exclus de cette clé de répartition — à distinguer de la consommation de packaging, qui elle inclut les rebuts, voir §5).
+> **`Batch` conserve ses champs globaux comme agrégats authentiques**, pas comme une simple copie de la première allocation : `Batch.recette` = recette de référence du mélange commun ; `Batch.format` = format physique unique du run, hérité de cette recette ; `Batch.quantitePrevue`/`quantiteProduite`/`rebuts` = sommes des allocations, écrites et vérifiées dans la **même transaction** que les allocations elles-mêmes.
 >
-> **Coût (Jalon 3, `BatchCost`, non encore construit)** : contrainte actée pour sa conception future — coût du mélange réparti proportionnellement entre allocations (même clé que la généalogie), coût du packaging calculé directement par allocation.
+> **Invariants obligatoires** (vérifiés côté serveur) :
+> 1. `Batch.quantitePrevue` = Σ `allocations.quantitePrevue`.
+> 2. `Batch.quantiteProduite` = Σ `allocations.quantiteProduite` (à la clôture).
+> 3. `Batch.rebuts` = Σ `allocations.rebuts` (à la clôture).
+> 4. Toutes les recettes des allocations d'un batch partagent le même format que `Batch.format`.
+> 5. Toutes les recettes des allocations d'un batch ont une composition matière première strictement compatible avec `Batch.recette` — comparaison pure (articles + quantités par unité des lignes matière première), **non stockée**, vérifiée une seule fois à l'ajout de chaque allocation (les recettes sont immuables ensuite).
+> 6. `recette.produitFini` = `allocation.produit` pour chaque allocation.
 >
-> **Données historiques** : aucun backfill, aucune modification rétroactive. Les batchs/lots déjà clôturés avant cette feature restent tels quels (relation directe `Lot.batch`, sans allocation) — voir §5 pour le détail du champ `Lot.batch` conservé.
+> **Résolution automatique produit/recette** : l'utilisateur ne choisit jamais une recette pour une allocation. Si le produit de référence du batch appartient à une famille commerciale (`ProductFamily`), l'ajout d'une allocation supplémentaire ne demande qu'un **marché** (produit et recette résolus automatiquement depuis le catalogue) ; sinon, l'utilisateur choisit directement un **produit fini** existant (la recette reste toujours résolue automatiquement — recette `ACTIVE` de ce produit au format du batch).
+>
+> **Répartition de la généalogie matière première (règle définitive, 2026-07-17)** : au prorata de la **quantité traitée** de chaque allocation (`quantiteProduite + rebuts` — et non les seuls volumes conformes, remplace toute mention antérieure d'un prorata fondé sur les seuls conformes) : les rebuts consomment réellement le mélange commun et reçoivent donc leur part de généalogie, au même titre que pour la consommation de packaging (voir §5). `part = quantité traitée de l'allocation ÷ quantité traitée totale du batch` ; le reliquat éventuel dû aux arrondis est affecté déterministement à la dernière allocation traitée. Une clôture est refusée uniquement si la somme des quantités traitées de toutes les allocations du batch est nulle.
+>
+> **Coût (Jalon 3, `BatchCost`, non encore construit)** : coût du mélange réparti proportionnellement entre allocations (même clé que la généalogie, soit la quantité traitée), coût du packaging calculé directement par allocation.
+>
+> **Données historiques** : aucun backfill, aucune modification rétroactive. Les batchs/lots déjà clôturés avant cette feature restent tels quels (relation directe `Lot.batch`, sans allocation) — voir §5.
 
 ## 5. Lots & traçabilité
 
 ### Lot
 - `batch` → FK `Batch` (**conservé tel quel, à des fins de lecture et de traçabilité** — voir ci-dessous)
-- `allocation` → FK `BatchMarketAllocation` (**nouveau, optionnel**) : relation directe `BatchMarketAllocation 1──1 Lot` pour tout lot généré depuis cette feature. `null` pour tout lot antérieur (données historiques, voir §4bis) — dans ce cas, `Lot.batch` reste l'unique rattachement, exactement comme avant cette feature.
+- `allocation` → FK `BatchProductAllocation` (**nouveau, optionnel**) : relation directe `BatchProductAllocation 1──1 Lot` pour tout lot généré depuis cette feature. `null` pour tout lot antérieur (données historiques, voir §4bis) — dans ce cas, `Lot.batch` reste l'unique rattachement, exactement comme avant cette feature.
 - `numeroLot` — généré par un service dédié (`LotNumberGeneratorService`), voir encadré ci-dessous
 - `quantite` (quantité totale produite, rebuts inclus — cohérent avec `docs/regles-metier.md` §3/§5)
 - `dateFabrication`
@@ -162,7 +187,7 @@ Table centrale de traçabilité : permet de remonter d'un lot fini vers les lots
 >
 > **Implémenté (Phase D, 2026-07-06)** : à la clôture du batch, une ligne `LotGenealogy` est créée **par `StockLot` consommé** (pas par article) — si la sélection FIFO répartit la consommation d'un article sur plusieurs lots de réception, autant de lignes de généalogie sont créées pour cet article. Génération, déduction de stock (FIFO) et création du lot se font dans une seule transaction Prisma ; une rupture de stock sur un ou plusieurs articles annule l'ensemble (aucune écriture partielle), avec un message listant tous les articles manquants.
 >
-> **Allocation multi-marchés (PRD-11, voir §4bis)** : pour un batch réparti entre plusieurs marchés, chaque allocation a son propre lot, donc sa propre généalogie. Les lignes de packaging (propres à l'allocation) sont directement rattachées au lot de cette allocation. Les lignes de matière première (mélange commun) sont réparties entre les lots de chaque allocation **au prorata des volumes conformes uniquement** (rebuts exclus de cette clé de répartition). La consommation de packaging, elle, reste calculée sur la quantité conforme + rebuts de l'allocation (`docs/regles-metier.md` §3, inchangé).
+> **Allocation multi-produits (PRD-11, voir §4bis)** : pour un batch réparti entre plusieurs allocations, chacune a son propre lot, donc sa propre généalogie. Les lignes de packaging (propres à l'allocation) sont directement rattachées au lot de cette allocation. Les lignes de matière première (mélange commun) sont réparties entre les lots de chaque allocation **au prorata de leur quantité traitée** (`quantiteProduite + rebuts` — règle définitive du 2026-07-17, remplace toute mention antérieure d'un prorata fondé sur les seuls volumes conformes) : les rebuts consomment réellement le mélange commun et reçoivent donc leur part de généalogie, exactement comme la consommation de packaging, qui reste elle aussi calculée sur la quantité conforme + rebuts de l'allocation (`docs/regles-metier.md` §3, inchangé).
 
 ## 6. Qualité
 
@@ -279,14 +304,15 @@ Recipe 1──n RecipeLine
 Recipe 1──n Batch
 
 Batch 1──n BatchStop
-Batch 1──n BatchMarketAllocation (voir §4bis — PRD-11)
+Batch 1──n BatchProductAllocation (voir §4bis — PRD-11)
 Batch 1──1 BatchCost
 Batch 1──n StockMovement (sorties matières/packaging, quantité totale rebuts inclus)
 
-Market 1──n BatchMarketAllocation
+Market 1──n BatchProductAllocation
+ProductFamily 1──n Article (déclinaisons commerciales, voir §1/§4bis)
 
-BatchMarketAllocation 1──1 Lot
-Batch 1──n Lot (via les allocations — un seul lot pour un batch mono-marché ; `Lot.batch` conservé en lecture, voir §5)
+BatchProductAllocation 1──1 Lot
+Batch 1──n Lot (via les allocations — un seul lot pour un batch standard à une allocation ; `Lot.batch` conservé en lecture, voir §5)
 
 Lot 1──n LotGenealogy
 Lot 1──n QualityCheck
@@ -299,10 +325,10 @@ QualityCheck 1──n QualityCheckAttachment
 - Algorithme exact de génération du numéro de lot (convention confirmée : 6 chiffres commençant par 455, ex. `455XXX` — détail à fournir par l'utilisateur ; isolé dans `LotNumberGeneratorService`, voir §5).
 - Règle exacte de calcul de `Lot.statutQualite` à partir des `QualityCheck` (Jalon 3, voir §6).
 - Formule exacte de `besoinCalculé`/`quantitéSuggérée` (§8).
-- **PRD-11 (allocation multi-marchés, §4bis)** : impact frontend non détaillé (saisie de rebuts/quantité produite par allocation plutôt qu'au niveau batch) — à préciser lors de l'analyse technique de mise en œuvre, hors périmètre de ce document et de l'ADR 0006.
+- ~~**PRD-11 (allocation multi-produits, §4bis)** : règle de repli pour le cas de division par zéro sur le prorata de généalogie matière première.~~ **Résolu le 2026-07-17** : la clé de répartition est la quantité traitée (conforme + rebuts), pas les seuls conformes — une clôture n'est refusée que si la quantité traitée totale du batch est nulle, ce qui rend le cas de division par zéro structurellement impossible (voir §4bis).
 
 > Décisions confirmées le 2026-07-05 : les rebuts consomment le packaging au même titre que la matière première et sont inclus dans la quantité totale déduite du stock/généalogie (§3, §5) ; `BatchCost.coutUnitaireParFlacon` se calcule sur la quantité totale produite, rebuts inclus (§7) ; le stock est suivi par lot de réception pour permettre une traçabilité amont fine (§3) ; le contrôle qualité est multi-type dès la V0.9 (§6) ; les besoins attendus reflètent le maintien du stock de sécurité (§8).
 >
 > Décisions confirmées le 2026-07-06 : conditionnement en carton (`Article.unitesParCarton`, affichage uniquement, voir §1) ; affectation FIFO des `StockLot` confirmée comme règle par défaut, un ajustement d'inventaire cible toujours un `StockLot` précis (§3) ; `StockItem.seuilMinimum` est la source unique de vérité du seuil de stock (§3, §8, remplace l'ambiguïté précédente avec `ExpectedRequirement.stockMinimum`).
 >
-> Décisions confirmées le 2026-07-16 (PRD-11, voir ADR 0006) : un batch peut être réparti entre plusieurs marchés (`Market`, `BatchMarketAllocation`), une seule allocation par marché et par batch ; chaque allocation génère exactement un lot (`BatchMarketAllocation 1──1 Lot`), `Lot.batch` conservé pour la lecture/traçabilité ; la généalogie de la matière première (mélange commun) est répartie entre allocations au prorata des volumes conformes uniquement ; `StockMovement.allocationMarche` optionnel pour les sorties de packaging ; aucun backfill ni modification rétroactive des données historiques — les batchs déjà clôturés restent mono-marché, sans allocation.
+> Décisions confirmées le 2026-07-16, **révisées et figées le 2026-07-17** (PRD-11, voir ADR 0006) : un batch représente un run physique unique autour d'un seul mélange commun et produit une ou plusieurs sorties commerciales (`BatchProductAllocation`, renommée depuis `BatchMarketAllocation`) ; tout nouveau batch possède au moins une allocation, y compris un produit standard sans famille commerciale ; le packaging de chaque allocation est dérivé automatiquement de la recette de son produit fini (jamais saisi librement) ; nouvelle entité `ProductFamily` permettant au catalogue de résoudre automatiquement le produit correspondant à un marché ; chaque allocation génère exactement un lot (`BatchProductAllocation 1──1 Lot`), `Lot.batch` conservé pour la lecture/traçabilité ; `Batch.recette`/`format`/quantités conservés comme agrégats authentiques vérifiés par invariants transactionnels ; la généalogie de la matière première (mélange commun) est répartie entre allocations au prorata de leur **quantité traitée** (conforme + rebuts, arbitrage définitif du 2026-07-17 — remplace la règle initiale fondée sur les seuls volumes conformes), reliquat d'arrondi affecté à la dernière allocation, clôture refusée uniquement si la quantité traitée totale du batch est nulle ; `StockMovement.allocation` optionnel pour les sorties de packaging ; aucun backfill ni modification rétroactive des données historiques — les batchs déjà clôturés restent sans allocation.

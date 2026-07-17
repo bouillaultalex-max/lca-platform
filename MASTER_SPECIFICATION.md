@@ -61,20 +61,22 @@ Création d'un batch : recette, machine, format, quantité prévue. Saisie manue
 - changement de format éventuel
 - arrêts (motif + durée)
 
-### 4.4bis Allocation multi-marchés
-Un batch peut être réparti entre plusieurs marchés (destination commerciale ou réglementaire, ex. France, Suisse) :
-- une seule allocation par marché dans un même batch ;
+### 4.4bis Allocation multi-produits
+Un batch représente un run physique unique autour d'un seul mélange commun ; il peut produire plusieurs sorties commerciales (allocations), par exemple pour plusieurs marchés (destination commerciale ou réglementaire, ex. France, Suisse) :
+- tout batch possède au moins une allocation, y compris un batch standard sur un produit sans déclinaison commerciale (pas un cas particulier) ;
+- une seule allocation par produit fini, et une seule par marché quand un marché est renseigné, dans un même batch ;
 - chaque allocation génère exactement un lot fini ;
-- le mélange et la recette (matières premières) restent communs à tout le batch ;
-- le packaging peut différer par allocation (marché) ;
-- la répartition entre marchés est définie avant l'étape de conditionnement ;
+- le mélange et la recette (matières premières) restent communs à tout le batch, calculés une seule fois ;
+- le packaging est **dérivé automatiquement** de la recette du produit fini de chaque allocation — jamais saisi librement ;
+- quand un produit appartient à une famille commerciale, le produit et la recette de chaque marché sont résolus automatiquement par le catalogue — l'utilisateur choisit un marché, jamais une recette ni, dans ce cas, un produit ;
+- la répartition entre allocations est définie avant l'étape de conditionnement ;
 - les rebuts sont suivis par allocation ;
 - les consommations de packaging sont calculées sur la quantité conforme + rebuts de chaque allocation.
 
 Hors périmètre : commandes, expéditions et règles réglementaires détaillées par marché (voir §5). Voir ADR 0006 et `docs/features/PRD-11-allocation-multi-marches/` pour le détail des décisions et de l'architecture retenue.
 
 ### 4.5 Lots & traçabilité
-Génération d'un lot produit fini par allocation de marché (un batch sans allocation multi-marché produit un seul lot ; un batch réparti sur plusieurs marchés produit un lot par allocation, voir §4.4bis). Enregistrement de la **généalogie** : lien entre chaque lot fini et les lots/quantités de matières premières et de packaging consommés — condition nécessaire pour permettre un rappel produit ciblé.
+Génération d'un lot produit fini par allocation (un batch standard à une seule allocation produit un seul lot ; un batch réparti sur plusieurs sorties commerciales produit un lot par allocation, voir §4.4bis). Enregistrement de la **généalogie** : lien entre chaque lot fini et les lots/quantités de matières premières et de packaging consommés — condition nécessaire pour permettre un rappel produit ciblé.
 
 ### 4.6 Contrôle qualité
 Contrôle qualité simple rattaché à un lot : résultat (conforme / non conforme), commentaire, utilisateur, date.
