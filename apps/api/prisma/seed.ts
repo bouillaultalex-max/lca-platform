@@ -16,6 +16,20 @@ const DEFAULT_ADMIN_EMAIL = 'responsable@lca-mes.local';
 const DEFAULT_ADMIN_PASSWORD = 'ChangezMoi123!';
 
 /**
+ * Garde-fou (voir audit sécurité SEC-01) : ce script crée un compte à mot de passe
+ * connu et codé en dur — il ne doit jamais pouvoir s'exécuter contre un environnement
+ * de production, même par erreur (mauvaise commande, script de déploiement mal
+ * configuré...). Seul `bootstrap-admin.ts` est conçu pour un usage réel.
+ */
+export function assertNotProduction(nodeEnv: string | undefined): void {
+  if (nodeEnv === 'production') {
+    throw new Error(
+      "seed.ts ne doit jamais être exécuté avec NODE_ENV=production : il crée un compte à mot de passe par défaut connu. Utilisez 'npm run prisma:bootstrap-admin' pour créer un premier compte réel.",
+    );
+  }
+}
+
+/**
  * Jeu de données minimal pour développer/tester manuellement le Jalon 2
  * (catalogue, recette, machine) : une matière première, trois packagings,
  * un produit fini, une recette 100 ml et une machine.
@@ -57,6 +71,8 @@ const CATALOG_SEED = {
 } as const;
 
 async function main(): Promise<void> {
+  assertNotProduction(process.env.NODE_ENV);
+
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL manquant : copier .env.example vers .env avant de lancer le seed.');
@@ -78,6 +94,7 @@ async function main(): Promise<void> {
         email: DEFAULT_ADMIN_EMAIL,
         passwordHash,
         role: UserRole.RESPONSABLE_LABORATOIRE,
+        mustChangePassword: true,
       },
     });
 
@@ -130,7 +147,12 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error('Échec du seed :', error);
-  process.exitCode = 1;
-});
+// Exécuté uniquement lorsque ce fichier est lancé directement (`tsx prisma/seed.ts`),
+// jamais lors d'un import (ex: le test de `assertNotProduction` ci-dessous) — évite
+// toute tentative de connexion réelle à la base pendant les tests.
+if (require.main === module) {
+  main().catch((error: unknown) => {
+    console.error('Échec du seed :', error);
+    process.exitCode = 1;
+  });
+}
