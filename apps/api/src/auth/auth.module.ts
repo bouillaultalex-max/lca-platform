@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersService } from './users.service';
@@ -17,6 +18,10 @@ import { JobTitlesController } from './job-titles/job-titles.controller';
 import { UserAdminService } from './user-admin/user-admin.service';
 import { UserAdminController } from './user-admin/user-admin.controller';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import {
+  LOGIN_THROTTLE_LIMIT,
+  LOGIN_THROTTLE_TTL_MS,
+} from './login-throttle.constants';
 
 @Module({
   imports: [
@@ -32,6 +37,12 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
         },
       }),
     }),
+    // Fournit uniquement la configuration/le stockage nécessaires à ThrottlerGuard
+    // (voir SEC-02) — n'est jamais enregistré comme garde globale (APP_GUARD) :
+    // seul POST /auth/login applique ce garde explicitement (voir AuthController).
+    ThrottlerModule.forRoot([
+      { ttl: LOGIN_THROTTLE_TTL_MS, limit: LOGIN_THROTTLE_LIMIT },
+    ]),
   ],
   controllers: [AuthController, JobTitlesController, UserAdminController],
   providers: [
@@ -41,6 +52,10 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
     LoginHistoryService,
     JobTitlesService,
     UserAdminService,
+    // Rendu disponible pour @UseGuards(ThrottlerGuard) sur AuthController.login()
+    // uniquement — volontairement pas de { provide: APP_GUARD, ... } ici, sans quoi
+    // la limitation s'appliquerait par erreur à toutes les routes de l'API.
+    ThrottlerGuard,
     // Guards globaux : Nest applique les guards APP_GUARD dans leur ordre de
     // déclaration. JwtAuthGuard doit s'exécuter en premier (il peuple request.user).
     // MustChangePasswordGuard s'exécute ensuite car il bloque tout le reste tant que

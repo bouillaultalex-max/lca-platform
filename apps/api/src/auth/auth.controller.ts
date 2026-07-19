@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Post,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -13,6 +14,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -29,11 +31,18 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  // Limitation de débit (voir SEC-02) : seule cette route l'applique dans toute
+  // l'API — ThrottlerGuard n'est volontairement pas un garde global (voir AuthModule).
+  @UseGuards(ThrottlerGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authentifie un utilisateur et retourne un JWT.' })
   @ApiResponse({ status: 200, type: LoginResponseDto })
   @ApiResponse({ status: 401, description: 'Identifiants invalides.' })
+  @ApiResponse({
+    status: 429,
+    description: 'Trop de tentatives, réessayez plus tard.',
+  })
   async login(
     @Body() dto: LoginDto,
     @Req() req: Request,
