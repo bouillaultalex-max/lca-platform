@@ -8,6 +8,7 @@ import { MachinesPage } from './pages/MachinesPage';
 import { SuppliersPage } from './pages/SuppliersPage';
 import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
+import { TraceabilityPage } from './pages/TraceabilityPage';
 import { ImportsPage } from './pages/imports/ImportsPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { FeedbackPage } from './pages/admin/FeedbackPage';
@@ -94,6 +95,14 @@ function App() {
         element={
           <ProtectedRoute requireFullAccess>
             <ProductionPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/traceability"
+        element={
+          <ProtectedRoute>
+            <TraceabilityPage />
           </ProtectedRoute>
         }
       />

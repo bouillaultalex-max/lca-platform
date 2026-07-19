@@ -33,7 +33,7 @@ function buildNavItems(fullAccess: boolean, isSystemAdmin: boolean): NavItem[] {
       { to: '/imports', label: 'Imports' },
     );
   }
-  items.push({ to: '/stock', label: 'Stock' });
+  items.push({ to: '/stock', label: 'Stock' }, { to: '/traceability', label: 'Traçabilité' });
   if (isSystemAdmin) {
     items.push(
       { to: '/admin/users', label: 'Administration' },
