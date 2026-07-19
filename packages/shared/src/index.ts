@@ -7,3 +7,4 @@ export * from './types/production';
 export * from './types/import';
 export * from './types/feedback';
 export * from './types/dashboard';
+export * from './types/traceability';

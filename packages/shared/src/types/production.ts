@@ -125,6 +125,16 @@ export interface CloseBatchRequest {
   expiryDate?: string;
 }
 
+/** Statut qualité global du lot, calculé côté serveur (voir docs/regles-metier.md §6). */
+export type LotQualityStatus = 'EN_ATTENTE' | 'CONFORME' | 'NON_CONFORME' | 'BLOQUE';
+
+export const LOT_QUALITY_STATUS_LABELS: Record<LotQualityStatus, string> = {
+  EN_ATTENTE: 'En attente',
+  CONFORME: 'Conforme',
+  NON_CONFORME: 'Non conforme',
+  BLOQUE: 'Bloqué',
+};
+
 export interface Lot {
   id: string;
   batchId: string;
@@ -132,7 +142,7 @@ export interface Lot {
   quantity: number;
   manufacturedAt: string;
   expiryDate: string | null;
-  qualityStatus: string;
+  qualityStatus: LotQualityStatus;
 }
 
 export interface BatchClosureResult {
