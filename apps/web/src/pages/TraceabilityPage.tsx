@@ -1,5 +1,10 @@
 import { useState, type FormEvent } from 'react';
-import { BATCH_STATUS_LABELS, LOT_QUALITY_STATUS_LABELS, type LotTraceability } from '@lca-mes/shared';
+import {
+  ARTICLE_TYPE_LABELS,
+  BATCH_STATUS_LABELS,
+  LOT_QUALITY_STATUS_LABELS,
+  type LotTraceability,
+} from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
@@ -103,6 +108,48 @@ export function TraceabilityPage() {
               <dd className="mt-1 text-sm text-gray-900">{formatDate(lot.expiryDate)}</dd>
             </div>
           </dl>
+        </div>
+      )}
+
+      {lot && (
+        <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
+          <h4 className="border-b border-brand-border px-4 py-2 text-sm font-semibold text-gray-900">
+            Matières et composants consommés
+          </h4>
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-gray-500">Article</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-500">Type</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-500">Quantité consommée</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-500">Lot fournisseur</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-500">Péremption fournisseur</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {lot.genealogyLines.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                    Aucune matière première ni composant de packaging enregistré pour ce lot.
+                  </td>
+                </tr>
+              )}
+              {lot.genealogyLines.map((line) => (
+                <tr key={line.id} className="transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg">
+                  <td className="px-3 py-2">
+                    <div className="font-mono text-xs text-gray-500">{line.consumedArticle.openSiReference}</div>
+                    <div className="text-gray-900">{line.consumedArticle.name}</div>
+                  </td>
+                  <td className="px-3 py-2">{ARTICLE_TYPE_LABELS[line.consumedArticle.type]}</td>
+                  <td className="px-3 py-2">
+                    {line.consumedQuantity} {line.consumedArticle.unitOfMeasure}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">{line.consumedStockLot.supplierLotNumber}</td>
+                  <td className="px-3 py-2">{formatDate(line.consumedStockLot.expiryDate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </AppLayout>
