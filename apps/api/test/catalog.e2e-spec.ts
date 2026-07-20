@@ -85,6 +85,8 @@ describe('Catalog (e2e)', () => {
   const createdSupplierIds: string[] = [];
   const testMarketCodePrefix = 'E2E-CATALOG-TEST-MARKET-';
   const createdMarketIds: string[] = [];
+  const testProductFamilyNamePrefix = 'E2E-CATALOG-TEST-FAMILY-';
+  const createdProductFamilyIds: string[] = [];
 
   afterAll(async () => {
     if (prisma) {
@@ -106,6 +108,14 @@ describe('Catalog (e2e)', () => {
       }
       await prisma.market.deleteMany({
         where: { code: { startsWith: testMarketCodePrefix } },
+      });
+      if (createdProductFamilyIds.length > 0) {
+        await prisma.productFamily.deleteMany({
+          where: { id: { in: createdProductFamilyIds } },
+        });
+      }
+      await prisma.productFamily.deleteMany({
+        where: { name: { startsWith: testProductFamilyNamePrefix } },
       });
       await prisma.user.deleteMany({
         where: { email: { in: Object.values(emails) } },
@@ -511,6 +521,127 @@ describe('Catalog (e2e)', () => {
         .expect(404);
 
       await prisma.market.delete({ where: { id: otherSiteMarket.id } });
+      await prisma.site.delete({ where: { id: otherSite.id } });
+    });
+  });
+
+  describe('GET /catalog/product-families', () => {
+    it('refuse une requête sans token (401)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/product-families')
+        .expect(401);
+    });
+
+    it('autorise RESPONSABLE_LABORATOIRE (200)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(200);
+    });
+
+    it('refuse DIRECTION même en lecture seule (403)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.direction}`)
+        .expect(403);
+    });
+
+    it('refuse DAF même en lecture seule (403)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.daf}`)
+        .expect(403);
+    });
+  });
+
+  describe('POST /catalog/product-families', () => {
+    it('autorise RESPONSABLE_LABORATOIRE à créer une famille commerciale (201)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}Lavande` })
+        .expect(201);
+      createdProductFamilyIds.push((response.body as { id: string }).id);
+    });
+
+    it('refuse DAF (403)', () => {
+      return request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.daf}`)
+        .send({ name: `${testProductFamilyNamePrefix}Rejected` })
+        .expect(403);
+    });
+  });
+
+  describe('Famille commerciale : mise à jour, désactivation et cloisonnement par site', () => {
+    it('met à jour le nom et le statut actif d’une famille commerciale existante', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}Menthe` })
+        .expect(201);
+      const productFamilyId = (createResponse.body as { id: string }).id;
+      createdProductFamilyIds.push(productFamilyId);
+
+      const patchResponse = await request(app.getHttpServer())
+        .patch(`/catalog/product-families/${productFamilyId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          name: `${testProductFamilyNamePrefix}Menthe Glaciale`,
+          active: false,
+        })
+        .expect(200);
+
+      expect((patchResponse.body as { name: string }).name).toBe(
+        `${testProductFamilyNamePrefix}Menthe Glaciale`,
+      );
+      expect((patchResponse.body as { active: boolean }).active).toBe(false);
+    });
+
+    it('désactive une famille commerciale sans la supprimer physiquement (DELETE)', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}ADesactiver` })
+        .expect(201);
+      const productFamilyId = (createResponse.body as { id: string }).id;
+      createdProductFamilyIds.push(productFamilyId);
+
+      const deleteResponse = await request(app.getHttpServer())
+        .delete(`/catalog/product-families/${productFamilyId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(200);
+      expect((deleteResponse.body as { active: boolean }).active).toBe(false);
+
+      const getResponse = await request(app.getHttpServer())
+        .get(`/catalog/product-families/${productFamilyId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(200);
+      expect((getResponse.body as { id: string }).id).toBe(productFamilyId);
+    });
+
+    it("traite une famille commerciale d'un autre site comme introuvable (404), sans révéler son existence", async () => {
+      const otherSite = await prisma.site.create({
+        data: { name: 'E2E Autre Site — Familles commerciales' },
+      });
+      const otherSiteProductFamily = await prisma.productFamily.create({
+        data: { siteId: otherSite.id, name: 'Autre site' },
+      });
+
+      await request(app.getHttpServer())
+        .get(`/catalog/product-families/${otherSiteProductFamily.id}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .patch(`/catalog/product-families/${otherSiteProductFamily.id}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: 'Ne devrait jamais être appliqué' })
+        .expect(404);
+
+      await prisma.productFamily.delete({
+        where: { id: otherSiteProductFamily.id },
+      });
       await prisma.site.delete({ where: { id: otherSite.id } });
     });
   });
