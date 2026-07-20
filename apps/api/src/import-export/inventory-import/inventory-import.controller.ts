@@ -21,6 +21,7 @@ import { FULL_ACCESS_ROLES } from '../../auth/roles.constants';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user';
 import { InventoryImportPreviewResult } from './inventory-import.types';
 import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
+import { ImportFileValidationService } from '../import-file-validation.service';
 
 /**
  * Écran fermé à DIRECTION/DAF comme le reste des imports (voir docs/regles-metier.md §1).
@@ -33,6 +34,7 @@ import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
 export class InventoryImportController {
   constructor(
     private readonly inventoryImportService: InventoryImportService,
+    private readonly importFileValidationService: ImportFileValidationService,
   ) {}
 
   @Post('preview')
@@ -42,7 +44,7 @@ export class InventoryImportController {
       'Prévisualise un import Inventaire OpenSi : mapping des colonnes et détection structurelle (lot fournisseur ou quantité globale). Aucune validation de contenu, aucune écriture hormis le journal.',
   })
   @UseInterceptors(FileInterceptor('file', IMPORT_FILE_UPLOAD_OPTIONS))
-  preview(
+  async preview(
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: PreviewImportDto,
@@ -50,6 +52,7 @@ export class InventoryImportController {
     if (!file) {
       throw new BadRequestException('Aucun fichier reçu.');
     }
+    await this.importFileValidationService.validate(file);
     return this.inventoryImportService.preview(
       user.siteId,
       user.id,

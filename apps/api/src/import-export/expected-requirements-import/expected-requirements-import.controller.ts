@@ -27,6 +27,7 @@ import {
   ExpectedRequirementsImportPreviewResult,
 } from './expected-requirements-import.types';
 import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
+import { ImportFileValidationService } from '../import-file-validation.service';
 
 /**
  * Écran fermé à DIRECTION/DAF comme le reste des imports (voir docs/regles-metier.md §1).
@@ -38,6 +39,7 @@ import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
 export class ExpectedRequirementsImportController {
   constructor(
     private readonly expectedRequirementsImportService: ExpectedRequirementsImportService,
+    private readonly importFileValidationService: ImportFileValidationService,
   ) {}
 
   @Post('preview')
@@ -47,7 +49,7 @@ export class ExpectedRequirementsImportController {
       'Prévisualise un import Besoins attendus OpenSi : mapping des colonnes, besoins proposés, erreurs ligne par ligne. Aucune écriture en base hormis le journal.',
   })
   @UseInterceptors(FileInterceptor('file', IMPORT_FILE_UPLOAD_OPTIONS))
-  preview(
+  async preview(
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: PreviewImportDto,
@@ -55,6 +57,7 @@ export class ExpectedRequirementsImportController {
     if (!file) {
       throw new BadRequestException('Aucun fichier reçu.');
     }
+    await this.importFileValidationService.validate(file);
     return this.expectedRequirementsImportService.preview(
       user.siteId,
       user.id,

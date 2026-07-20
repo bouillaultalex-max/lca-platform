@@ -27,6 +27,7 @@ import {
   ArticlesImportPreviewResult,
 } from './articles-import.types';
 import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
+import { ImportFileValidationService } from '../import-file-validation.service';
 
 /**
  * Écran fermé à DIRECTION/DAF comme le reste des imports (voir docs/regles-metier.md §1).
@@ -36,7 +37,10 @@ import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
 @Roles(...FULL_ACCESS_ROLES)
 @Controller('import-export/articles')
 export class ArticlesImportController {
-  constructor(private readonly articlesImportService: ArticlesImportService) {}
+  constructor(
+    private readonly articlesImportService: ArticlesImportService,
+    private readonly importFileValidationService: ImportFileValidationService,
+  ) {}
 
   @Post('preview')
   @ApiConsumes('multipart/form-data')
@@ -45,7 +49,7 @@ export class ArticlesImportController {
       'Prévisualise un import Articles OpenSi : mapping des colonnes, créations/mises à jour proposées, erreurs ligne par ligne. Aucune écriture en base hormis le journal.',
   })
   @UseInterceptors(FileInterceptor('file', IMPORT_FILE_UPLOAD_OPTIONS))
-  preview(
+  async preview(
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: PreviewImportDto,
@@ -53,6 +57,7 @@ export class ArticlesImportController {
     if (!file) {
       throw new BadRequestException('Aucun fichier reçu.');
     }
+    await this.importFileValidationService.validate(file);
     return this.articlesImportService.preview(
       user.siteId,
       user.id,

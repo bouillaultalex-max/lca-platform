@@ -27,6 +27,7 @@ import {
   StocksImportPreviewResult,
 } from './stocks-import.types';
 import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
+import { ImportFileValidationService } from '../import-file-validation.service';
 
 /**
  * Écran fermé à DIRECTION/DAF comme le reste des imports (voir docs/regles-metier.md §1).
@@ -36,7 +37,10 @@ import { IMPORT_FILE_UPLOAD_OPTIONS } from '../import-file-upload.options';
 @Roles(...FULL_ACCESS_ROLES)
 @Controller('import-export/stocks')
 export class StocksImportController {
-  constructor(private readonly stocksImportService: StocksImportService) {}
+  constructor(
+    private readonly stocksImportService: StocksImportService,
+    private readonly importFileValidationService: ImportFileValidationService,
+  ) {}
 
   @Post('preview')
   @ApiConsumes('multipart/form-data')
@@ -45,7 +49,7 @@ export class StocksImportController {
       'Prévisualise un import Stocks OpenSi : mapping des colonnes, réceptions proposées, avertissements de doublon, erreurs ligne par ligne. Aucune écriture en base hormis le journal.',
   })
   @UseInterceptors(FileInterceptor('file', IMPORT_FILE_UPLOAD_OPTIONS))
-  preview(
+  async preview(
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: PreviewImportDto,
@@ -53,6 +57,7 @@ export class StocksImportController {
     if (!file) {
       throw new BadRequestException('Aucun fichier reçu.');
     }
+    await this.importFileValidationService.validate(file);
     return this.stocksImportService.preview(
       user.siteId,
       user.id,

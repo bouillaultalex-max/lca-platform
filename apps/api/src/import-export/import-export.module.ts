@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ImportLogsController } from './import-logs/import-logs.controller';
 import { ImportLogsService } from './import-logs/import-logs.service';
 import { ImportParserService } from './import-parser/import-parser.service';
+import { ImportFileValidationService } from './import-file-validation.service';
 import { ColumnMappingModule } from '../common/column-mapping/column-mapping.module';
 import { ArticlesImportController } from './articles-import/articles-import.controller';
 import { ArticlesImportService } from './articles-import/articles-import.service';
@@ -25,6 +26,7 @@ import { StockModule } from '../stock/stock.module';
   providers: [
     ImportLogsService,
     ImportParserService,
+    ImportFileValidationService,
     ArticlesImportService,
     StocksImportService,
     ExpectedRequirementsImportService,
