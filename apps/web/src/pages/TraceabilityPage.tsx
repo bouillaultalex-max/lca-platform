@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { Fragment, useState, type FormEvent } from 'react';
 import {
   ARTICLE_TYPE_LABELS,
   BATCH_STATUS_LABELS,
   LOT_QUALITY_STATUS_LABELS,
   type LotTraceability,
+  type StockLotTraceability,
 } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
@@ -30,12 +31,20 @@ export function TraceabilityPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
+  // Traçabilité inverse d'un lot fournisseur (StockLot) — voir TRAC-02. Un seul
+  // développé à la fois, même principe que l'historique par lot de /stock.
+  const [expandedStockLotId, setExpandedStockLotId] = useState<string | null>(null);
+  const [stockLotTraceability, setStockLotTraceability] = useState<StockLotTraceability | null>(null);
+  const [isLoadingStockLotTraceability, setIsLoadingStockLotTraceability] = useState(false);
+  const [stockLotTraceabilityError, setStockLotTraceabilityError] = useState<string | null>(null);
+
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token || !searchValue.trim()) return;
     setIsLoading(true);
     setSearchError(null);
     setLot(null);
+    setExpandedStockLotId(null);
     try {
       const result =
         searchMode === 'number'
@@ -53,6 +62,27 @@ export function TraceabilityPage() {
     setSearchMode(mode);
     setSearchValue('');
     setSearchError(null);
+  }
+
+  async function toggleStockLotTraceability(stockLotId: string) {
+    if (expandedStockLotId === stockLotId) {
+      setExpandedStockLotId(null);
+      return;
+    }
+    setExpandedStockLotId(stockLotId);
+    setStockLotTraceability(null);
+    setStockLotTraceabilityError(null);
+    if (!token) return;
+    setIsLoadingStockLotTraceability(true);
+    try {
+      setStockLotTraceability(await api.getStockLotTraceability(token, stockLotId));
+    } catch (err) {
+      setStockLotTraceabilityError(
+        err instanceof ApiError ? err.message : 'Impossible de charger les lots consommateurs.',
+      );
+    } finally {
+      setIsLoadingStockLotTraceability(false);
+    }
   }
 
   return (
@@ -165,18 +195,86 @@ export function TraceabilityPage() {
                 </tr>
               )}
               {lot.genealogyLines.map((line) => (
-                <tr key={line.id} className="transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg">
-                  <td className="px-3 py-2">
-                    <div className="font-mono text-xs text-gray-500">{line.consumedArticle.openSiReference}</div>
-                    <div className="text-gray-900">{line.consumedArticle.name}</div>
-                  </td>
-                  <td className="px-3 py-2">{ARTICLE_TYPE_LABELS[line.consumedArticle.type]}</td>
-                  <td className="px-3 py-2">
-                    {line.consumedQuantity} {line.consumedArticle.unitOfMeasure}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs">{line.consumedStockLot.supplierLotNumber}</td>
-                  <td className="px-3 py-2">{formatDate(line.consumedStockLot.expiryDate)}</td>
-                </tr>
+                <Fragment key={line.id}>
+                  <tr className="transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg">
+                    <td className="px-3 py-2">
+                      <div className="font-mono text-xs text-gray-500">{line.consumedArticle.openSiReference}</div>
+                      <div className="text-gray-900">{line.consumedArticle.name}</div>
+                    </td>
+                    <td className="px-3 py-2">{ARTICLE_TYPE_LABELS[line.consumedArticle.type]}</td>
+                    <td className="px-3 py-2">
+                      {line.consumedQuantity} {line.consumedArticle.unitOfMeasure}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-mono text-xs">{line.consumedStockLot.supplierLotNumber}</div>
+                      <button
+                        type="button"
+                        onClick={() => void toggleStockLotTraceability(line.consumedStockLot.id)}
+                        className="mt-0.5 text-xs text-brand hover:underline"
+                      >
+                        {expandedStockLotId === line.consumedStockLot.id ? 'Masquer' : 'Lots consommateurs'}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2">{formatDate(line.consumedStockLot.expiryDate)}</td>
+                  </tr>
+                  {expandedStockLotId === line.consumedStockLot.id && (
+                    <tr>
+                      <td colSpan={5} className="bg-gray-50 px-3 py-3">
+                        <p className="mb-2 text-xs font-semibold text-gray-700">
+                          Lots de production ayant consommé le lot fournisseur{' '}
+                          <span className="font-mono">{line.consumedStockLot.supplierLotNumber}</span>
+                        </p>
+                        {isLoadingStockLotTraceability ? (
+                          <p className="text-xs text-gray-500">Chargement…</p>
+                        ) : stockLotTraceabilityError ? (
+                          <p className="text-xs text-red-600">{stockLotTraceabilityError}</p>
+                        ) : !stockLotTraceability || stockLotTraceability.genealogyLines.length === 0 ? (
+                          <p className="text-xs text-gray-500">
+                            Aucun lot de production n'a consommé ce lot fournisseur.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto rounded-lg border border-brand-border bg-white">
+                            <table className="min-w-full divide-y divide-gray-200 text-xs">
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Numéro de lot</th>
+                                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Produit fini</th>
+                                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Recette</th>
+                                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">
+                                    Quantité produite
+                                  </th>
+                                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">
+                                    Date de fabrication
+                                  </th>
+                                  <th className="px-3 py-1.5 text-left font-medium text-gray-500">Statut qualité</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {stockLotTraceability.genealogyLines.map((consumerLine) => (
+                                  <tr key={consumerLine.id}>
+                                    <td className="px-3 py-1.5 font-mono">{consumerLine.lot.lotNumber}</td>
+                                    <td className="px-3 py-1.5">
+                                      {consumerLine.lot.batch.recipe.finishedProduct.name}
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                      Version {consumerLine.lot.batch.recipe.version} — Format{' '}
+                                      {consumerLine.lot.batch.recipe.format} ml
+                                    </td>
+                                    <td className="px-3 py-1.5">{consumerLine.lot.quantity}</td>
+                                    <td className="px-3 py-1.5">{formatDate(consumerLine.lot.manufacturedAt)}</td>
+                                    <td className="px-3 py-1.5">
+                                      {LOT_QUALITY_STATUS_LABELS[consumerLine.lot.qualityStatus]}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -46,3 +46,22 @@ export interface LotTraceability extends Lot {
   batch: LotTraceabilityBatch;
   genealogyLines: LotGenealogyLine[];
 }
+
+/** Un lot de production ayant consommé le StockLot recherché (traçabilité inverse). */
+export interface StockLotConsumingLot extends Lot {
+  batch: LotTraceabilityBatch;
+}
+
+export interface StockLotGenealogyLine {
+  id: string;
+  lot: StockLotConsumingLot;
+}
+
+/**
+ * Traçabilité inverse d'un lot fournisseur (`StockLot`) : tous les lots de
+ * production qui l'ont consommé — voir docs/regles-metier.md §2 (capacité de
+ * rappel produit dans les deux sens) et TRAC-02.
+ */
+export interface StockLotTraceability extends StockLot {
+  genealogyLines: StockLotGenealogyLine[];
+}

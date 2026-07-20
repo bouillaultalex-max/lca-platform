@@ -57,6 +57,7 @@ import type {
   DashboardSummary,
   ResetPasswordResponse,
   LotTraceability,
+  StockLotTraceability,
 } from '@lca-mes/shared';
 
 export class ApiError extends Error {
@@ -400,4 +401,7 @@ export const api = {
 
   getLotTraceabilityByNumber: (token: string, lotNumber: string): Promise<LotTraceability> =>
     request<LotTraceability>(`/traceability/lots?lotNumber=${encodeURIComponent(lotNumber)}`, {}, token),
+
+  getStockLotTraceability: (token: string, id: string): Promise<StockLotTraceability> =>
+    request<StockLotTraceability>(`/traceability/stock-lots/${id}`, {}, token),
 };
