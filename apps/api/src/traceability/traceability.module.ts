@@ -4,6 +4,6 @@ import { TraceabilityController } from './traceability.controller';
 
 @Module({
   providers: [TraceabilityService],
-  controllers: [TraceabilityController]
+  controllers: [TraceabilityController],
 })
 export class TraceabilityModule {}

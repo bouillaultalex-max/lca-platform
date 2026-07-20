@@ -1,5 +1,16 @@
-import { Controller, Get, Param } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   TraceabilityService,
   type LotTraceability,
@@ -17,6 +28,25 @@ import type { AuthenticatedUser } from '../auth/types/authenticated-user';
 @Controller('traceability')
 export class TraceabilityController {
   constructor(private readonly traceabilityService: TraceabilityService) {}
+
+  @Get('lots')
+  @ApiQuery({ name: 'lotNumber', required: true })
+  @ApiOperation({
+    summary:
+      'Recherche un lot par son numéro métier (ex. 455123) plutôt que par identifiant technique — voir TRAC-03A. Renvoie la même généalogie complète que GET /traceability/lots/:id.',
+  })
+  findLotTraceabilityByNumber(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('lotNumber') lotNumber?: string,
+  ): Promise<LotTraceability> {
+    if (!lotNumber) {
+      throw new BadRequestException('Le paramètre lotNumber est obligatoire.');
+    }
+    return this.traceabilityService.findLotTraceabilityByNumber(
+      user.siteId,
+      lotNumber,
+    );
+  }
 
   @Get('lots/:id')
   @ApiOperation({

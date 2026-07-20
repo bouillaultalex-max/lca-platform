@@ -52,12 +52,12 @@ interface StockLotTraceabilityResponseBody {
 }
 
 /**
- * Couverture e2e des deux endpoints en lecture du module `traceability` (voir
- * TRAC-04, PROJECT_STATE.md §8) : aucun endpoint d'écriture n'existe dans ce module,
+ * Couverture e2e des endpoints en lecture du module `traceability` (voir TRAC-04,
+ * TRAC-03A, PROJECT_STATE.md §8) : aucun endpoint d'écriture n'existe dans ce module,
  * les données (Lot/LotGenealogy/StockLot) sont donc créées directement via Prisma,
  * comme le fait déjà stock.e2e-spec.ts pour StockLot — passer par le workflow complet
  * de clôture de batch (4 x advance-step + close) n'apporterait rien à la vérification
- * de ces deux endpoints en lecture seule et alourdirait le jeu de données sans le
+ * de ces endpoints en lecture seule et alourdirait le jeu de données sans le
  * rendre plus représentatif.
  *
  * Deux sites distincts sont créés pour vérifier l'isolation (voir docs/regles-metier.md
@@ -76,8 +76,10 @@ describe('Traceability (e2e)', () => {
 
   let materialAId: string;
   let lotA1Id: string;
+  let lotA1Number: string;
   let lotA2Id: string;
   let lotB1Id: string;
+  let lotB1Number: string;
   let stockLotA1Id: string; // consommé par lotA1 ET lotA2 (cas "plusieurs lots consommateurs")
   let stockLotA2UnconsumedId: string; // reçu mais jamais consommé (cas "aucun lot consommateur")
   let stockLotB1Id: string;
@@ -272,6 +274,7 @@ describe('Traceability (e2e)', () => {
       },
     });
     lotA1Id = lotA1.id;
+    lotA1Number = lotA1.lotNumber;
     const lotA2 = await prisma.lot.create({
       data: {
         siteId: siteAId,
@@ -374,6 +377,7 @@ describe('Traceability (e2e)', () => {
       },
     });
     lotB1Id = lotB1.id;
+    lotB1Number = lotB1.lotNumber;
     await prisma.lotGenealogy.create({
       data: {
         lotId: lotB1.id,
@@ -492,6 +496,61 @@ describe('Traceability (e2e)', () => {
     it('refuse une requête non authentifiée (401)', () => {
       return request(app.getHttpServer())
         .get(`/traceability/lots/${lotA1Id}`)
+        .expect(401);
+    });
+  });
+
+  describe('GET /traceability/lots?lotNumber= (recherche par numéro de lot — TRAC-03A)', () => {
+    it('retourne la même généalogie complète que la recherche par identifiant technique (200)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/traceability/lots')
+        .query({ lotNumber: lotA1Number })
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+
+      const body = response.body as LotTraceabilityResponseBody;
+      expect(body.id).toBe(lotA1Id);
+      expect(body.lotNumber).toBe(lotA1Number);
+      expect(body.genealogyLines).toHaveLength(1);
+    });
+
+    it('retourne 404 pour un numéro de lot inexistant', () => {
+      return request(app.getHttpServer())
+        .get('/traceability/lots')
+        .query({ lotNumber: '999999-INEXISTANT' })
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(404);
+    });
+
+    it('retourne 404 (pas 403) pour un numéro de lot appartenant à un autre site — ne révèle pas son existence', () => {
+      return request(app.getHttpServer())
+        .get('/traceability/lots')
+        .query({ lotNumber: lotB1Number })
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(404);
+    });
+
+    it('contrôle : ce même numéro reste bien accessible à un utilisateur de son propre site (200)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/traceability/lots')
+        .query({ lotNumber: lotB1Number })
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(200);
+
+      expect((response.body as LotTraceabilityResponseBody).id).toBe(lotB1Id);
+    });
+
+    it('refuse un appel sans le paramètre lotNumber (400)', () => {
+      return request(app.getHttpServer())
+        .get('/traceability/lots')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(400);
+    });
+
+    it('refuse une requête non authentifiée (401)', () => {
+      return request(app.getHttpServer())
+        .get('/traceability/lots')
+        .query({ lotNumber: lotA1Number })
         .expect(401);
     });
   });

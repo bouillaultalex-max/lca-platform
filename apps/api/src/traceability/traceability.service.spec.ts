@@ -23,7 +23,10 @@ describe('TraceabilityService', () => {
       id: 'batch-1',
       recipe: {
         id: 'recipe-1',
-        finishedProduct: { id: 'article-fp-1', name: 'Recharge Lavande 100 ml' },
+        finishedProduct: {
+          id: 'article-fp-1',
+          name: 'Recharge Lavande 100 ml',
+        },
       },
     },
     genealogyLines: [
@@ -115,6 +118,50 @@ describe('TraceabilityService', () => {
       await expect(
         service.findLotTraceability(siteId, 'inconnu'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findLotTraceabilityByNumber', () => {
+    it('renvoie le lot avec la même généalogie complète, recherché par numéro de lot', async () => {
+      prisma.lot.findFirst.mockResolvedValue(lotWithRelations);
+
+      const result = await service.findLotTraceabilityByNumber(
+        siteId,
+        '455001',
+      );
+
+      expect(prisma.lot.findFirst).toHaveBeenCalledWith({
+        where: { lotNumber: '455001', siteId },
+        include: {
+          batch: {
+            include: {
+              recipe: {
+                include: { finishedProduct: true },
+              },
+            },
+          },
+          genealogyLines: {
+            include: {
+              consumedArticle: true,
+              consumedStockLot: true,
+            },
+          },
+        },
+      });
+      expect(result).toEqual(lotWithRelations);
+    });
+
+    it('lève NotFoundException si aucun lot de ce numéro n’existe sur ce site (y compris isolation cross-site)', async () => {
+      prisma.lot.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.findLotTraceabilityByNumber(siteId, '455999'),
+      ).rejects.toThrow(NotFoundException);
+      // Le siteId de l'appelant est bien transmis au `where` — un numéro de lot
+      // existant sur un autre site ne peut jamais être retrouvé depuis celui-ci.
+      expect(prisma.lot.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { lotNumber: '455999', siteId } }),
+      );
     });
   });
 

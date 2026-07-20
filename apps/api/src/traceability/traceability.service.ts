@@ -28,6 +28,25 @@ export type StockLotTraceability = StockLot & {
   genealogyLines: GenealogyLineWithLot[];
 };
 
+// Partagé entre la recherche par identifiant technique et par numéro de lot :
+// même généalogie complète renvoyée dans les deux cas, un seul endroit à faire
+// évoluer si les relations incluses changent.
+const LOT_TRACEABILITY_INCLUDE = {
+  batch: {
+    include: {
+      recipe: {
+        include: { finishedProduct: true },
+      },
+    },
+  },
+  genealogyLines: {
+    include: {
+      consumedArticle: true,
+      consumedStockLot: true,
+    },
+  },
+} as const;
+
 @Injectable()
 export class TraceabilityService {
   constructor(private readonly prisma: PrismaService) {}
@@ -43,24 +62,30 @@ export class TraceabilityService {
   ): Promise<LotTraceability> {
     const lot = await this.prisma.lot.findFirst({
       where: { id, siteId },
-      include: {
-        batch: {
-          include: {
-            recipe: {
-              include: { finishedProduct: true },
-            },
-          },
-        },
-        genealogyLines: {
-          include: {
-            consumedArticle: true,
-            consumedStockLot: true,
-          },
-        },
-      },
+      include: LOT_TRACEABILITY_INCLUDE,
     });
     if (!lot) {
       throw new NotFoundException(`Lot ${id} introuvable.`);
+    }
+    return lot;
+  }
+
+  /**
+   * Même généalogie complète, retrouvée par numéro de lot métier (ex. 455123)
+   * plutôt que par identifiant technique — voir TRAC-03A. `lotNumber` est unique
+   * globalement (voir schema.prisma), mais `siteId` reste dans le `where` pour
+   * ne jamais permettre de retrouver un lot d'un autre site par ce biais.
+   */
+  async findLotTraceabilityByNumber(
+    siteId: string,
+    lotNumber: string,
+  ): Promise<LotTraceability> {
+    const lot = await this.prisma.lot.findFirst({
+      where: { lotNumber, siteId },
+      include: LOT_TRACEABILITY_INCLUDE,
+    });
+    if (!lot) {
+      throw new NotFoundException(`Lot ${lotNumber} introuvable.`);
     }
     return lot;
   }

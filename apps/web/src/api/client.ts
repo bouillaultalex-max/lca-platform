@@ -397,4 +397,7 @@ export const api = {
 
   getLotTraceability: (token: string, id: string): Promise<LotTraceability> =>
     request<LotTraceability>(`/traceability/lots/${id}`, {}, token),
+
+  getLotTraceabilityByNumber: (token: string, lotNumber: string): Promise<LotTraceability> =>
+    request<LotTraceability>(`/traceability/lots?lotNumber=${encodeURIComponent(lotNumber)}`, {}, token),
 };

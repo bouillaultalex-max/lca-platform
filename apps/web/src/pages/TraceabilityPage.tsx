@@ -16,27 +16,43 @@ function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('fr-FR') : '—';
 }
 
+type SearchMode = 'number' | 'uuid';
+
 export function TraceabilityPage() {
   const { token } = useAuth();
 
-  const [lotId, setLotId] = useState('');
+  // La recherche par numéro de lot est le mode normal d'utilisation (voir TRAC-03A) ;
+  // le mode par identifiant technique (UUID) reste disponible mais n'est plus mis en
+  // avant — utile en transition, ou si le numéro de lot n'est pas connu.
+  const [searchMode, setSearchMode] = useState<SearchMode>('number');
+  const [searchValue, setSearchValue] = useState('');
   const [lot, setLot] = useState<LotTraceability | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token || !lotId.trim()) return;
+    if (!token || !searchValue.trim()) return;
     setIsLoading(true);
     setSearchError(null);
     setLot(null);
     try {
-      setLot(await api.getLotTraceability(token, lotId.trim()));
+      const result =
+        searchMode === 'number'
+          ? await api.getLotTraceabilityByNumber(token, searchValue.trim())
+          : await api.getLotTraceability(token, searchValue.trim());
+      setLot(result);
     } catch (err) {
       setSearchError(err instanceof ApiError ? err.message : 'Impossible de charger ce lot.');
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function switchSearchMode(mode: SearchMode) {
+    setSearchMode(mode);
+    setSearchValue('');
+    setSearchError(null);
   }
 
   return (
@@ -52,19 +68,15 @@ export function TraceabilityPage() {
         <form onSubmit={handleSearch} className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[240px]">
             <label className="mb-1.5 block text-xs font-medium text-gray-500">
-              Identifiant technique du lot (UUID)
+              {searchMode === 'number' ? 'Numéro de lot' : 'Identifiant technique (UUID)'}
             </label>
             <input
               required
-              value={lotId}
-              onChange={(e) => setLotId(e.target.value)}
-              placeholder="Ex : 7fa2383e-a12c-42e5-a42c-6d36a3bd941c"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              placeholder={searchMode === 'number' ? 'Ex : 455123' : 'Ex : 7fa2383e-a12c-42e5-a42c-6d36a3bd941c'}
               className={inputClass}
             />
-            <p className="mt-1 text-xs text-gray-400">
-              Identifiant technique (UUID), pas le numéro de lot 455XXX. La recherche par numéro de lot fera l'objet
-              d'une évolution séparée.
-            </p>
           </div>
           <button
             type="submit"
@@ -75,6 +87,24 @@ export function TraceabilityPage() {
           </button>
         </form>
         {searchError && <p className="mt-3 text-sm text-red-600">{searchError}</p>}
+        <p className="mt-3 text-xs text-gray-400">
+          {searchMode === 'number' ? (
+            <>
+              Seulement l'identifiant technique du lot ?{' '}
+              <button
+                type="button"
+                onClick={() => switchSearchMode('uuid')}
+                className="text-brand hover:underline"
+              >
+                Rechercher par identifiant technique (UUID)
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => switchSearchMode('number')} className="text-brand hover:underline">
+              ← Revenir à la recherche par numéro de lot
+            </button>
+          )}
+        </p>
       </div>
 
       {lot && (
