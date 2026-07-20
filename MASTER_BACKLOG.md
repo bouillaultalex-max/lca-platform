@@ -38,7 +38,7 @@ Les documents officiels (`MASTER_SPECIFICATION.md`, `docs/roadmap.md`) ne défin
 | Jalon 2 — Catalogue & cœur production | Terminé (2026-07-07) | v0.9 |
 | Jalon 2.5 — Gestion des utilisateurs | Terminé (2026-07-07) | v0.9 |
 | Audit + corrections V0.3 (7 itérations, 2026-07-08 → 2026-07-16) | Terminé | v0.9 |
-| Jalon 3 — Traçabilité, qualité, coûts | Non démarré (démarre après le 1er déploiement interne) | v1.0 / v1.2 (Production complète / Qualité) |
+| Jalon 3 — Traçabilité, qualité, coûts | Démarré partiellement (traçabilité, backend + frontend partiels, 2026-07-18/19 — voir PRD-08/PRD-09/TRAC-01→04) ; qualité et coûts non démarrés | v1.0 / v1.2 (Production complète / Qualité) |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré | v1.1 (Administration) |
 | Post-V0.9 (`logistique`, `r&d`, `planning`) | Non conçu | v1.3 (R&D) / hors périmètre |
 | CRM, Achats (au sens ERP), IA avancée | Jamais mentionnés comme fonctionnalités concrètes | v2.0 (Entreprise) — aspirationnel, aucun contenu documenté |
@@ -84,10 +84,15 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 | PRD-05 | Clôture de batch : génération du lot + déduction stock atomique (transaction unique) | Haute | Terminé | V0.9 |
 | PRD-06 | Analyse de faisabilité avant lancement (`BatchFeasibilityService`, ADR 0005) : blocage si stock insuffisant, quantité max produisible, ajustement explicite | Haute | Terminé | V0.9 |
 | PRD-07 | Génération du numéro de lot (`LotNumberGeneratorService`) | Haute | Terminé (implémentation placeholder — voir DEBT-01) | V0.9 |
-| PRD-08 | Généalogie du lot (`LotGenealogy`) — écran de consultation dédié (module `traceability`) | Moyenne | Non démarré (données déjà générées à la clôture, pas d'écran) | V0.9 (Jalon 3) |
-| PRD-09 | Consultation du numéro de lot après rechargement d'un batch terminé | Faible | Non démarré | V0.9 (Jalon 3) |
+| PRD-08 | Généalogie du lot (`LotGenealogy`) — écran de consultation dédié (module `traceability`) | Moyenne | Partiellement terminé (2026-07-18/19) — backend en lecture livré (`GET /traceability/lots/:id`, `GET /traceability/stock-lots/:id`) et écran de recherche par UUID livré ; **les lignes de généalogie ne sont pas encore affichées à l'écran** — voir TRAC-01/TRAC-02/TRAC-04 | V0.9 (Jalon 3) |
+| PRD-09 | Consultation du numéro de lot après rechargement d'un batch terminé | Faible | Partiellement débloqué (2026-07-18/19) — `GET /traceability/lots/:id` permet techniquement de recharger un lot, mais sans moyen réaliste d'en retrouver l'UUID (pas de recherche par numéro, pas de lien depuis Production) — voir TRAC-03A/TRAC-03B | V0.9 (Jalon 3) |
 | PRD-10 | Calcul et historisation du coût par flacon (`BatchCost`) | Moyenne | Non démarré | V0.9 (Jalon 3) |
-| PRD-11 | Allocation multi-marchés (un batch réparti entre plusieurs marchés, un lot par allocation — voir ADR-0006 et `docs/features/PRD-11-allocation-multi-marches/`) | P0 | Prête pour développement | V0.9 (Jalon 2) |
+| PRD-11 | Allocation multi-marchés (un batch réparti entre plusieurs marchés, un lot par allocation — voir ADR-0006 et `docs/features/PRD-11-allocation-multi-marches/`) | P0 | **ADR validée, aucune implémentation dans le dépôt** — ADR 0006 acceptée le 2026-07-16, révisée et figée le 2026-07-17 ; aucun code écrit sur aucune version, aucun modèle `Market`/`ProductFamily`/`BatchProductAllocation` dans le schéma Prisma actuel (vérifié le 2026-07-20). Développement prévu **après** la finalisation des tickets TRAC-01 à TRAC-04 (module `traceability`) — décision utilisateur du 2026-07-20 ; priorité P0 conservée | V0.9 (Jalon 2) |
+| TRAC-01 | Afficher les lignes de généalogie (matières premières/packaging consommés, avec lot fournisseur) sur l'écran de traçabilité d'un lot | Moyenne | Proposé (2026-07-20) | V0.9 (Jalon 3) |
+| TRAC-02 | Intégrer la traçabilité inverse (`GET /traceability/stock-lots/:id`) côté frontend | Moyenne | Proposé (2026-07-20) | V0.9 (Jalon 3) |
+| TRAC-03A | Recherche d'un lot par numéro (`455XXX`) sur l'écran de traçabilité | Faible | Proposé (2026-07-20) | V0.9 (Jalon 3) |
+| TRAC-03B | Lien direct vers la fiche de traçabilité d'un lot depuis l'écran Production, après clôture d'un batch | Faible | Proposé (2026-07-20) | V0.9 (Jalon 3) |
+| TRAC-04 | Tests e2e des deux endpoints `traceability` (cas trouvé, non trouvé, hors site, ouverture `DIRECTION`/`DAF`) | Faible | Proposé (2026-07-20) | V0.9 (Jalon 3) |
 
 ## EPIC 02 — Stocks
 
@@ -201,6 +206,23 @@ Cas où plusieurs rattachements étaient plausibles — arbitrage retenu et just
 - **CDT-02 (Règle de conditionnement en cartons)** → Epic 04 (Conditionnement), distinct de MP-02 (modification d'articles). MP-02 couvre la possibilité de modifier le champ `unitsPerCarton` sur un article ; CDT-02 couvre la règle métier de correspondance format → carton elle-même (`docs/modele-donnees.md` §1). Deux aspects différents du même champ, pas la même Feature.
 - **ADM-09 (Tableau de bord)** → Epic 05 (Administration), bien qu'il agrège des données de tous les modules (articles, recettes, machines, stock, production, retours, besoins — `PROJECT_STATE.md` §2). Choisi comme écran de pilotage/supervision transversal, pas comme fonctionnalité d'un domaine métier particulier.
 - **COM-02 (Webhook Make)** : travail réellement effectué (code présent, testé, fonctionnel) mais non commité et absent de `PROJECT_STATE.md` au moment de la rédaction de ce backlog — statut "En cours, non commité" retenu explicitement plutôt que "Terminé", pour ne pas anticiper une écriture de documentation qui n'a pas encore eu lieu.
+- **TRAC-01 à TRAC-04 (préfixe `TRAC-` distinct de `PRD-`)** : ces tickets, proposés le 2026-07-20 pour compléter PRD-08/PRD-09, restent rattachés à l'Epic 01 (Production) comme PRD-08/PRD-09 eux-mêmes — même logique que la décision ci-dessous sur PRD-08 (pas d'epic "Traçabilité" séparé dans ce backlog). Le préfixe `TRAC-` est conservé (plutôt que de les numéroter PRD-12+) pour qu'ils restent identifiables comme les tickets d'exécution issus de l'analyse PO du 2026-07-20, sans renuméroter PRD-08/PRD-09 qu'ils complètent.
+
+---
+
+# Sécurité
+
+Audit de sécurité mené en dehors du backlog fonctionnel courant, huit tickets tous terminés et déployés sur `main` les 2026-07-19 et 2026-07-20 (build, tests unitaires et e2e vérifiés après chacun, aucune régression fonctionnelle) :
+
+| ID | Sujet | Statut |
+|----|-------|--------|
+| SEC-01 | Protection du script `seed.ts` contre une exécution accidentelle en production | Terminé |
+| SEC-02 | Limitation de débit (rate limiting) sur `POST /auth/login` | Terminé |
+| SEC-03 | Documentation Swagger (`/api/docs`) désactivée en production | Terminé |
+| SEC-04 | En-têtes de sécurité HTTP (Helmet) + Content-Security-Policy | Terminé |
+| SEC-06 | Validation renforcée de `JWT_SECRET` (longueur minimale, rejet des valeurs faibles/d'exemple) | Terminé |
+| SEC-07 | Validation du contenu réel des fichiers importés (signature binaire, indépendante de l'extension/Content-Type) | Terminé |
+| SEC-08 | Verrouillage de la version de la dépendance `xlsx` (0.20.3, CDN officiel SheetJS) | Terminé |
 
 ---
 
@@ -219,6 +241,7 @@ Cas où plusieurs rattachements étaient plausibles — arbitrage retenu et just
 | DEBT-09 | Analyse/détection d'anomalies sur `LoginHistory` (tentatives répétées, IP inhabituelle) | Faible | Non démarré, reportée |
 | DEBT-10 | Bandeau global d'avertissement pour un brouillon référençant un ou plusieurs articles désactivés (le texte de repli par ligne est fait, pas le bandeau récapitulatif) | Faible | Amélioration future non implémentée |
 | DEBT-11 | Intégration du logo SVG officiel Maison Fuel | Faible | Reporté volontairement |
+| DEBT-12 | Dérive de `PROJECT_STATE.md`/`MASTER_BACKLOG.md` par rapport à l'état réel du dépôt (module `traceability`, audit SEC-01→08, statut réel de PRD-11 non reflétés) | Moyenne | Terminé (ticket TRAC-05, 2026-07-20) |
 
 ---
 
