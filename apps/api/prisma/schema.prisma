@@ -171,6 +171,8 @@ model Site {
   articles             Article[]
   machines             Machine[]
   suppliers            Supplier[]
+  markets              Market[]
+  productFamilies      ProductFamily[]
   recipes              Recipe[]
   recipeDrafts         RecipeDraft[]
   stockLots            StockLot[]
@@ -310,33 +312,41 @@ model Feedback {
 /// Table unique pour matières premières, packaging et produits finis (distingués par `type`),
 /// pour éviter de dupliquer une structure très proche entre trois tables.
 model Article {
-  id              String      @id @default(uuid())
-  siteId          String      @map("site_id")
-  site            Site        @relation(fields: [siteId], references: [id])
+  id              String         @id @default(uuid())
+  siteId          String         @map("site_id")
+  site            Site           @relation(fields: [siteId], references: [id])
   type            ArticleType
-  openSiReference String      @map("opensi_reference")
+  openSiReference String         @map("opensi_reference")
   name            String
-  unitOfMeasure   String      @map("unit_of_measure")
-  currentUnitCost Decimal     @map("current_unit_cost")
+  unitOfMeasure   String         @map("unit_of_measure")
+  currentUnitCost Decimal        @map("current_unit_cost")
   /// Conditionnement en carton, à l'affichage uniquement (le stock reste compté en
   /// unités) — voir docs/roadmap.md "Décisions actées le 2026-07-06". Valeur libre,
   /// modifiable article par article (pas de règle figée en dur) ; par défaut suggéré
   /// à la création : 100 pour les flacons 10/30/50/100 ml, 36 pour les flacons 200 ml.
-  unitsPerCarton  Int?        @map("units_per_carton")
+  unitsPerCarton  Int?           @map("units_per_carton")
   /// Densité (kg par litre), pour les matières premières uniquement — permet de calculer
   /// la masse à peser à partir du volume en préparation de batch (voir docs/regles-metier.md
   /// §12). Optionnelle, saisie manuelle article par article, aucune valeur par défaut :
   /// si absente, le batching affiche le volume et signale "densité manquante" pour la masse.
-  densityKgPerL   Decimal?    @map("density_kg_per_l")
+  densityKgPerL   Decimal?       @map("density_kg_per_l")
   /// Fournisseur principal, matières premières et packaging uniquement — jamais
   /// produit fini (voir SuppliersService/ArticlesService) — un seul fournisseur
   /// par article en V0.9, jamais de prix ni de commandes ici (voir Supplier
   /// ci-dessous). Forcé à null si le type de l'article devient PRODUIT_FINI.
-  supplierId      String?     @map("supplier_id")
-  supplier        Supplier?   @relation(fields: [supplierId], references: [id])
-  active          Boolean     @default(true)
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  supplierId      String?        @map("supplier_id")
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
+  /// Famille commerciale et marché de déclinaison, pertinents uniquement pour un
+  /// PRODUIT_FINI (voir ADR 0006 et docs/modele-donnees.md §4bis, PRD-11) — `marketId`
+  /// ne peut être renseigné que si `productFamilyId` l'est aussi (règle de service,
+  /// pas encore implémentée à ce stade purement additif de la migration).
+  productFamilyId String?        @map("product_family_id")
+  productFamily   ProductFamily? @relation(fields: [productFamilyId], references: [id])
+  marketId        String?        @map("market_id")
+  market          Market?        @relation(fields: [marketId], references: [id])
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
   recipeLines                   RecipeLine[]
   recipesAsFinishedProduct      Recipe[]
@@ -346,8 +356,10 @@ model Article {
   stockMovements                StockMovement[]
   genealogyLines                LotGenealogy[]
   expectedRequirements          ExpectedRequirement[]
+  productAllocations            BatchProductAllocation[]
 
   @@unique([siteId, openSiReference])
+  @@unique([productFamilyId, marketId])
   @@map("articles")
 }
 
@@ -386,6 +398,44 @@ model Machine {
   @@map("machines")
 }
 
+/// Marché (destination commerciale ou réglementaire, ex. France/Suisse) — voir ADR 0006
+/// et docs/modele-donnees.md §4bis (PRD-11). Indépendant du multi-site : LCA-MES reste
+/// mono-site, un marché est une propriété optionnelle d'un produit fini, pas un lieu de
+/// production. Référentiel simple, dans l'esprit de `Supplier`/`Machine`.
+model Market {
+  id        String   @id @default(uuid())
+  siteId    String   @map("site_id")
+  site      Site     @relation(fields: [siteId], references: [id])
+  code      String
+  label     String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  articles    Article[]
+  allocations BatchProductAllocation[]
+
+  @@map("markets")
+}
+
+/// Famille commerciale : regroupe les déclinaisons d'un même produit par marché (ex.
+/// "Recharge Lavande" → déclinaison France, déclinaison Suisse) — voir ADR 0006 et
+/// docs/modele-donnees.md §4bis (PRD-11). Concept distinct de la future notion de
+/// "gamme" (MASTER_BACKLOG.md, DEBT-05), non fusionnés à ce stade.
+model ProductFamily {
+  id        String   @id @default(uuid())
+  siteId    String   @map("site_id")
+  site      Site     @relation(fields: [siteId], references: [id])
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  articles Article[]
+
+  @@map("product_families")
+}
+
 /// Une recette utilisée dans un batch conserve sa version au moment de l'utilisation :
 /// une modification ultérieure ne doit jamais altérer rétroactivement un batch déjà clôturé
 /// (voir docs/regles-metier.md §2).
@@ -401,8 +451,9 @@ model Recipe {
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")
 
-  lines   RecipeLine[]
-  batches Batch[]
+  lines       RecipeLine[]
+  batches     Batch[]
+  allocations BatchProductAllocation[]
 
   @@unique([finishedProductId, format, version])
   @@map("recipes")
@@ -496,23 +547,28 @@ model StockItem {
 }
 
 model StockMovement {
-  id           String            @id @default(uuid())
-  siteId       String            @map("site_id")
-  site         Site              @relation(fields: [siteId], references: [id])
-  articleId    String            @map("article_id")
-  article      Article           @relation(fields: [articleId], references: [id])
-  stockLotId   String?           @map("stock_lot_id")
-  stockLot     StockLot?         @relation(fields: [stockLotId], references: [id])
-  type         StockMovementType
-  quantity     Decimal
-  movementDate DateTime          @default(now()) @map("movement_date")
-  batchId      String?           @map("batch_id")
-  batch        Batch?            @relation(fields: [batchId], references: [id])
-  userId       String            @map("user_id")
-  user         User              @relation(fields: [userId], references: [id])
-  comment      String?
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
+  id                       String                  @id @default(uuid())
+  siteId                   String                  @map("site_id")
+  site                     Site                    @relation(fields: [siteId], references: [id])
+  articleId                String                  @map("article_id")
+  article                  Article                 @relation(fields: [articleId], references: [id])
+  stockLotId               String?                 @map("stock_lot_id")
+  stockLot                 StockLot?               @relation(fields: [stockLotId], references: [id])
+  type                     StockMovementType
+  quantity                 Decimal
+  movementDate             DateTime                @default(now()) @map("movement_date")
+  batchId                  String?                 @map("batch_id")
+  batch                    Batch?                  @relation(fields: [batchId], references: [id])
+  /// Renseigné pour une sortie de packaging propre à une allocation (voir ADR 0006 et
+  /// docs/modele-donnees.md §3, PRD-11) ; laissé vide pour une sortie de matière
+  /// première (mélange commun, non ventilé par allocation).
+  batchProductAllocationId String?                 @map("batch_product_allocation_id")
+  batchProductAllocation   BatchProductAllocation? @relation(fields: [batchProductAllocationId], references: [id])
+  userId                   String                  @map("user_id")
+  user                     User                    @relation(fields: [userId], references: [id])
+  comment                  String?
+  createdAt                DateTime                @default(now()) @map("created_at")
+  updatedAt                DateTime                @updatedAt @map("updated_at")
 
   @@map("stock_movements")
 }
@@ -549,6 +605,7 @@ model Batch {
   stops          BatchStop[]
   stockMovements StockMovement[]
   lot            Lot?
+  allocations    BatchProductAllocation[]
 
   @@map("batches")
 }
@@ -567,6 +624,38 @@ model BatchStop {
   @@map("batch_stops")
 }
 
+/// Sortie commerciale d'un batch (voir ADR 0006 et docs/modele-donnees.md §4bis,
+/// PRD-11) : un batch représente un run physique unique autour d'un seul mélange
+/// commun, chaque allocation porte un produit fini, une recette figée (résolue
+/// automatiquement, jamais choisie directement par l'utilisateur) et, si le produit
+/// appartient à une famille commerciale, un marché. Tout batch possède au moins une
+/// allocation, y compris un batch standard sans famille commerciale. Relation 1─1
+/// avec `Lot` (voir `Lot.allocationId`). Migration purement additive : aucun service
+/// n'écrit encore dans cette table à ce stade.
+model BatchProductAllocation {
+  id               String   @id @default(uuid())
+  batchId          String   @map("batch_id")
+  batch            Batch    @relation(fields: [batchId], references: [id])
+  productId        String   @map("product_id")
+  product          Article  @relation(fields: [productId], references: [id])
+  recipeId         String   @map("recipe_id")
+  recipe           Recipe   @relation(fields: [recipeId], references: [id])
+  marketId         String?  @map("market_id")
+  market           Market?  @relation(fields: [marketId], references: [id])
+  plannedQuantity  Int      @map("planned_quantity")
+  producedQuantity Int?     @map("produced_quantity")
+  rejectedQuantity Int?     @map("rejected_quantity")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  lot            Lot?
+  stockMovements StockMovement[]
+
+  @@unique([batchId, productId])
+  @@unique([batchId, marketId])
+  @@map("batch_product_allocations")
+}
+
 // ---------------------------------------------------------------------------
 // Lots & traçabilité amont (voir docs/modele-donnees.md §5)
 //
@@ -577,22 +666,27 @@ model BatchStop {
 // ---------------------------------------------------------------------------
 
 model Lot {
-  id             String           @id @default(uuid())
-  siteId         String           @map("site_id")
-  site           Site             @relation(fields: [siteId], references: [id])
-  batchId        String           @unique @map("batch_id")
-  batch          Batch            @relation(fields: [batchId], references: [id])
+  id             String                  @id @default(uuid())
+  siteId         String                  @map("site_id")
+  site           Site                    @relation(fields: [siteId], references: [id])
+  batchId        String                  @unique @map("batch_id")
+  batch          Batch                   @relation(fields: [batchId], references: [id])
+  /// Allocation d'origine (voir ADR 0006 et docs/modele-donnees.md §5, PRD-11) —
+  /// `null` pour tout lot antérieur à cette feature (`Lot.batch` reste alors l'unique
+  /// rattachement, exactement comme avant). Relation 1─1 avec `BatchProductAllocation`.
+  allocationId   String?                 @unique @map("allocation_id")
+  allocation     BatchProductAllocation? @relation(fields: [allocationId], references: [id])
   /// Généré par LotNumberGeneratorService (TODO : algorithme définitif non fourni,
   /// implémentation actuelle = placeholder isolé derrière une interface simple,
   /// voir docs/regles-metier.md §4).
-  lotNumber      String           @unique @map("lot_number")
+  lotNumber      String                  @unique @map("lot_number")
   /// Quantité totale produite, rebuts inclus (voir docs/regles-metier.md §3/§5).
   quantity       Int
-  manufacturedAt DateTime         @map("manufactured_at")
-  expiryDate     DateTime?        @map("expiry_date")
-  qualityStatus  LotQualityStatus @default(EN_ATTENTE) @map("quality_status")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  manufacturedAt DateTime                @map("manufactured_at")
+  expiryDate     DateTime?               @map("expiry_date")
+  qualityStatus  LotQualityStatus        @default(EN_ATTENTE) @map("quality_status")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
 
   genealogyLines LotGenealogy[]
 
