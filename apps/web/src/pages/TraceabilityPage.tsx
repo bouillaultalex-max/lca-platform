@@ -1,4 +1,5 @@
-import { Fragment, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ARTICLE_TYPE_LABELS,
   BATCH_STATUS_LABELS,
@@ -21,6 +22,7 @@ type SearchMode = 'number' | 'uuid';
 
 export function TraceabilityPage() {
   const { token } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // La recherche par numéro de lot est le mode normal d'utilisation (voir TRAC-03A) ;
   // le mode par identifiant technique (UUID) reste disponible mais n'est plus mis en
@@ -38,24 +40,37 @@ export function TraceabilityPage() {
   const [isLoadingStockLotTraceability, setIsLoadingStockLotTraceability] = useState(false);
   const [stockLotTraceabilityError, setStockLotTraceabilityError] = useState<string | null>(null);
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token || !searchValue.trim()) return;
+  // Une recherche automatique (arrivée via ?lotNumber=, TRAC-03B) et une recherche
+  // manuelle peuvent se chevaucher (l'utilisateur relance une recherche avant que la
+  // première ait répondu). On ne garde que le résultat de la dernière recherche
+  // lancée, quel que soit l'ordre de réponse du réseau.
+  const latestRequestIdRef = useRef(0);
+
+  async function runSearch(mode: SearchMode, value: string) {
+    if (!token || !value.trim()) return;
+    const requestId = ++latestRequestIdRef.current;
     setIsLoading(true);
     setSearchError(null);
     setLot(null);
     setExpandedStockLotId(null);
     try {
       const result =
-        searchMode === 'number'
-          ? await api.getLotTraceabilityByNumber(token, searchValue.trim())
-          : await api.getLotTraceability(token, searchValue.trim());
+        mode === 'number'
+          ? await api.getLotTraceabilityByNumber(token, value.trim())
+          : await api.getLotTraceability(token, value.trim());
+      if (requestId !== latestRequestIdRef.current) return;
       setLot(result);
     } catch (err) {
+      if (requestId !== latestRequestIdRef.current) return;
       setSearchError(err instanceof ApiError ? err.message : 'Impossible de charger ce lot.');
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequestIdRef.current) setIsLoading(false);
     }
+  }
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runSearch(searchMode, searchValue);
   }
 
   function switchSearchMode(mode: SearchMode) {
@@ -63,6 +78,23 @@ export function TraceabilityPage() {
     setSearchValue('');
     setSearchError(null);
   }
+
+  // Arrivée depuis un autre écran avec un numéro de lot déjà connu (voir TRAC-03B,
+  // ProductionPage) : recherche déclenchée immédiatement, sans ressaisie. Le paramètre
+  // n'est utilisé qu'une fois — une recherche suivante ne doit pas re-déclencher celle-ci.
+  useEffect(() => {
+    const lotNumberFromLink = searchParams.get('lotNumber');
+    if (!lotNumberFromLink || !token) return;
+    setSearchMode('number');
+    setSearchValue(lotNumberFromLink);
+    void runSearch('number', lotNumberFromLink);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('lotNumber');
+      return next;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   async function toggleStockLotTraceability(stockLotId: string) {
     if (expandedStockLotId === stockLotId) {

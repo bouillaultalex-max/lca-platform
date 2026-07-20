@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BATCH_STATUS_LABELS,
   BATCH_STEP_LABELS,
@@ -395,7 +396,13 @@ export function ProductionPage() {
 
                 {closureBanner && closureBanner.batchId === selectedBatch.id && (
                   <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
-                    Lot {closureBanner.lotNumber} généré.
+                    Lot {closureBanner.lotNumber} généré.{' '}
+                    <Link
+                      to={`/traceability?lotNumber=${encodeURIComponent(closureBanner.lotNumber)}`}
+                      className="underline hover:text-green-900"
+                    >
+                      Voir sa traçabilité
+                    </Link>
                   </p>
                 )}
                 {launchBanner && launchBanner.batchId === selectedBatch.id && (
