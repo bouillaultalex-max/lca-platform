@@ -83,6 +83,8 @@ describe('Catalog (e2e)', () => {
 
   const testSupplierNamePrefix = 'E2E-CATALOG-TEST-SUPPLIER-';
   const createdSupplierIds: string[] = [];
+  const testMarketCodePrefix = 'E2E-CATALOG-TEST-MARKET-';
+  const createdMarketIds: string[] = [];
 
   afterAll(async () => {
     if (prisma) {
@@ -96,6 +98,14 @@ describe('Catalog (e2e)', () => {
       }
       await prisma.supplier.deleteMany({
         where: { name: { startsWith: testSupplierNamePrefix } },
+      });
+      if (createdMarketIds.length > 0) {
+        await prisma.market.deleteMany({
+          where: { id: { in: createdMarketIds } },
+        });
+      }
+      await prisma.market.deleteMany({
+        where: { code: { startsWith: testMarketCodePrefix } },
       });
       await prisma.user.deleteMany({
         where: { email: { in: Object.values(emails) } },
@@ -385,6 +395,123 @@ describe('Catalog (e2e)', () => {
         .get('/catalog/machines')
         .set('Authorization', `Bearer ${tokens.daf}`)
         .expect(403);
+    });
+  });
+
+  describe('GET /catalog/markets', () => {
+    it('refuse une requête sans token (401)', () => {
+      return request(app.getHttpServer()).get('/catalog/markets').expect(401);
+    });
+
+    it('autorise RESPONSABLE_LABORATOIRE (200)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(200);
+    });
+
+    it('refuse DIRECTION même en lecture seule (403)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.direction}`)
+        .expect(403);
+    });
+
+    it('refuse DAF même en lecture seule (403)', () => {
+      return request(app.getHttpServer())
+        .get('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.daf}`)
+        .expect(403);
+    });
+  });
+
+  describe('POST /catalog/markets', () => {
+    it('autorise RESPONSABLE_LABORATOIRE à créer un marché (201)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ code: `${testMarketCodePrefix}FR`, label: 'France' })
+        .expect(201);
+      createdMarketIds.push((response.body as { id: string }).id);
+    });
+
+    it('refuse DAF (403)', () => {
+      return request(app.getHttpServer())
+        .post('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.daf}`)
+        .send({ code: `${testMarketCodePrefix}REJECTED`, label: 'Rejeté' })
+        .expect(403);
+    });
+  });
+
+  describe('Marché : mise à jour, désactivation et cloisonnement par site', () => {
+    it('met à jour le libellé et le statut actif d’un marché existant', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ code: `${testMarketCodePrefix}CH`, label: 'Suisse' })
+        .expect(201);
+      const marketId = (createResponse.body as { id: string }).id;
+      createdMarketIds.push(marketId);
+
+      const patchResponse = await request(app.getHttpServer())
+        .patch(`/catalog/markets/${marketId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ label: 'Confédération suisse', active: false })
+        .expect(200);
+
+      expect((patchResponse.body as { label: string }).label).toBe(
+        'Confédération suisse',
+      );
+      expect((patchResponse.body as { active: boolean }).active).toBe(false);
+    });
+
+    it('désactive un marché sans le supprimer physiquement (DELETE)', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          code: `${testMarketCodePrefix}DEACTIVATE`,
+          label: 'À désactiver',
+        })
+        .expect(201);
+      const marketId = (createResponse.body as { id: string }).id;
+      createdMarketIds.push(marketId);
+
+      const deleteResponse = await request(app.getHttpServer())
+        .delete(`/catalog/markets/${marketId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(200);
+      expect((deleteResponse.body as { active: boolean }).active).toBe(false);
+
+      const getResponse = await request(app.getHttpServer())
+        .get(`/catalog/markets/${marketId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(200);
+      expect((getResponse.body as { id: string }).id).toBe(marketId);
+    });
+
+    it("traite un marché d'un autre site comme introuvable (404), sans révéler son existence", async () => {
+      const otherSite = await prisma.site.create({
+        data: { name: 'E2E Autre Site — Marchés' },
+      });
+      const otherSiteMarket = await prisma.market.create({
+        data: { siteId: otherSite.id, code: 'OTHER-SITE', label: 'Autre site' },
+      });
+
+      await request(app.getHttpServer())
+        .get(`/catalog/markets/${otherSiteMarket.id}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .patch(`/catalog/markets/${otherSiteMarket.id}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ label: 'Ne devrait jamais être appliqué' })
+        .expect(404);
+
+      await prisma.market.delete({ where: { id: otherSiteMarket.id } });
+      await prisma.site.delete({ where: { id: otherSite.id } });
     });
   });
 
