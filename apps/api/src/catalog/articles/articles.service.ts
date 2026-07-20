@@ -44,6 +44,15 @@ export class ArticlesService {
     if (dto.supplierId) {
       await this.assertSupplierAssignment(siteId, dto.type, dto.supplierId);
     }
+    if (dto.productFamilyId || dto.marketId) {
+      this.assertMarketRequiresProductFamily(dto.productFamilyId, dto.marketId);
+      if (dto.productFamilyId) {
+        await this.assertProductFamilyExists(siteId, dto.productFamilyId);
+      }
+      if (dto.marketId) {
+        await this.assertMarketExists(siteId, dto.marketId);
+      }
+    }
     try {
       return await this.prisma.article.create({ data: { siteId, ...dto } });
     } catch (error) {
@@ -65,6 +74,29 @@ export class ArticlesService {
     const resolvedType = dto.type ?? existing.type;
     if (dto.supplierId !== undefined) {
       await this.assertSupplierAssignment(siteId, resolvedType, dto.supplierId);
+    }
+
+    if (dto.productFamilyId !== undefined || dto.marketId !== undefined) {
+      const resolvedProductFamilyId =
+        dto.productFamilyId !== undefined
+          ? dto.productFamilyId
+          : existing.productFamilyId;
+      const resolvedMarketId =
+        dto.marketId !== undefined ? dto.marketId : existing.marketId;
+      this.assertMarketRequiresProductFamily(
+        resolvedProductFamilyId,
+        resolvedMarketId,
+      );
+      // Seules les valeurs effectivement écrites par cette requête sont
+      // revérifiées en base — une valeur héritée de l'existant a déjà été
+      // validée lors de sa propre affectation (voir assertTypeCanBeChanged,
+      // même principe de ne pas revalider ce qui n'a pas changé).
+      if (dto.productFamilyId) {
+        await this.assertProductFamilyExists(siteId, dto.productFamilyId);
+      }
+      if (dto.marketId) {
+        await this.assertMarketExists(siteId, dto.marketId);
+      }
     }
 
     const data: Prisma.ArticleUncheckedUpdateInput = { ...dto };
@@ -103,6 +135,51 @@ export class ArticlesService {
     });
     if (!supplier) {
       throw new NotFoundException(`Fournisseur ${supplierId} introuvable.`);
+    }
+  }
+
+  /**
+   * Famille commerciale et marché de déclinaison (voir ADR 0006 / docs/modele-donnees.md
+   * §1, PRD-11) : le marché ne peut être renseigné que si la famille commerciale l'est
+   * aussi — règle de service documentée dans l'ADR, vérifiée sur les valeurs résolues
+   * (nouvelle valeur si fournie, sinon valeur déjà existante). L'unicité du couple
+   * (productFamilyId, marketId) n'est volontairement pas revérifiée ici : elle est déjà
+   * garantie par la contrainte Prisma posée en PRD11-01 (voir toFriendlyError).
+   */
+  private assertMarketRequiresProductFamily(
+    resolvedProductFamilyId: string | null | undefined,
+    resolvedMarketId: string | null | undefined,
+  ): void {
+    if (resolvedMarketId && !resolvedProductFamilyId) {
+      throw new BadRequestException(
+        'Le marché ne peut être renseigné que si la famille commerciale est également renseignée.',
+      );
+    }
+  }
+
+  private async assertProductFamilyExists(
+    siteId: string,
+    productFamilyId: string,
+  ): Promise<void> {
+    const productFamily = await this.prisma.productFamily.findFirst({
+      where: { id: productFamilyId, siteId },
+    });
+    if (!productFamily) {
+      throw new NotFoundException(
+        `Famille commerciale ${productFamilyId} introuvable.`,
+      );
+    }
+  }
+
+  private async assertMarketExists(
+    siteId: string,
+    marketId: string,
+  ): Promise<void> {
+    const market = await this.prisma.market.findFirst({
+      where: { id: marketId, siteId },
+    });
+    if (!market) {
+      throw new NotFoundException(`Marché ${marketId} introuvable.`);
     }
   }
 
@@ -155,10 +232,33 @@ export class ArticlesService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      // Avec le driver adapter pg (voir docs/adr/0002), `error.meta` ne porte pas de
+      // `target` : le nom de la contrainte violée n'est disponible que dans le message
+      // brut Postgres. Deux contraintes uniques distinctes existent désormais sur
+      // `articles` (voir schema.prisma) — il faut les distinguer pour ne jamais renvoyer
+      // le message "référence OpenSi" sur un conflit famille/marché, ou inversement.
+      if (this.violatesProductFamilyMarketUniqueness(error)) {
+        return new ConflictException(
+          'Cette famille commerciale possède déjà une déclinaison pour ce marché.',
+        );
+      }
       return new ConflictException(
         `La référence OpenSi "${openSiReference}" est déjà utilisée sur ce site.`,
       );
     }
     return error instanceof Error ? error : new Error(String(error));
+  }
+
+  private violatesProductFamilyMarketUniqueness(
+    error: Prisma.PrismaClientKnownRequestError,
+  ): boolean {
+    const meta = error.meta as
+      | { driverAdapterError?: { cause?: { originalMessage?: string } } }
+      | undefined;
+    const originalMessage = meta?.driverAdapterError?.cause?.originalMessage;
+    return (
+      typeof originalMessage === 'string' &&
+      originalMessage.includes('product_family_id_market_id')
+    );
   }
 }

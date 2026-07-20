@@ -392,6 +392,233 @@ describe('Catalog (e2e)', () => {
     });
   });
 
+  describe('Famille commerciale et marché sur un produit fini', () => {
+    it('autorise la création avec une famille commerciale seule (sans marché)', async () => {
+      const familyResponse = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}ArticleSeule` })
+        .expect(201);
+      const productFamilyId = (familyResponse.body as { id: string }).id;
+      createdProductFamilyIds.push(productFamilyId);
+
+      const articleResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}FAMILY-ONLY`,
+          name: 'Recharge avec famille seule',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId,
+        })
+        .expect(201);
+
+      expect(
+        (articleResponse.body as { productFamilyId: string }).productFamilyId,
+      ).toBe(productFamilyId);
+      expect(
+        (articleResponse.body as { marketId: string | null }).marketId,
+      ).toBeNull();
+    });
+
+    it('autorise la création avec une famille commerciale et un marché', async () => {
+      const familyResponse = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}ArticleEtMarche` })
+        .expect(201);
+      const productFamilyId = (familyResponse.body as { id: string }).id;
+      createdProductFamilyIds.push(productFamilyId);
+
+      const marketResponse = await request(app.getHttpServer())
+        .post('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          code: `${testMarketCodePrefix}ARTICLE`,
+          label: 'Marché article',
+        })
+        .expect(201);
+      const marketId = (marketResponse.body as { id: string }).id;
+      createdMarketIds.push(marketId);
+
+      const articleResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}FAMILY-MARKET`,
+          name: 'Recharge avec famille et marché',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId,
+          marketId,
+        })
+        .expect(201);
+
+      expect(
+        (articleResponse.body as { productFamilyId: string }).productFamilyId,
+      ).toBe(productFamilyId);
+      expect((articleResponse.body as { marketId: string }).marketId).toBe(
+        marketId,
+      );
+    });
+
+    it('met à jour la famille commerciale et le marché d’un article existant', async () => {
+      const familyResponse = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}Update` })
+        .expect(201);
+      const productFamilyId = (familyResponse.body as { id: string }).id;
+      createdProductFamilyIds.push(productFamilyId);
+
+      const marketResponse = await request(app.getHttpServer())
+        .post('/catalog/markets')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ code: `${testMarketCodePrefix}UPDATE`, label: 'Marché update' })
+        .expect(201);
+      const marketId = (marketResponse.body as { id: string }).id;
+      createdMarketIds.push(marketId);
+
+      const articleResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}FAMILY-PATCH`,
+          name: 'Recharge à mettre à jour',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+        })
+        .expect(201);
+      const articleId = (articleResponse.body as { id: string }).id;
+
+      const patchResponse = await request(app.getHttpServer())
+        .patch(`/catalog/articles/${articleId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ productFamilyId, marketId })
+        .expect(200);
+
+      expect(
+        (patchResponse.body as { productFamilyId: string }).productFamilyId,
+      ).toBe(productFamilyId);
+      expect((patchResponse.body as { marketId: string }).marketId).toBe(
+        marketId,
+      );
+    });
+
+    it('refuse une famille commerciale introuvable sur ce site (404)', () => {
+      return request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}FAMILY-404`,
+          name: 'Recharge avec famille inconnue',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId: '00000000-0000-0000-0000-000000000000',
+        })
+        .expect(404);
+    });
+
+    it('refuse un marché introuvable sur ce site (404)', async () => {
+      const familyResponse = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}Market404` })
+        .expect(201);
+      const productFamilyId = (familyResponse.body as { id: string }).id;
+      createdProductFamilyIds.push(productFamilyId);
+
+      return request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}MARKET-404`,
+          name: 'Recharge avec marché inconnu',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId,
+          marketId: '00000000-0000-0000-0000-000000000000',
+        })
+        .expect(404);
+    });
+
+    it('refuse un marché sans famille commerciale (400)', () => {
+      return request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}MARKET-NO-FAMILY`,
+          name: 'Recharge marché sans famille',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          marketId: '00000000-0000-0000-0000-000000000000',
+        })
+        .expect(400);
+    });
+
+    it("traite une famille commerciale et un marché d'un autre site comme introuvables (404)", async () => {
+      const otherSite = await prisma.site.create({
+        data: { name: 'E2E Autre Site — Famille/Marché sur Article' },
+      });
+      const otherSiteFamily = await prisma.productFamily.create({
+        data: { siteId: otherSite.id, name: 'Autre site' },
+      });
+      const otherSiteMarket = await prisma.market.create({
+        data: { siteId: otherSite.id, code: 'OTHER', label: 'Autre site' },
+      });
+
+      // Famille valide sur le site courant, pour isoler le rejet du marché
+      // d'un autre site (et ne pas mélanger les deux causes de 404).
+      const currentSiteFamilyResponse = await request(app.getHttpServer())
+        .post('/catalog/product-families')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ name: `${testProductFamilyNamePrefix}PourMarcheAutreSite` })
+        .expect(201);
+      const currentSiteFamilyId = (
+        currentSiteFamilyResponse.body as { id: string }
+      ).id;
+      createdProductFamilyIds.push(currentSiteFamilyId);
+
+      await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}FAMILY-OTHER-SITE`,
+          name: 'Recharge famille autre site',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId: otherSiteFamily.id,
+        })
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PRODUIT_FINI',
+          openSiReference: `${testOpenSiReferencePrefix}MARKET-OTHER-SITE`,
+          name: 'Recharge marché autre site',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId: currentSiteFamilyId,
+          marketId: otherSiteMarket.id,
+        })
+        .expect(404);
+
+      await prisma.market.delete({ where: { id: otherSiteMarket.id } });
+      await prisma.productFamily.delete({ where: { id: otherSiteFamily.id } });
+      await prisma.site.delete({ where: { id: otherSite.id } });
+    });
+  });
+
   describe('GET /catalog/machines', () => {
     it('autorise RESPONSABLE_LABORATOIRE (200)', () => {
       return request(app.getHttpServer())

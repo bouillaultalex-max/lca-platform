@@ -21,6 +21,12 @@ describe('ArticlesService', () => {
     supplier: {
       findFirst: jest.Mock;
     };
+    productFamily: {
+      findFirst: jest.Mock;
+    };
+    market: {
+      findFirst: jest.Mock;
+    };
   };
 
   const siteId = 'site-1';
@@ -36,6 +42,8 @@ describe('ArticlesService', () => {
     unitsPerCarton: null,
     densityKgPerL: null,
     supplierId: null,
+    productFamilyId: null,
+    marketId: null,
     active: true,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
@@ -51,6 +59,12 @@ describe('ArticlesService', () => {
         update: jest.fn(),
       },
       supplier: {
+        findFirst: jest.fn(),
+      },
+      productFamily: {
+        findFirst: jest.fn(),
+      },
+      market: {
         findFirst: jest.fn(),
       },
     };
@@ -228,6 +242,154 @@ describe('ArticlesService', () => {
       ).rejects.toThrow(NotFoundException);
       expect(prisma.article.create).not.toHaveBeenCalled();
     });
+
+    it('crée un produit fini avec une famille commerciale seule (sans marché)', async () => {
+      prisma.productFamily.findFirst.mockResolvedValue({
+        id: 'family-1',
+        siteId,
+      });
+      prisma.article.create.mockResolvedValue({
+        ...article,
+        type: ArticleType.PRODUIT_FINI,
+        productFamilyId: 'family-1',
+      });
+
+      const result = await service.create(siteId, {
+        type: ArticleType.PRODUIT_FINI,
+        openSiReference: 'PF-1',
+        name: 'Recharge Lavande',
+        unitOfMeasure: 'unité',
+        currentUnitCost: 3,
+        productFamilyId: 'family-1',
+      });
+
+      expect(prisma.productFamily.findFirst).toHaveBeenCalledWith({
+        where: { id: 'family-1', siteId },
+      });
+      expect(prisma.market.findFirst).not.toHaveBeenCalled();
+      expect(result.productFamilyId).toBe('family-1');
+    });
+
+    it('crée un produit fini avec une famille commerciale et un marché', async () => {
+      prisma.productFamily.findFirst.mockResolvedValue({
+        id: 'family-1',
+        siteId,
+      });
+      prisma.market.findFirst.mockResolvedValue({ id: 'market-1', siteId });
+      prisma.article.create.mockResolvedValue({
+        ...article,
+        type: ArticleType.PRODUIT_FINI,
+        productFamilyId: 'family-1',
+        marketId: 'market-1',
+      });
+
+      const result = await service.create(siteId, {
+        type: ArticleType.PRODUIT_FINI,
+        openSiReference: 'PF-FR',
+        name: 'Recharge Lavande France',
+        unitOfMeasure: 'unité',
+        currentUnitCost: 3,
+        productFamilyId: 'family-1',
+        marketId: 'market-1',
+      });
+
+      expect(prisma.productFamily.findFirst).toHaveBeenCalledWith({
+        where: { id: 'family-1', siteId },
+      });
+      expect(prisma.market.findFirst).toHaveBeenCalledWith({
+        where: { id: 'market-1', siteId },
+      });
+      expect(result.productFamilyId).toBe('family-1');
+      expect(result.marketId).toBe('market-1');
+    });
+
+    it('refuse un marché sans famille commerciale', async () => {
+      await expect(
+        service.create(siteId, {
+          type: ArticleType.PRODUIT_FINI,
+          openSiReference: 'PF-2',
+          name: 'Recharge sans famille',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          marketId: 'market-1',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.article.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une famille commerciale introuvable sur ce site', async () => {
+      prisma.productFamily.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(siteId, {
+          type: ArticleType.PRODUIT_FINI,
+          openSiReference: 'PF-3',
+          name: 'Recharge famille inconnue',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId: 'inconnue',
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.article.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse un marché introuvable sur ce site', async () => {
+      prisma.productFamily.findFirst.mockResolvedValue({
+        id: 'family-1',
+        siteId,
+      });
+      prisma.market.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(siteId, {
+          type: ArticleType.PRODUIT_FINI,
+          openSiReference: 'PF-4',
+          name: 'Recharge marché inconnu',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId: 'family-1',
+          marketId: 'inconnu',
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.article.create).not.toHaveBeenCalled();
+    });
+
+    it('convertit une violation d’unicité (famille/marché déjà déclinés) en ConflictException avec un message distinct de la référence OpenSi', async () => {
+      prisma.productFamily.findFirst.mockResolvedValue({
+        id: 'family-1',
+        siteId,
+      });
+      prisma.market.findFirst.mockResolvedValue({ id: 'market-1', siteId });
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        { code: 'P2002', clientVersion: '7.8.0' },
+      );
+      Object.assign(prismaError, {
+        meta: {
+          driverAdapterError: {
+            cause: {
+              originalMessage:
+                'la valeur d’une clé dupliquée rompt la contrainte unique « articles_product_family_id_market_id_key »',
+            },
+          },
+        },
+      });
+      prisma.article.create.mockRejectedValue(prismaError);
+
+      await expect(
+        service.create(siteId, {
+          type: ArticleType.PRODUIT_FINI,
+          openSiReference: 'PF-5',
+          name: 'Doublon famille/marché',
+          unitOfMeasure: 'unité',
+          currentUnitCost: 3,
+          productFamilyId: 'family-1',
+          marketId: 'market-1',
+        }),
+      ).rejects.toThrow(
+        'Cette famille commerciale possède déjà une déclinaison pour ce marché.',
+      );
+    });
   });
 
   describe('update', () => {
@@ -396,6 +558,85 @@ describe('ArticlesService', () => {
         where: { id: article.id },
         data: { type: ArticleType.PRODUIT_FINI, supplierId: null },
       });
+    });
+
+    it('met à jour la famille commerciale et le marché en une seule fois', async () => {
+      prisma.article.findFirst.mockResolvedValue(article);
+      prisma.productFamily.findFirst.mockResolvedValue({
+        id: 'family-1',
+        siteId,
+      });
+      prisma.market.findFirst.mockResolvedValue({ id: 'market-1', siteId });
+      prisma.article.update.mockResolvedValue({
+        ...article,
+        productFamilyId: 'family-1',
+        marketId: 'market-1',
+      });
+
+      const result = await service.update(siteId, article.id, {
+        productFamilyId: 'family-1',
+        marketId: 'market-1',
+      });
+
+      expect(prisma.productFamily.findFirst).toHaveBeenCalledWith({
+        where: { id: 'family-1', siteId },
+      });
+      expect(prisma.market.findFirst).toHaveBeenCalledWith({
+        where: { id: 'market-1', siteId },
+      });
+      expect(result.productFamilyId).toBe('family-1');
+      expect(result.marketId).toBe('market-1');
+    });
+
+    it('valide le marché par rapport à la famille commerciale déjà existante quand seul le marché est modifié', async () => {
+      const articleWithFamily = { ...article, productFamilyId: 'family-1' };
+      prisma.article.findFirst.mockResolvedValue(articleWithFamily);
+      prisma.market.findFirst.mockResolvedValue({ id: 'market-1', siteId });
+      prisma.article.update.mockResolvedValue({
+        ...articleWithFamily,
+        marketId: 'market-1',
+      });
+
+      await service.update(siteId, article.id, { marketId: 'market-1' });
+
+      // La famille n'est pas re-vérifiée (déjà validée à sa propre affectation) :
+      // seule sa présence (issue de l'existant) est utilisée pour autoriser le marché.
+      expect(prisma.productFamily.findFirst).not.toHaveBeenCalled();
+      expect(prisma.market.findFirst).toHaveBeenCalledWith({
+        where: { id: 'market-1', siteId },
+      });
+    });
+
+    it('refuse un marché seul si l’article n’a aucune famille commerciale existante', async () => {
+      prisma.article.findFirst.mockResolvedValue(article);
+
+      await expect(
+        service.update(siteId, article.id, { marketId: 'market-1' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.article.update).not.toHaveBeenCalled();
+    });
+
+    it('refuse une famille commerciale introuvable sur ce site à la mise à jour', async () => {
+      prisma.article.findFirst.mockResolvedValue(article);
+      prisma.productFamily.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update(siteId, article.id, { productFamilyId: 'inconnue' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.article.update).not.toHaveBeenCalled();
+    });
+
+    it('refuse un marché introuvable sur ce site à la mise à jour', async () => {
+      prisma.article.findFirst.mockResolvedValue({
+        ...article,
+        productFamilyId: 'family-1',
+      });
+      prisma.market.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update(siteId, article.id, { marketId: 'inconnu' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.article.update).not.toHaveBeenCalled();
     });
   });
 

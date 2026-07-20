@@ -68,4 +68,20 @@ export class CreateArticleDto {
   @IsOptional()
   @IsUUID()
   supplierId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Famille commerciale de déclinaison, pertinente pour un PRODUIT_FINI (voir ADR 0006, PRD-11).',
+  })
+  @IsOptional()
+  @IsUUID()
+  productFamilyId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Marché de déclinaison au sein de la famille commerciale — ne peut être renseigné que si productFamilyId l'est aussi (voir ADR 0006, PRD-11).",
+  })
+  @IsOptional()
+  @IsUUID()
+  marketId?: string;
 }
