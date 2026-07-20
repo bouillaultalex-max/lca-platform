@@ -84,7 +84,7 @@ Contrôle qualité simple rattaché à un lot : résultat (conforme / non confor
 ### 4.7 Coûts
 Calcul du coût matière première + packaging par flacon, à partir des coûts unitaires courants des articles et de la composition de la recette utilisée. Le coût est **figé (historisé)** au moment de la production, pour ne pas être affecté par une évolution ultérieure des coûts unitaires.
 
-Pour un batch réparti entre plusieurs marchés (§4.4bis), le coût du mélange est réparti proportionnellement entre les allocations (au prorata des volumes conformes), tandis que le coût du packaging est calculé directement par allocation (packaging propre à chaque marché).
+Pour un batch réparti entre plusieurs marchés (§4.4bis), le coût du mélange est réparti proportionnellement entre les allocations au prorata de leur quantité traitée (`producedQuantity + rejectedQuantity`, rebuts inclus — voir ADR 0006 décision 20), tandis que le coût du packaging est calculé directement par allocation (packaging propre à chaque marché).
 
 ### 4.8 Exports vers OpenSi
 Export de fichiers Excel/CSV à destination d'OpenSi :
