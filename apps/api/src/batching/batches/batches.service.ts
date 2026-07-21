@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BatchProductAllocationsService } from '../batch-product-allocations/batch-product-allocations.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import {
   Batch,
@@ -13,7 +14,10 @@ import {
 
 @Injectable()
 export class BatchesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly batchProductAllocationsService: BatchProductAllocationsService,
+  ) {}
 
   findAll(siteId: string): Promise<Batch[]> {
     return this.prisma.batch.findMany({
@@ -64,16 +68,28 @@ export class BatchesService {
       );
     }
 
-    return this.prisma.batch.create({
-      data: {
-        siteId,
-        recipeId: dto.recipeId,
-        machineId: dto.machineId,
-        format: recipe.format,
-        plannedQuantity: dto.plannedQuantity,
-        status: BatchStatus.PLANIFIE,
-        createdByUserId: userId,
-      },
+    // Le batch et sa première allocation sont créés dans la même transaction : voir
+    // ADR 0006 / plan-developpement.md étape 6, aucune écriture partielle possible.
+    return this.prisma.$transaction(async (tx) => {
+      const batch = await tx.batch.create({
+        data: {
+          siteId,
+          recipeId: dto.recipeId,
+          machineId: dto.machineId,
+          format: recipe.format,
+          plannedQuantity: dto.plannedQuantity,
+          status: BatchStatus.PLANIFIE,
+          createdByUserId: userId,
+        },
+      });
+
+      await this.batchProductAllocationsService.createInitialAllocation(
+        batch,
+        recipe,
+        tx,
+      );
+
+      return batch;
     });
   }
 

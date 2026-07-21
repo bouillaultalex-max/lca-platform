@@ -313,15 +313,23 @@ describe('BatchProductAllocations (e2e)', () => {
   }
 
   describe('GET /batching/batches/:batchId/allocations', () => {
-    it("retourne une liste vide pour un batch fraîchement créé (aucune allocation initiale tant que l'étape 6 n'est pas câblée)", async () => {
-      const batchId = await createBatch();
+    it("retourne l'allocation initiale créée automatiquement à la création du batch (étape 6)", async () => {
+      const batchId = await createBatch(500);
 
       const response = await request(app.getHttpServer())
         .get(`/batching/batches/${batchId}/allocations`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
-      expect(response.body).toEqual([]);
+      const body = response.body as AllocationResponseBody[];
+      expect(body).toHaveLength(1);
+      expect(body[0]).toMatchObject({
+        batchId,
+        productId: productFrId,
+        recipeId: recipeRefId,
+        marketId: marketFrId,
+        plannedQuantity: 500,
+      });
     });
 
     it('rejette une requête sans authentification', async () => {
@@ -357,7 +365,8 @@ describe('BatchProductAllocations (e2e)', () => {
         .get(`/batching/batches/${batchId}/allocations`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      expect(allocations.body).toHaveLength(1);
+      // 2 = l'allocation initiale (étape 6) + celle ajoutée ci-dessus.
+      expect(allocations.body).toHaveLength(2);
     });
 
     it('ajoute une allocation via un produit direct sans famille commerciale, en plus de la première', async () => {
@@ -388,7 +397,8 @@ describe('BatchProductAllocations (e2e)', () => {
         .get(`/batching/batches/${batchId}/allocations`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      expect(allocations.body).toHaveLength(2);
+      // 3 = l'allocation initiale (étape 6) + les deux ajoutées ci-dessus.
+      expect(allocations.body).toHaveLength(3);
     });
 
     it('rejette un produit direct appartenant en réalité à une famille commerciale', async () => {

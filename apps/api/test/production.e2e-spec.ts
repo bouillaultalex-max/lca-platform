@@ -166,6 +166,12 @@ describe('Production — faisabilité de lancement de batch (e2e)', () => {
 
   afterAll(async () => {
     if (prisma) {
+      // Depuis PRD-11 (étape 6), tout batch créé possède désormais une allocation
+      // initiale (`BatchProductAllocation.batchId` en ON DELETE RESTRICT) : elle doit
+      // être supprimée avant le batch, sous peine de violation de contrainte.
+      await prisma.batchProductAllocation.deleteMany({
+        where: { batch: { recipeId } },
+      });
       await prisma.batch.deleteMany({ where: { recipeId } });
       await prisma.recipeLine.deleteMany({ where: { recipeId } });
       await prisma.recipe.deleteMany({ where: { id: recipeId } });

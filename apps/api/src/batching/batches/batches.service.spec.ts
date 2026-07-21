@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BatchesService } from './batches.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BatchProductAllocationsService } from '../batch-product-allocations/batch-product-allocations.service';
 import { BatchStatus, RecipeStatus } from '../../../generated/prisma/client';
 
 describe('BatchesService', () => {
@@ -12,9 +13,15 @@ describe('BatchesService', () => {
     batch: {
       findMany: jest.Mock;
       findFirst: jest.Mock;
-      create: jest.Mock;
       update: jest.Mock;
     };
+    $transaction: jest.Mock<Promise<unknown>, [(tx: unknown) => unknown]>;
+  };
+  let tx: {
+    batch: { create: jest.Mock<Promise<unknown>, [Record<string, unknown>]> };
+  };
+  let batchProductAllocationsService: {
+    createInitialAllocation: jest.Mock;
   };
 
   const siteId = 'site-1';
@@ -25,6 +32,7 @@ describe('BatchesService', () => {
     siteId,
     format: 100,
     status: RecipeStatus.ACTIVE,
+    finishedProductId: 'product-1',
   };
 
   const activeMachine = {
@@ -42,33 +50,63 @@ describe('BatchesService', () => {
   };
 
   beforeEach(async () => {
+    tx = {
+      batch: { create: jest.fn<Promise<unknown>, [Record<string, unknown>]>() },
+    };
+
     prisma = {
       recipe: { findFirst: jest.fn() },
       machine: { findFirst: jest.fn() },
       batch: {
         findMany: jest.fn(),
         findFirst: jest.fn(),
-        create: jest.fn(),
         update: jest.fn(),
       },
+      $transaction: jest.fn<Promise<unknown>, [(tx: unknown) => unknown]>(
+        (callback) => Promise.resolve(callback(tx)),
+      ),
+    };
+
+    batchProductAllocationsService = {
+      createInitialAllocation: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [BatchesService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        BatchesService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: BatchProductAllocationsService,
+          useValue: batchProductAllocationsService,
+        },
+      ],
     }).compile();
 
     service = module.get(BatchesService);
   });
 
   describe('create', () => {
-    it('crée le batch avec le format hérité de la recette', async () => {
+    it('crée le batch avec le format hérité de la recette, et sa première allocation dans la même transaction', async () => {
       prisma.recipe.findFirst.mockResolvedValue(activeRecipe);
       prisma.machine.findFirst.mockResolvedValue(activeMachine);
-      prisma.batch.create.mockResolvedValue({ id: 'batch-1' });
+      const createdBatch = {
+        id: 'batch-1',
+        siteId,
+        recipeId: dto.recipeId,
+        machineId: dto.machineId,
+        format: activeRecipe.format,
+        plannedQuantity: dto.plannedQuantity,
+        status: BatchStatus.PLANIFIE,
+        createdByUserId: userId,
+      };
+      tx.batch.create.mockResolvedValue(createdBatch);
+      batchProductAllocationsService.createInitialAllocation.mockResolvedValue({
+        id: 'alloc-1',
+      });
 
-      await service.create(siteId, userId, dto);
+      const result = await service.create(siteId, userId, dto);
 
-      expect(prisma.batch.create).toHaveBeenCalledWith({
+      expect(tx.batch.create).toHaveBeenCalledWith({
         data: {
           siteId,
           recipeId: dto.recipeId,
@@ -79,6 +117,13 @@ describe('BatchesService', () => {
           createdByUserId: userId,
         },
       });
+      // L'objet retourné par tx.batch.create() est passé directement à
+      // createInitialAllocation(), sans aucune relecture (findFirst/findUnique).
+      expect(
+        batchProductAllocationsService.createInitialAllocation,
+      ).toHaveBeenCalledWith(createdBatch, activeRecipe, tx);
+      expect(prisma.batch.findFirst).not.toHaveBeenCalled();
+      expect(result).toBe(createdBatch);
     });
 
     it('lève NotFoundException si la recette est introuvable sur ce site', async () => {
@@ -87,7 +132,7 @@ describe('BatchesService', () => {
       await expect(service.create(siteId, userId, dto)).rejects.toThrow(
         NotFoundException,
       );
-      expect(prisma.batch.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('rejette une recette archivée', async () => {
@@ -99,7 +144,7 @@ describe('BatchesService', () => {
       await expect(service.create(siteId, userId, dto)).rejects.toThrow(
         BadRequestException,
       );
-      expect(prisma.batch.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('lève NotFoundException si la machine est introuvable sur ce site', async () => {
@@ -109,7 +154,7 @@ describe('BatchesService', () => {
       await expect(service.create(siteId, userId, dto)).rejects.toThrow(
         NotFoundException,
       );
-      expect(prisma.batch.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('rejette une machine désactivée', async () => {
@@ -122,7 +167,7 @@ describe('BatchesService', () => {
       await expect(service.create(siteId, userId, dto)).rejects.toThrow(
         BadRequestException,
       );
-      expect(prisma.batch.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('rejette une machine qui ne supporte pas le format de la recette', async () => {
@@ -135,7 +180,7 @@ describe('BatchesService', () => {
       await expect(service.create(siteId, userId, dto)).rejects.toThrow(
         BadRequestException,
       );
-      expect(prisma.batch.create).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 
