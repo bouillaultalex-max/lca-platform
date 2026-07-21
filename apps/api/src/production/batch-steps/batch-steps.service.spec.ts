@@ -26,6 +26,9 @@ describe('BatchStepsService', () => {
     currentStep: null as BatchStep | null,
     startedAt: null as Date | null,
     plannedQuantity: 500,
+    // Batch antérieur à PRD-11 par défaut (aucune allocation) — voir tests dédiés
+    // ci-dessous pour les cas à une ou plusieurs allocations.
+    allocations: [] as { plannedQuantity: number }[],
   };
 
   const feasible = {
@@ -80,6 +83,44 @@ describe('BatchStepsService', () => {
     expect(updateArgs.data.currentStep).toBe(BatchStep.PREPARATION);
     expect(updateArgs.data.status).toBe(BatchStatus.EN_COURS);
     expect(updateArgs.data.startedAt).toBeInstanceOf(Date);
+  });
+
+  it('autorise le lancement d’un batch historique sans allocation (aucun backfill, comportement inchangé)', async () => {
+    prisma.batch.findFirst.mockResolvedValue({ ...baseBatch, allocations: [] });
+    prisma.batch.update.mockResolvedValue({});
+
+    await service.advance(siteId, batchId);
+
+    expect(batchFeasibilityService.checkFeasibility).toHaveBeenCalled();
+    expect(prisma.batch.update).toHaveBeenCalled();
+  });
+
+  it('autorise le lancement quand la somme des allocations correspond à la quantité planifiée', async () => {
+    prisma.batch.findFirst.mockResolvedValue({
+      ...baseBatch,
+      plannedQuantity: 500,
+      allocations: [{ plannedQuantity: 300 }, { plannedQuantity: 200 }],
+    });
+    prisma.batch.update.mockResolvedValue({});
+
+    await service.advance(siteId, batchId);
+
+    expect(batchFeasibilityService.checkFeasibility).toHaveBeenCalled();
+    expect(prisma.batch.update).toHaveBeenCalled();
+  });
+
+  it('bloque le lancement quand la somme des allocations diverge de la quantité planifiée, sans jamais appeler checkFeasibility', async () => {
+    prisma.batch.findFirst.mockResolvedValue({
+      ...baseBatch,
+      plannedQuantity: 500,
+      allocations: [{ plannedQuantity: 300 }, { plannedQuantity: 150 }],
+    });
+
+    await expect(service.advance(siteId, batchId)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(batchFeasibilityService.checkFeasibility).not.toHaveBeenCalled();
+    expect(prisma.batch.update).not.toHaveBeenCalled();
   });
 
   it('vérifie la faisabilité du batch au premier démarrage', async () => {

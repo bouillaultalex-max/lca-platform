@@ -99,21 +99,54 @@ export class BatchesService {
    * BatchFeasibilityService). Autorisé uniquement tant que le batch n'a pas démarré :
    * redimensionner un batch déjà en cours ou clôturé changerait rétroactivement les
    * besoins déjà vérifiés (ou déjà consommés) pour ce batch.
+   *
+   * Depuis PRD-11 : un batch sans allocation (antérieur à la feature) conserve un
+   * comportement inchangé. Un batch à exactement une allocation voit celle-ci
+   * synchronisée dans la même transaction (relation 1:1 triviale, aucune répartition
+   * inventée). Un batch à plusieurs allocations refuse l'opération : aucune règle de
+   * répartition entre allocations n'est définie — voir plan-developpement.md.
    */
   async updatePlannedQuantity(
     siteId: string,
     id: string,
     plannedQuantity: number,
   ): Promise<Batch> {
-    const batch = await this.findOne(siteId, id);
+    const batch = await this.prisma.batch.findFirst({
+      where: { id, siteId },
+      include: { allocations: true },
+    });
+    if (!batch) {
+      throw new NotFoundException(`Batch ${id} introuvable.`);
+    }
     if (batch.status !== BatchStatus.PLANIFIE) {
       throw new BadRequestException(
         'Seule la quantité d’un batch encore planifié peut être modifiée.',
       );
     }
-    return this.prisma.batch.update({
-      where: { id },
-      data: { plannedQuantity },
+    if (batch.allocations.length > 1) {
+      throw new BadRequestException(
+        'Impossible de modifier la quantité planifiée d’un batch ayant plusieurs allocations : ajustez chaque allocation individuellement.',
+      );
+    }
+
+    if (batch.allocations.length === 0) {
+      return this.prisma.batch.update({
+        where: { id },
+        data: { plannedQuantity },
+      });
+    }
+
+    const allocationId = batch.allocations[0].id;
+    return this.prisma.$transaction(async (tx) => {
+      const updatedBatch = await tx.batch.update({
+        where: { id },
+        data: { plannedQuantity },
+      });
+      await tx.batchProductAllocation.update({
+        where: { id: allocationId },
+        data: { plannedQuantity },
+      });
+      return updatedBatch;
     });
   }
 }

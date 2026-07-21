@@ -54,11 +54,13 @@ describe('Production — faisabilité de lancement de batch (e2e)', () => {
   let finishedProductId: string;
   let recipeId: string;
   let machineId: string;
+  let secondFinishedProductId: string;
 
   const password = 'MotDePasseTest123!';
   const email = 'e2e-production-lab@lca-mes.local';
   const materialReference = 'E2E-PROD-MP';
   const finishedProductReference = 'E2E-PROD-FINI';
+  const secondFinishedProductReference = 'E2E-PROD-FINI-2';
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -153,6 +155,42 @@ describe('Production — faisabilité de lancement de batch (e2e)', () => {
     });
     recipeId = recipe.id;
 
+    // Second produit fini, sans famille commerciale, avec une recette compatible
+    // (même format, même composition matière première) — utilisé uniquement pour
+    // créer une seconde allocation via POST .../allocations (chemin produit direct).
+    const secondFinishedProduct = await prisma.article.upsert({
+      where: {
+        siteId_openSiReference: {
+          siteId,
+          openSiReference: secondFinishedProductReference,
+        },
+      },
+      update: {},
+      create: {
+        siteId,
+        type: ArticleType.PRODUIT_FINI,
+        openSiReference: secondFinishedProductReference,
+        name: 'Second produit fini test e2e (production)',
+        unitOfMeasure: 'unité',
+        currentUnitCost: 1,
+      },
+    });
+    secondFinishedProductId = secondFinishedProduct.id;
+    await prisma.recipe.create({
+      data: {
+        siteId,
+        finishedProductId: secondFinishedProductId,
+        format: 100,
+        version: 1,
+        status: RecipeStatus.ACTIVE,
+        lines: {
+          create: [
+            { articleId: materialArticleId, quantityPerUnit: 100, unit: '%' },
+          ],
+        },
+      },
+    });
+
     const machine = await prisma.machine.create({
       data: {
         siteId,
@@ -173,8 +211,22 @@ describe('Production — faisabilité de lancement de batch (e2e)', () => {
         where: { batch: { recipeId } },
       });
       await prisma.batch.deleteMany({ where: { recipeId } });
-      await prisma.recipeLine.deleteMany({ where: { recipeId } });
-      await prisma.recipe.deleteMany({ where: { id: recipeId } });
+      await prisma.recipeLine.deleteMany({
+        where: {
+          recipe: {
+            finishedProductId: {
+              in: [finishedProductId, secondFinishedProductId],
+            },
+          },
+        },
+      });
+      await prisma.recipe.deleteMany({
+        where: {
+          finishedProductId: {
+            in: [finishedProductId, secondFinishedProductId],
+          },
+        },
+      });
       await prisma.machine.deleteMany({ where: { id: machineId } });
       await prisma.stockMovement.deleteMany({
         where: { articleId: materialArticleId },
@@ -186,7 +238,11 @@ describe('Production — faisabilité de lancement de batch (e2e)', () => {
         where: { articleId: materialArticleId },
       });
       await prisma.article.deleteMany({
-        where: { id: { in: [materialArticleId, finishedProductId] } },
+        where: {
+          id: {
+            in: [materialArticleId, finishedProductId, secondFinishedProductId],
+          },
+        },
       });
       await prisma.user.deleteMany({ where: { email } });
     }
@@ -305,6 +361,34 @@ describe('Production — faisabilité de lancement de batch (e2e)', () => {
       expect(body.status).toBe(BatchStatus.EN_COURS);
       expect(body.currentStep).toBe('PREPARATION');
     });
+
+    it('autorise le lancement d’un batch historique sans aucune allocation (créé directement en base, antérieur à PRD-11)', async () => {
+      await setAvailableStock(200);
+      const historicalBatch = await prisma.batch.create({
+        data: {
+          siteId,
+          recipeId,
+          machineId,
+          format: 100,
+          plannedQuantity: 1000,
+          status: BatchStatus.PLANIFIE,
+          createdByUserId: (
+            await prisma.user.findFirstOrThrow({ where: { email } })
+          ).id,
+        },
+      });
+
+      const response = await request(app.getHttpServer())
+        .post(`/production/batches/${historicalBatch.id}/advance-step`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const body = response.body as BatchResponseBody;
+      expect(body.status).toBe(BatchStatus.EN_COURS);
+      expect(body.currentStep).toBe('PREPARATION');
+
+      await prisma.batch.deleteMany({ where: { id: historicalBatch.id } });
+    });
   });
 
   describe('PATCH /batching/batches/:id/planned-quantity', () => {
@@ -334,6 +418,46 @@ describe('Production — faisabilité de lancement de batch (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ plannedQuantity: 100 })
         .expect(400);
+    });
+
+    it('synchronise l’unique allocation avec la nouvelle quantité planifiée', async () => {
+      await setAvailableStock(50);
+      const batchId = await createBatch(1000);
+
+      await request(app.getHttpServer())
+        .patch(`/batching/batches/${batchId}/planned-quantity`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ plannedQuantity: 500 })
+        .expect(200);
+
+      const allocation = await prisma.batchProductAllocation.findFirstOrThrow({
+        where: { batchId },
+      });
+      expect(allocation.plannedQuantity).toBe(500);
+    });
+
+    it('rejette la modification de quantité d’un batch ayant plusieurs allocations', async () => {
+      await setAvailableStock(50);
+      const batchId = await createBatch(1000);
+      await request(app.getHttpServer())
+        .post(`/batching/batches/${batchId}/allocations`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ productId: secondFinishedProductId, plannedQuantity: 200 })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .patch(`/batching/batches/${batchId}/planned-quantity`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ plannedQuantity: 500 })
+        .expect(400);
+
+      expect((response.body as { message: string }).message).toContain(
+        'plusieurs allocations',
+      );
+      const batch = await prisma.batch.findUniqueOrThrow({
+        where: { id: batchId },
+      });
+      expect(batch.plannedQuantity).toBe(1200); // 1000 + 200, inchangé
     });
 
     it('parcours complet : quantité réduite à la valeur maximale annoncée, puis lancement réussi', async () => {

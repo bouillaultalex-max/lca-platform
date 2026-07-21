@@ -18,7 +18,13 @@ describe('BatchesService', () => {
     $transaction: jest.Mock<Promise<unknown>, [(tx: unknown) => unknown]>;
   };
   let tx: {
-    batch: { create: jest.Mock<Promise<unknown>, [Record<string, unknown>]> };
+    batch: {
+      create: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+      update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+    };
+    batchProductAllocation: {
+      update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+    };
   };
   let batchProductAllocationsService: {
     createInitialAllocation: jest.Mock;
@@ -51,7 +57,13 @@ describe('BatchesService', () => {
 
   beforeEach(async () => {
     tx = {
-      batch: { create: jest.fn<Promise<unknown>, [Record<string, unknown>]>() },
+      batch: {
+        create: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+        update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+      },
+      batchProductAllocation: {
+        update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+      },
     };
 
     prisma = {
@@ -213,6 +225,7 @@ describe('BatchesService', () => {
       siteId,
       status: BatchStatus.PLANIFIE,
       plannedQuantity: 3600,
+      allocations: [] as { id: string; plannedQuantity: number }[],
     };
 
     it('lève NotFoundException si le batch est introuvable sur ce site', async () => {
@@ -224,7 +237,7 @@ describe('BatchesService', () => {
       expect(prisma.batch.update).not.toHaveBeenCalled();
     });
 
-    it('modifie la quantité planifiée d’un batch encore PLANIFIE', async () => {
+    it('modifie la quantité planifiée d’un batch encore PLANIFIE sans allocation (comportement inchangé)', async () => {
       prisma.batch.findFirst.mockResolvedValue(planifieBatch);
       prisma.batch.update.mockResolvedValue({
         ...planifieBatch,
@@ -237,6 +250,7 @@ describe('BatchesService', () => {
         where: { id: 'batch-1' },
         data: { plannedQuantity: 2480 },
       });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it.each([BatchStatus.EN_COURS, BatchStatus.TERMINE, BatchStatus.ANNULE])(
@@ -253,5 +267,50 @@ describe('BatchesService', () => {
         expect(prisma.batch.update).not.toHaveBeenCalled();
       },
     );
+
+    it('synchronise l’unique allocation avec la nouvelle quantité, dans une seule transaction', async () => {
+      prisma.batch.findFirst.mockResolvedValue({
+        ...planifieBatch,
+        allocations: [{ id: 'alloc-1', plannedQuantity: 3600 }],
+      });
+      tx.batch.update.mockResolvedValue({
+        ...planifieBatch,
+        plannedQuantity: 2480,
+      });
+
+      const result = await service.updatePlannedQuantity(
+        siteId,
+        'batch-1',
+        2480,
+      );
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(tx.batch.update).toHaveBeenCalledWith({
+        where: { id: 'batch-1' },
+        data: { plannedQuantity: 2480 },
+      });
+      expect(tx.batchProductAllocation.update).toHaveBeenCalledWith({
+        where: { id: 'alloc-1' },
+        data: { plannedQuantity: 2480 },
+      });
+      expect(prisma.batch.update).not.toHaveBeenCalled();
+      expect(result).toEqual({ ...planifieBatch, plannedQuantity: 2480 });
+    });
+
+    it('rejette la modification d’un batch ayant plusieurs allocations, sans aucune écriture', async () => {
+      prisma.batch.findFirst.mockResolvedValue({
+        ...planifieBatch,
+        allocations: [
+          { id: 'alloc-1', plannedQuantity: 2000 },
+          { id: 'alloc-2', plannedQuantity: 1600 },
+        ],
+      });
+
+      await expect(
+        service.updatePlannedQuantity(siteId, 'batch-1', 2480),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.batch.update).not.toHaveBeenCalled();
+    });
   });
 });

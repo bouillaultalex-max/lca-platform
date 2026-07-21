@@ -44,6 +44,7 @@ export class BatchStepsService {
   async advance(siteId: string, batchId: string): Promise<Batch> {
     const batch = await this.prisma.batch.findFirst({
       where: { id: batchId, siteId },
+      include: { allocations: true },
     });
     if (!batch) {
       throw new NotFoundException(`Batch ${batchId} introuvable.`);
@@ -59,6 +60,8 @@ export class BatchStepsService {
     }
 
     if (batch.currentStep === null) {
+      this.assertAllocationsConsistent(batch);
+
       const feasibility = await this.batchFeasibilityService.checkFeasibility(
         siteId,
         batchId,
@@ -90,5 +93,32 @@ export class BatchStepsService {
       where: { id: batchId },
       data: { currentStep: STEP_ORDER[currentIndex + 1] },
     });
+  }
+
+  /**
+   * Contrôle défensif de cohérence (voir plan-developpement.md, PRD-11) : un batch
+   * sans aucune allocation est un batch antérieur à PRD-11 (aucun backfill, jamais
+   * bloquant — voir ADR 0006) ; en revanche, dès qu'au moins une allocation existe,
+   * la somme de leurs `plannedQuantity` doit toujours égaler `Batch.plannedQuantity`
+   * (invariant garanti à l'écriture par `BatchProductAllocationsService`/
+   * `BatchesService.updatePlannedQuantity`) — une divergence signale une incohérence
+   * réelle, jamais un état historique légitime.
+   */
+  private assertAllocationsConsistent(batch: {
+    plannedQuantity: number;
+    allocations: { plannedQuantity: number }[];
+  }): void {
+    if (batch.allocations.length === 0) {
+      return;
+    }
+    const totalAllocated = batch.allocations.reduce(
+      (sum, allocation) => sum + allocation.plannedQuantity,
+      0,
+    );
+    if (totalAllocated !== batch.plannedQuantity) {
+      throw new BadRequestException(
+        'Les allocations de ce batch ne correspondent plus à sa quantité planifiée ; contactez un administrateur.',
+      );
+    }
   }
 }
