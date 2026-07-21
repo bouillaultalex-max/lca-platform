@@ -4,19 +4,29 @@ import {
   BATCH_STATUS_LABELS,
   BATCH_STEP_LABELS,
   BATCH_STEP_ORDER,
+  type AddBatchProductAllocationRequest,
   type Article,
   type Batch,
   type BatchFeasibilityReport,
+  type BatchProductAllocation,
   type BatchStatus,
   type BatchStop,
   type IngredientQuantity,
   type Machine,
+  type MaterialQuantity,
+  type Market,
+  type PackagingQuantity,
   type Recipe,
 } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { Modal } from '../components/Modal';
+import {
+  getEligibleMarketDeclinations,
+  getEligibleStandaloneProducts,
+  resolveAllocationMode,
+} from '../utils/allocationEligibility';
 
 const inputClass =
   'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
@@ -35,6 +45,61 @@ function formatIngredient(ingredient: IngredientQuantity): string {
     return `${ingredient.articleName} : ${ingredient.volumeL.toFixed(2)} L · ${mass}`;
   }
   return `${ingredient.articleName} : ${ingredient.quantity} ${ingredient.unit}`;
+}
+
+/**
+ * Agrège les besoins packaging de plusieurs allocations par article (voir
+ * BatchClosureService, même principe de sommation avant affichage/comparaison
+ * qu'un article de packaging partagé entre allocations) — ordre déterministe
+ * (ordre d'apparition, lui-même dérivé de l'ordre `createdAt` renvoyé par l'API).
+ */
+function aggregatePackagingByArticle(perAllocation: PackagingQuantity[][]): PackagingQuantity[] {
+  const byArticle = new Map<string, PackagingQuantity>();
+  for (const lines of perAllocation) {
+    for (const line of lines) {
+      const existing = byArticle.get(line.articleId);
+      byArticle.set(
+        line.articleId,
+        existing ? { ...existing, quantity: existing.quantity + line.quantity } : line,
+      );
+    }
+  }
+  return Array.from(byArticle.values());
+}
+
+/**
+ * Aperçu de préparation d'un batch (voir PRD-11, ADR 0006 §4.4bis) : la matière
+ * première est calculée une seule fois sur la recette/quantité du batch (mélange
+ * commun), jamais par allocation ; le packaging est calculé par allocation (sa
+ * propre recette/quantité) puis agrégé par article. Pour un batch sans allocation
+ * (historique) ou à une seule allocation (recette/quantité toujours identiques à
+ * celles du batch, voir BatchProductAllocationsService.createInitialAllocation et
+ * BatchesService.updatePlannedQuantity), un seul appel suffit et reproduit
+ * exactement le comportement antérieur à PRD-11 — évite un appel réseau dupliqué.
+ */
+async function computeBatchPreparation(
+  token: string,
+  batch: Batch,
+  allocations: BatchProductAllocation[],
+): Promise<IngredientQuantity[]> {
+  if (allocations.length <= 1) {
+    return api.getBatchPreparation(token, batch.recipeId, batch.plannedQuantity);
+  }
+
+  const [materialLines, packagingLinesByAllocation] = await Promise.all([
+    api
+      .getBatchPreparation(token, batch.recipeId, batch.plannedQuantity)
+      .then((lines) => lines.filter((line): line is MaterialQuantity => line.kind === 'MATIERE_PREMIERE')),
+    Promise.all(
+      allocations.map((allocation) =>
+        api
+          .getBatchPreparation(token, allocation.recipeId, allocation.plannedQuantity)
+          .then((lines) => lines.filter((line): line is PackagingQuantity => line.kind === 'PACKAGING')),
+      ),
+    ),
+  ]);
+
+  return [...materialLines, ...aggregatePackagingByArticle(packagingLinesByAllocation)];
 }
 
 function PreparationPreview({
@@ -123,6 +188,7 @@ export function ProductionPage() {
 
   const [articles, setArticles] = useState<Article[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [markets, setMarkets] = useState<Market[]>([]);
   const [recipesById, setRecipesById] = useState<Map<string, Recipe>>(new Map());
 
   const [preparation, setPreparation] = useState<IngredientQuantity[]>([]);
@@ -131,9 +197,17 @@ export function ProductionPage() {
   const [stops, setStops] = useState<BatchStop[]>([]);
   const [isLoadingStops, setIsLoadingStops] = useState(false);
 
+  // État centralisé des allocations (voir Ticket Frontend 3) : réutilisé par la
+  // future clôture par allocation et le futur affichage multi-lots, jamais chargé
+  // indépendamment par un sous-composant.
+  const [allocations, setAllocations] = useState<BatchProductAllocation[]>([]);
+  const [isLoadingAllocations, setIsLoadingAllocations] = useState(false);
+  const [allocationsError, setAllocationsError] = useState<string | null>(null);
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [startStopModalOpen, setStartStopModalOpen] = useState(false);
   const [endStopTarget, setEndStopTarget] = useState<BatchStop | null>(null);
+  const [addAllocationModalOpen, setAddAllocationModalOpen] = useState(false);
 
   const [closureBanner, setClosureBanner] = useState<{ batchId: string; lotNumber: string } | null>(null);
   const [launchBanner, setLaunchBanner] = useState<{ batchId: string; message: string } | null>(null);
@@ -146,6 +220,7 @@ export function ProductionPage() {
 
   const articlesById = useMemo(() => new Map(articles.map((a) => [a.id, a])), [articles]);
   const machinesById = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
+  const marketsById = useMemo(() => new Map(markets.map((m) => [m.id, m])), [markets]);
 
   const loadBatches = useCallback(async () => {
     if (!token) return;
@@ -173,6 +248,10 @@ export function ProductionPage() {
     api
       .listMachines(token)
       .then(setMachines)
+      .catch(() => undefined);
+    api
+      .listMarkets(token)
+      .then(setMarkets)
       .catch(() => undefined);
   }, [token]);
 
@@ -209,6 +288,40 @@ export function ProductionPage() {
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId) ?? null;
 
+  // Produit fini de la recette de référence du batch — détermine si le formulaire
+  // d'ajout d'allocation propose un marché (famille commerciale) ou un produit direct.
+  const referenceProduct = useMemo(() => {
+    if (!selectedBatch) return null;
+    const recipe = recipesById.get(selectedBatch.recipeId);
+    if (!recipe) return null;
+    return articlesById.get(recipe.finishedProductId) ?? null;
+  }, [selectedBatch, recipesById, articlesById]);
+
+  const loadAllocations = useCallback(
+    async (batch: Batch) => {
+      if (!token) return;
+      setIsLoadingAllocations(true);
+      setAllocationsError(null);
+      try {
+        const fetched = await api.listBatchAllocations(token, batch.id);
+        setAllocations(fetched);
+        setIsLoadingPreparation(true);
+        try {
+          setPreparation(await computeBatchPreparation(token, batch, fetched));
+        } catch (err) {
+          setActionError(err instanceof ApiError ? err.message : 'Impossible de calculer la préparation.');
+        } finally {
+          setIsLoadingPreparation(false);
+        }
+      } catch (err) {
+        setAllocationsError(err instanceof ApiError ? err.message : 'Impossible de charger les allocations.');
+      } finally {
+        setIsLoadingAllocations(false);
+      }
+    },
+    [token],
+  );
+
   const loadStops = useCallback(
     async (batchId: string) => {
       if (!token) return;
@@ -228,18 +341,18 @@ export function ProductionPage() {
     if (!selectedBatch || !token) {
       setPreparation([]);
       setStops([]);
+      setAllocations([]);
+      setAllocationsError(null);
       return;
     }
     setActionError(null);
-    setIsLoadingPreparation(true);
-    api
-      .getBatchPreparation(token, selectedBatch.recipeId, selectedBatch.plannedQuantity)
-      .then(setPreparation)
-      .catch((err: unknown) => setActionError(err instanceof ApiError ? err.message : 'Impossible de calculer la préparation.'))
-      .finally(() => setIsLoadingPreparation(false));
     void loadStops(selectedBatch.id);
+    void loadAllocations(selectedBatch);
+    // Redéclenché aussi par plannedQuantity : l'ajout d'une allocation (ou l'ajustement
+    // automatique de quantité en cas de faisabilité insuffisante) l'incrémente sans
+    // changer l'id du batch, et doit pourtant recalculer la préparation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBatch?.id, token]);
+  }, [selectedBatch?.id, selectedBatch?.plannedQuantity, token]);
 
   /**
    * Le tout premier passage (statut PLANIFIE, "Démarrer la production") déclenche
@@ -412,6 +525,33 @@ export function ProductionPage() {
                 )}
               </div>
 
+              {/*
+                Un batch avec allocations.length === 0 est traité côté frontend comme un
+                batch historique mono-marché (antérieur à PRD-11) : le backend ne pose
+                aucune garde explicite empêchant d'ajouter une allocation à un tel batch,
+                alors que tout batch créé depuis PRD-11 possède déjà au moins une
+                allocation par construction (voir BatchesService.create). Cette condition
+                n'est donc pas un simple choix d'affichage : elle est ce qui empêche de
+                faire glisser un batch historique dans le nouveau modèle multi-allocation.
+                Affichée aussi pendant le chargement ou en cas d'erreur, pour ne jamais
+                masquer silencieusement un échec de chargement derrière la même condition.
+              */}
+              {(allocations.length > 0 || isLoadingAllocations || allocationsError) && (
+                <AllocationsSection
+                  allocations={allocations}
+                  isLoading={isLoadingAllocations}
+                  error={allocationsError}
+                  articlesById={articlesById}
+                  marketsById={marketsById}
+                  canAddAllocation={
+                    allocations.length > 0 &&
+                    (selectedBatch.status === 'PLANIFIE' ||
+                      (selectedBatch.status === 'EN_COURS' && selectedBatch.currentStep !== 'CONDITIONNEMENT'))
+                  }
+                  onAddClick={() => setAddAllocationModalOpen(true)}
+                />
+              )}
+
               <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
                 <h4 className="mb-2 text-sm font-semibold text-gray-900">Préparation (aperçu)</h4>
                 <PreparationPreview ingredients={preparation} isLoading={isLoadingPreparation} />
@@ -547,6 +687,20 @@ export function ProductionPage() {
           onReturnToPlanning={() => {
             setFeasibilityReport(null);
             setSelectedBatchId(null);
+          }}
+        />
+      )}
+
+      {addAllocationModalOpen && selectedBatch && (
+        <AddAllocationModal
+          batch={selectedBatch}
+          referenceProduct={referenceProduct}
+          articles={articles}
+          allocations={allocations}
+          onClose={() => setAddAllocationModalOpen(false)}
+          onSuccess={async () => {
+            setAddAllocationModalOpen(false);
+            await loadBatches();
           }}
         />
       )}
@@ -1052,5 +1206,185 @@ function CloseBatchSection({
         </form>
       )}
     </div>
+  );
+}
+
+function AllocationsSection({
+  allocations,
+  isLoading,
+  error,
+  articlesById,
+  marketsById,
+  canAddAllocation,
+  onAddClick,
+}: {
+  allocations: BatchProductAllocation[];
+  isLoading: boolean;
+  error: string | null;
+  articlesById: Map<string, Article>;
+  marketsById: Map<string, Market>;
+  canAddAllocation: boolean;
+  onAddClick: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-gray-900">Allocations</h4>
+        {canAddAllocation && (
+          <button onClick={onAddClick} className="text-xs font-medium text-brand hover:underline">
+            + Ajouter une allocation
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Chargement…</p>
+      ) : allocations.length === 0 ? (
+        !error && <p className="text-sm text-gray-500">Aucune allocation.</p>
+      ) : (
+        <ul className="space-y-1 text-sm text-gray-700">
+          {allocations.map((allocation) => (
+            <li key={allocation.id}>
+              {articlesById.get(allocation.productId)?.name ?? 'Produit inconnu'}
+              {allocation.marketId && ` · ${marketsById.get(allocation.marketId)?.label ?? 'Marché inconnu'}`}
+              {' · Quantité prévue : '}
+              {allocation.plannedQuantity}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {allocations.length > 0 && (
+        <p className="mt-2 text-xs text-gray-400">
+          Une allocation ne peut être ni modifiée ni supprimée depuis cette interface.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AddAllocationModal({
+  batch,
+  referenceProduct,
+  articles,
+  allocations,
+  onClose,
+  onSuccess,
+}: {
+  batch: Batch;
+  referenceProduct: Article | null;
+  articles: Article[];
+  allocations: BatchProductAllocation[];
+  onClose: () => void;
+  onSuccess: () => void | Promise<void>;
+}) {
+  const { token } = useAuth();
+  const mode = resolveAllocationMode(referenceProduct);
+
+  const allocatedMarketIds = useMemo(
+    () => allocations.map((a) => a.marketId).filter((id): id is string => id !== null),
+    [allocations],
+  );
+  const allocatedProductIds = useMemo(() => allocations.map((a) => a.productId), [allocations]);
+
+  const options = useMemo(() => {
+    if (mode === 'market') {
+      if (!referenceProduct?.productFamilyId) return [];
+      return getEligibleMarketDeclinations(articles, referenceProduct.productFamilyId, allocatedMarketIds).map(
+        (article) => ({ value: article.marketId as string, label: article.name }),
+      );
+    }
+    return getEligibleStandaloneProducts(articles, allocatedProductIds).map((article) => ({
+      value: article.id,
+      label: article.name,
+    }));
+  }, [mode, referenceProduct, articles, allocatedMarketIds, allocatedProductIds]);
+
+  const [selectedValue, setSelectedValue] = useState('');
+  const [plannedQuantity, setPlannedQuantity] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const quantityValue = Number(plannedQuantity);
+  const isQuantityValid = plannedQuantity !== '' && Number.isInteger(quantityValue) && quantityValue > 0;
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !selectedValue || !isQuantityValid) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const payload: AddBatchProductAllocationRequest =
+        mode === 'market'
+          ? { marketId: selectedValue, plannedQuantity: quantityValue }
+          : { productId: selectedValue, plannedQuantity: quantityValue };
+      await api.addBatchAllocation(token, batch.id, payload);
+      await onSuccess();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Impossible d’ajouter cette allocation.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal title="Ajouter une allocation" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {!referenceProduct ? (
+          <p className="text-sm text-gray-500">Chargement du produit de référence…</p>
+        ) : (
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500">
+              {mode === 'market' ? 'Marché' : 'Produit fini'}
+            </label>
+            <select
+              required
+              value={selectedValue}
+              onChange={(e) => setSelectedValue(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">— Sélectionner —</option>
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {options.length === 0 && (
+              <p className="mt-1 text-xs text-amber-700">
+                {mode === 'market'
+                  ? 'Aucun marché disponible : toutes les déclinaisons de cette famille commerciale sont déjà allouées à ce batch, ou aucune n’a été créée au catalogue.'
+                  : 'Aucun produit fini disponible pour une nouvelle allocation.'}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité planifiée</label>
+          <input
+            required
+            type="number"
+            min="1"
+            step="1"
+            value={plannedQuantity}
+            onChange={(e) => setPlannedQuantity(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={isSubmitting || !selectedValue || !isQuantityValid}
+          className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? 'Ajout…' : 'Ajouter l’allocation'}
+        </button>
+      </form>
+    </Modal>
   );
 }
