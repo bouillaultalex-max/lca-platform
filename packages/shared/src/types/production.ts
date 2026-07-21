@@ -116,14 +116,68 @@ export interface EndBatchStopRequest {
   endedAt: string;
 }
 
-export interface CloseBatchRequest {
+/**
+ * Allocation d'un produit fini/marché à un batch partagé (voir ADR 0006, PRD-11) :
+ * un batch mélange une seule matière première mais peut produire plusieurs sorties
+ * commerciales, chacune avec sa propre recette/marché et son propre lot à la clôture.
+ */
+export interface BatchProductAllocation {
+  id: string;
+  batchId: string;
+  productId: string;
+  recipeId: string;
+  marketId: string | null;
+  plannedQuantity: number;
+  producedQuantity: number | null;
+  rejectedQuantity: number | null;
+  createdAt: string;
+}
+
+export interface AddBatchProductAllocationRequest {
+  /** Marché déjà décliné pour le produit de référence — soit un marché, soit un produit, jamais les deux. */
+  marketId?: string;
+  /** Produit fini sans famille commerciale — soit un marché, soit un produit, jamais les deux. */
+  productId?: string;
+  plannedQuantity: number;
+}
+
+/** Ligne de clôture pour une allocation précise (voir CloseBatchRequestByAllocation). */
+export interface AllocationClosureLine {
+  allocationId: string;
   producedQuantity: number;
   rejectedQuantity: number;
+}
+
+interface CloseBatchRequestCommon {
   endedAt: string;
   formatChanged?: boolean;
   formatChangeDetail?: string;
   expiryDate?: string;
 }
+
+/**
+ * Ancien format (racine) : accepté pour un batch sans allocation (comportement
+ * historique inchangé) et, à titre transitoire, pour un batch à exactement une
+ * allocation — voir apps/api CloseBatchDto.
+ */
+export interface CloseBatchRequestLegacy extends CloseBatchRequestCommon {
+  producedQuantity: number;
+  rejectedQuantity: number;
+  allocations?: undefined;
+}
+
+/**
+ * Nouveau format : obligatoire dès qu'un batch a plusieurs allocations, une
+ * entrée par allocation réelle du batch (bijection stricte) — voir apps/api
+ * CloseBatchDto.
+ */
+export interface CloseBatchRequestByAllocation extends CloseBatchRequestCommon {
+  producedQuantity?: undefined;
+  rejectedQuantity?: undefined;
+  allocations: AllocationClosureLine[];
+}
+
+export type CloseBatchRequest = CloseBatchRequestLegacy | CloseBatchRequestByAllocation;
 
 /** Statut qualité global du lot, calculé côté serveur (voir docs/regles-metier.md §6). */
 export type LotQualityStatus = 'EN_ATTENTE' | 'CONFORME' | 'NON_CONFORME' | 'BLOQUE';
@@ -138,6 +192,8 @@ export const LOT_QUALITY_STATUS_LABELS: Record<LotQualityStatus, string> = {
 export interface Lot {
   id: string;
   batchId: string;
+  /** Allocation d'origine (voir ADR 0006, PRD-11) — `null` pour tout lot antérieur à cette feature. */
+  allocationId: string | null;
   lotNumber: string;
   quantity: number;
   manufacturedAt: string;
@@ -147,5 +203,8 @@ export interface Lot {
 
 export interface BatchClosureResult {
   batch: Batch;
+  /** Un lot par allocation (ou un lot unique pour un batch historique sans allocation). */
+  lots: Lot[];
+  /** Alias temporaire vers `lots[0]`, conservé pour compatibilité avec le frontend actuel. */
   lot: Lot;
 }

@@ -12,6 +12,12 @@ import type {
   Supplier,
   CreateSupplierRequest,
   UpdateSupplierRequest,
+  Market,
+  CreateMarketRequest,
+  UpdateMarketRequest,
+  ProductFamily,
+  CreateProductFamilyRequest,
+  UpdateProductFamilyRequest,
   Recipe,
   CreateRecipeRequest,
   RecipeDraft,
@@ -31,6 +37,8 @@ import type {
   EndBatchStopRequest,
   CloseBatchRequest,
   BatchClosureResult,
+  BatchProductAllocation,
+  AddBatchProductAllocationRequest,
   ImportType,
   ImportLog,
   MappingCorrection,
@@ -267,6 +275,29 @@ export const api = {
   deactivateSupplier: (token: string, id: string): Promise<Supplier> =>
     request<Supplier>(`/catalog/suppliers/${id}`, { method: 'DELETE' }, token),
 
+  listMarkets: (token: string): Promise<Market[]> => request<Market[]>('/catalog/markets', {}, token),
+
+  createMarket: (token: string, payload: CreateMarketRequest): Promise<Market> =>
+    request<Market>('/catalog/markets', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  updateMarket: (token: string, id: string, payload: UpdateMarketRequest): Promise<Market> =>
+    request<Market>(`/catalog/markets/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  deactivateMarket: (token: string, id: string): Promise<Market> =>
+    request<Market>(`/catalog/markets/${id}`, { method: 'DELETE' }, token),
+
+  listProductFamilies: (token: string): Promise<ProductFamily[]> =>
+    request<ProductFamily[]>('/catalog/product-families', {}, token),
+
+  createProductFamily: (token: string, payload: CreateProductFamilyRequest): Promise<ProductFamily> =>
+    request<ProductFamily>('/catalog/product-families', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  updateProductFamily: (token: string, id: string, payload: UpdateProductFamilyRequest): Promise<ProductFamily> =>
+    request<ProductFamily>(`/catalog/product-families/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, token),
+
+  deactivateProductFamily: (token: string, id: string): Promise<ProductFamily> =>
+    request<ProductFamily>(`/catalog/product-families/${id}`, { method: 'DELETE' }, token),
+
   listBatches: (token: string): Promise<Batch[]> => request<Batch[]>('/batching/batches', {}, token),
 
   getBatchPreparation: (token: string, recipeId: string, quantity: number): Promise<IngredientQuantity[]> =>
@@ -303,6 +334,20 @@ export const api = {
 
   closeBatch: (token: string, batchId: string, payload: CloseBatchRequest): Promise<BatchClosureResult> =>
     request<BatchClosureResult>(`/production/batches/${batchId}/close`, { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  listBatchAllocations: (token: string, batchId: string): Promise<BatchProductAllocation[]> =>
+    request<BatchProductAllocation[]>(`/batching/batches/${batchId}/allocations`, {}, token),
+
+  addBatchAllocation: (
+    token: string,
+    batchId: string,
+    payload: AddBatchProductAllocationRequest,
+  ): Promise<BatchProductAllocation> =>
+    request<BatchProductAllocation>(
+      `/batching/batches/${batchId}/allocations`,
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
 
   listImportLogs: (token: string, type?: ImportType): Promise<ImportLog[]> =>
     request<ImportLog[]>(`/import-export/logs${type ? `?type=${type}` : ''}`, {}, token),

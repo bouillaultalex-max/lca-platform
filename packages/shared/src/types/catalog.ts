@@ -29,6 +29,9 @@ export interface Article {
   densityKgPerL: string | null;
   /** Fournisseur principal, matières premières uniquement — un seul par matière en V0.9. */
   supplierId: string | null;
+  /** Famille commerciale et marché de déclinaison, PRODUIT_FINI uniquement — voir ADR 0006 (PRD-11). */
+  productFamilyId: string | null;
+  marketId: string | null;
   active: boolean;
 }
 
@@ -41,6 +44,8 @@ export interface CreateArticleRequest {
   unitsPerCarton?: number;
   densityKgPerL?: number;
   supplierId?: string;
+  productFamilyId?: string;
+  marketId?: string;
 }
 
 /**
@@ -57,6 +62,8 @@ export interface UpdateArticleRequest {
   unitsPerCarton?: number;
   densityKgPerL?: number;
   supplierId?: string;
+  productFamilyId?: string;
+  marketId?: string;
 }
 
 export interface Supplier {
@@ -80,6 +87,41 @@ export interface UpdateSupplierRequest {
   contactName?: string;
   phone?: string;
   email?: string;
+}
+
+/** Marché (destination commerciale ou réglementaire) — voir ADR 0006 (PRD-11). */
+export interface Market {
+  id: string;
+  code: string;
+  label: string;
+  active: boolean;
+}
+
+export interface CreateMarketRequest {
+  code: string;
+  label: string;
+}
+
+export interface UpdateMarketRequest {
+  code?: string;
+  label?: string;
+  active?: boolean;
+}
+
+/** Famille commerciale : regroupe les déclinaisons d'un même produit par marché — voir ADR 0006 (PRD-11). */
+export interface ProductFamily {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface CreateProductFamilyRequest {
+  name: string;
+}
+
+export interface UpdateProductFamilyRequest {
+  name?: string;
+  active?: boolean;
 }
 
 export interface Machine {

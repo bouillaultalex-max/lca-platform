@@ -13,6 +13,8 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
     unitsPerCarton: null,
     densityKgPerL: null,
     supplierId: null,
+    productFamilyId: null,
+    marketId: null,
     active: true,
     ...overrides,
   };
