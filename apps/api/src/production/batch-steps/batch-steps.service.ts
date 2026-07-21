@@ -61,8 +61,7 @@ export class BatchStepsService {
     if (batch.currentStep === null) {
       const feasibility = await this.batchFeasibilityService.checkFeasibility(
         siteId,
-        batch.recipeId,
-        batch.plannedQuantity,
+        batchId,
       );
       if (!feasibility.isFeasible) {
         throw new BadRequestException(

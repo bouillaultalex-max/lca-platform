@@ -95,12 +95,8 @@ export class BatchesController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ): Promise<BatchFeasibilityReport> {
-    const batch = await this.batchesService.findOne(user.siteId, id);
-    return this.batchFeasibilityService.checkFeasibility(
-      user.siteId,
-      batch.recipeId,
-      batch.plannedQuantity,
-    );
+    await this.batchesService.findOne(user.siteId, id);
+    return this.batchFeasibilityService.checkFeasibility(user.siteId, id);
   }
 
   @Patch(':id/planned-quantity')

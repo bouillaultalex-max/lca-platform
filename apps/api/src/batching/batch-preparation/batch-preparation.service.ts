@@ -37,6 +37,13 @@ export type IngredientQuantity = MaterialQuantity | PackagingQuantity;
  * absolue) nécessaire — remplace le calcul aujourd'hui fait manuellement dans un
  * fichier Excel (voir docs/regles-metier.md §12). Calcul pur, à l'affichage
  * uniquement, aucune écriture.
+ *
+ * Volontairement agnostique du batch/de l'allocation appelant(e) (voir ADR 0006,
+ * PRD-11) : `BatchFeasibilityService` l'appelle une fois sur `Batch.recipeId`/
+ * `Batch.plannedQuantity` pour la matière première commune, puis une fois par
+ * `BatchProductAllocation` (sa propre `recipeId`/`plannedQuantity`) pour le
+ * packaging — cette méthode ne change jamais de forme, seule sa réutilisation par
+ * l'appelant diffère.
  */
 @Injectable()
 export class BatchPreparationService {

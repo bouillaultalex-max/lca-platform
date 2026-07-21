@@ -82,7 +82,7 @@ describe('BatchStepsService', () => {
     expect(updateArgs.data.startedAt).toBeInstanceOf(Date);
   });
 
-  it('vérifie la faisabilité avec la recette et la quantité planifiée du batch au premier démarrage', async () => {
+  it('vérifie la faisabilité du batch au premier démarrage', async () => {
     prisma.batch.findFirst.mockResolvedValue(baseBatch);
     prisma.batch.update.mockResolvedValue({});
 
@@ -90,8 +90,7 @@ describe('BatchStepsService', () => {
 
     expect(batchFeasibilityService.checkFeasibility).toHaveBeenCalledWith(
       siteId,
-      baseBatch.recipeId,
-      baseBatch.plannedQuantity,
+      batchId,
     );
   });
 
