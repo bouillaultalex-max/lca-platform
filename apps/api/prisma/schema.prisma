@@ -604,7 +604,7 @@ model Batch {
 
   stops          BatchStop[]
   stockMovements StockMovement[]
-  lot            Lot?
+  lots           Lot[]
   allocations    BatchProductAllocation[]
 
   @@map("batches")
@@ -669,7 +669,11 @@ model Lot {
   id             String                  @id @default(uuid())
   siteId         String                  @map("site_id")
   site           Site                    @relation(fields: [siteId], references: [id])
-  batchId        String                  @unique @map("batch_id")
+  /// Non unique depuis PRD-11 (voir ADR 0006, docs/modele-donnees.md §5) : un batch
+  /// génère désormais un `Lot` par `BatchProductAllocation` — `Batch 1──n Lot`.
+  /// Conservé (dénormalisé) pour tout lot, y compris ceux liés à une allocation, pour
+  /// ne jamais rompre les lectures existantes qui remontent d'un lot à son batch.
+  batchId        String                  @map("batch_id")
   batch          Batch                   @relation(fields: [batchId], references: [id])
   /// Allocation d'origine (voir ADR 0006 et docs/modele-donnees.md §5, PRD-11) —
   /// `null` pour tout lot antérieur à cette feature (`Lot.batch` reste alors l'unique
@@ -690,6 +694,10 @@ model Lot {
 
   genealogyLines LotGenealogy[]
 
+  // Remplace l'index unique implicite retiré ci-dessus : conserve la performance des
+  // lectures par batchId (ex. TraceabilityService, futur BatchClosureService) sans
+  // imposer l'unicité.
+  @@index([batchId])
   @@map("lots")
 }
 
