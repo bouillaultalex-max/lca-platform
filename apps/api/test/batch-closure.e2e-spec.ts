@@ -400,6 +400,35 @@ describe('BatchClosure — clôture multi-allocation (e2e)', () => {
         .send({ endedAt: '2026-07-06T16:00:00.000Z', allocations: [] })
         .expect(400);
     });
+
+    it('compatibilité transitoire : accepte l’ancien format (champs racine) du frontend actuel pour une seule allocation', async () => {
+      await provisionStock(materialArticleId, 100);
+      await provisionStock(packagingRefArticleId, 1000);
+      const batchId = await createBatch(500);
+      await advanceToConditionnement(batchId);
+      const allocationId = await getSoleAllocationId(batchId);
+
+      const response = await request(app.getHttpServer())
+        .post(`/production/batches/${batchId}/close`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          producedQuantity: 480,
+          rejectedQuantity: 20,
+          endedAt: '2026-07-06T16:00:00.000Z',
+        })
+        .expect(200);
+
+      const body = response.body as BatchClosureResponseBody;
+      expect(body.lots).toHaveLength(1);
+      expect(body.lots[0].allocationId).toBe(allocationId);
+      expect(body.lot).toEqual(body.lots[0]);
+
+      const allocation = await prisma.batchProductAllocation.findUniqueOrThrow({
+        where: { id: allocationId },
+      });
+      expect(allocation.producedQuantity).toBe(480);
+      expect(allocation.rejectedQuantity).toBe(20);
+    });
   });
 
   describe('batch à deux allocations', () => {
@@ -429,6 +458,23 @@ describe('BatchClosure — clôture multi-allocation (e2e)', () => {
       await advanceToConditionnement(batchId);
       return { batchId, allocationRefId, allocationSecondId };
     }
+
+    it('rejette l’ancien format (champs racine) dès que le batch a plusieurs allocations', async () => {
+      await provisionStock(materialArticleId, 100);
+      await provisionStock(packagingRefArticleId, 200);
+      await provisionStock(packagingSecondArticleId, 200);
+      const { batchId } = await createTwoAllocationBatch();
+
+      await request(app.getHttpServer())
+        .post(`/production/batches/${batchId}/close`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          producedQuantity: 145,
+          rejectedQuantity: 5,
+          endedAt: '2026-07-06T16:00:00.000Z',
+        })
+        .expect(400);
+    });
 
     it('crée un Lot par allocation, ventile le packaging, répartit la généalogie matière et dérive les agrégats du batch', async () => {
       await provisionStock(materialArticleId, 100); // 15 L nécessaires (150 unités * 0.1 L)

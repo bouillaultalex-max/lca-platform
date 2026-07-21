@@ -522,6 +522,46 @@ describe('BatchClosureService', () => {
       expect(result.lots).toHaveLength(1);
       expect(result.lot).toBe(result.lots[0]);
     });
+
+    it('compatibilité transitoire : accepte l’ancien format (champs racine) pour un batch à une seule allocation', async () => {
+      const result = await service.close(siteId, userId, batchId, {
+        endedAt: historicalDto.endedAt,
+        producedQuantity: 300,
+        rejectedQuantity: 10,
+      });
+
+      expect(tx.lot.create).toHaveBeenCalledTimes(1);
+      const lotArgs = tx.lot.create.mock.calls[0][0] as {
+        data: { allocationId: string; quantity: number };
+      };
+      expect(lotArgs.data.allocationId).toBe('alloc-A');
+      expect(lotArgs.data.quantity).toBe(310);
+
+      expect(tx.batchProductAllocation.update).toHaveBeenCalledWith({
+        where: { id: 'alloc-A' },
+        data: { producedQuantity: 300, rejectedQuantity: 10 },
+      });
+      expect(result.lots).toHaveLength(1);
+      expect(result.lot).toBe(result.lots[0]);
+    });
+
+    it('rejette un payload ambigu (ancien ET nouveau format) même pour une seule allocation', async () => {
+      await expect(
+        service.close(siteId, userId, batchId, {
+          endedAt: historicalDto.endedAt,
+          producedQuantity: 300,
+          rejectedQuantity: 10,
+          allocations: [
+            {
+              allocationId: 'alloc-A',
+              producedQuantity: 300,
+              rejectedQuantity: 10,
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('deux allocations', () => {
@@ -540,6 +580,17 @@ describe('BatchClosureService', () => {
     beforeEach(() => {
       prisma.batch.findFirst.mockResolvedValue(twoAllocationsBatch);
       prisma.batchStop.findFirst.mockResolvedValue(null);
+    });
+
+    it('rejette l’ancien format (champs racine) dès que le batch a plusieurs allocations', async () => {
+      await expect(
+        service.close(siteId, userId, batchId, {
+          endedAt: historicalDto.endedAt,
+          producedQuantity: 450,
+          rejectedQuantity: 15,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
     it('calcule la matière une seule fois (recette de référence, quantité totale) et le packaging par allocation', async () => {

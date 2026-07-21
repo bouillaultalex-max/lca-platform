@@ -468,41 +468,48 @@ export class BatchClosureService {
       dto.allocations !== undefined && dto.allocations.length > 0;
     if (rootFieldsProvided && allocationsProvided) {
       throw new BadRequestException(
-        'Précisez soit producedQuantity/rejectedQuantity (batch sans allocation), soit allocations[], jamais les deux.',
+        'Précisez soit producedQuantity/rejectedQuantity, soit allocations[], jamais les deux.',
       );
     }
   }
 
-  /** Construit la représentation interne unique à partir du DTO, en fonction de la
-   * présence ou non d'allocations réelles sur ce batch — vérifie la bijection stricte
-   * dans le cas avec allocations, et trie les lignes dans l'ordre déterministe
-   * (createdAt croissant, id en second critère). */
+  /**
+   * Construit la représentation interne unique à partir du DTO, en fonction de la
+   * présence ou non d'allocations réelles sur ce batch — trie les lignes dans l'ordre
+   * déterministe (createdAt croissant, id en second critère) dans le cas à plusieurs
+   * allocations.
+   *
+   * Compatibilité transitoire (correction du constat d'intégration du 2026-07-21,
+   * en attendant l'étape 14 — clôture par allocation côté frontend) : un batch à
+   * **exactement une allocation** accepte encore l'ancien format racine
+   * (`producedQuantity`/`rejectedQuantity`), en plus du nouveau format
+   * `allocations[]` — le frontend actuel n'envoie jamais que l'ancien format, quel
+   * que soit le nombre réel d'allocations du batch. Un batch sans allocation
+   * (historique) n'accepte que l'ancien format (comportement inchangé) ; un batch à
+   * plusieurs allocations n'accepte que le nouveau format (comportement inchangé).
+   */
   private buildClosureLines(
     batch: Batch & { allocations: BatchProductAllocation[] },
     dto: CloseBatchDto,
   ): ClosureLine[] {
     if (batch.allocations.length === 0) {
-      if (
-        dto.producedQuantity === undefined ||
-        dto.rejectedQuantity === undefined
-      ) {
-        throw new BadRequestException(
-          'Ce batch ne possède aucune allocation : producedQuantity et rejectedQuantity sont obligatoires.',
-        );
-      }
+      return [this.buildLineFromRootFields(batch.recipeId, null, dto)];
+    }
+
+    const rootFieldsProvided =
+      dto.producedQuantity !== undefined && dto.rejectedQuantity !== undefined;
+    if (batch.allocations.length === 1 && rootFieldsProvided) {
+      const allocation = batch.allocations[0];
       return [
-        {
-          allocationId: null,
-          recipeId: batch.recipeId,
-          producedQuantity: dto.producedQuantity,
-          rejectedQuantity: dto.rejectedQuantity,
-        },
+        this.buildLineFromRootFields(allocation.recipeId, allocation.id, dto),
       ];
     }
 
     if (!dto.allocations || dto.allocations.length === 0) {
       throw new BadRequestException(
-        'Ce batch possède des allocations : le tableau allocations est obligatoire.',
+        batch.allocations.length === 1
+          ? 'Ce batch a une allocation : fournissez producedQuantity/rejectedQuantity, ou le tableau allocations.'
+          : 'Ce batch possède des allocations : le tableau allocations est obligatoire.',
       );
     }
 
@@ -554,5 +561,31 @@ export class BatchClosureService {
         rejectedQuantity: line.rejectedQuantity,
       };
     });
+  }
+
+  /** Construit une `ClosureLine` à partir des champs racine du DTO (ancien format) —
+   * utilisé pour le repli historique (`allocationId: null`) et pour la compatibilité
+   * transitoire d'un batch à une seule allocation (`allocationId` renseigné). */
+  private buildLineFromRootFields(
+    recipeId: string,
+    allocationId: string | null,
+    dto: CloseBatchDto,
+  ): ClosureLine {
+    if (
+      dto.producedQuantity === undefined ||
+      dto.rejectedQuantity === undefined
+    ) {
+      throw new BadRequestException(
+        allocationId === null
+          ? 'Ce batch ne possède aucune allocation : producedQuantity et rejectedQuantity sont obligatoires.'
+          : 'producedQuantity et rejectedQuantity sont obligatoires pour clôturer avec l’ancien format.',
+      );
+    }
+    return {
+      allocationId,
+      recipeId,
+      producedQuantity: dto.producedQuantity,
+      rejectedQuantity: dto.rejectedQuantity,
+    };
   }
 }

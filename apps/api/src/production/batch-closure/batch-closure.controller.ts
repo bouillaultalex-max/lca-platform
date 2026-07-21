@@ -28,7 +28,7 @@ export class BatchClosureController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      "Clôture le batch : saisie finale (quantités, rebuts, heure de fin), génération d'un lot par allocation (ou d'un lot unique pour un batch historique sans allocation) et de leur généalogie, déduction du stock (FIFO) — en une seule transaction. La réponse expose `lots` (officiel) et `lot` (alias temporaire vers le premier lot, pour compatibilité).",
+      "Clôture le batch : saisie finale (quantités, rebuts, heure de fin), génération d'un lot par allocation (ou d'un lot unique pour un batch historique sans allocation) et de leur généalogie, déduction du stock (FIFO) — en une seule transaction. La réponse expose `lots` (officiel) et `lot` (alias temporaire vers le premier lot, pour compatibilité). Payload : `producedQuantity`/`rejectedQuantity` racine pour un batch sans allocation ou à une seule allocation (compatibilité transitoire) ; `allocations[]` obligatoire au-delà d'une allocation.",
   })
   close(
     @CurrentUser() user: AuthenticatedUser,

@@ -38,14 +38,19 @@ export class AllocationClosureDto {
 
 /**
  * Saisie de fin de batch (voir MASTER_SPECIFICATION.md §4.4, docs/regles-metier.md §12,
- * ADR 0006 PRD-11). Deux formes exclusives, selon que le batch possède ou non des
- * allocations (voir BatchClosureService) :
- * - **batch sans allocation** (antérieur à PRD-11, aucun backfill) : `producedQuantity`
- *   et `rejectedQuantity` à la racine ; `allocations` absent ou vide ;
- * - **batch avec allocations** : `allocations[]` obligatoire, une entrée par allocation
- *   réelle du batch (bijection stricte) ; champs racine non utilisés.
- * Fournir les champs racine ET un tableau `allocations` non vide simultanément est
- * un payload ambigu, refusé par le service.
+ * ADR 0006 PRD-11). Forme acceptée selon le nombre d'allocations réelles du batch
+ * (voir BatchClosureService) :
+ * - **batch sans allocation** (antérieur à PRD-11, aucun backfill) : uniquement
+ *   l'ancien format — `producedQuantity`/`rejectedQuantity` à la racine ;
+ *   `allocations` absent ou vide ;
+ * - **batch à exactement une allocation** : **les deux formes sont acceptées**
+ *   (compatibilité transitoire, en attendant l'étape 14 — clôture par allocation côté
+ *   frontend) — soit l'ancien format racine, soit `allocations[]` à une seule entrée ;
+ * - **batch à plusieurs allocations** : uniquement le nouveau format —
+ *   `allocations[]` obligatoire, une entrée par allocation réelle du batch (bijection
+ *   stricte) ; champs racine refusés.
+ * Fournir les champs racine ET un tableau `allocations` non vide simultanément est,
+ * dans tous les cas, un payload ambigu, refusé par le service.
  */
 export class CloseBatchDto {
   @ApiProperty({ example: '2026-07-06T16:00:00.000Z' })
