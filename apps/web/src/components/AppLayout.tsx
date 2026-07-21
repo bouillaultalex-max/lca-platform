@@ -29,6 +29,8 @@ function buildNavItems(fullAccess: boolean, isSystemAdmin: boolean): NavItem[] {
       { to: '/catalog/recipes', label: 'Recettes' },
       { to: '/catalog/machines', label: 'Machines' },
       { to: '/catalog/suppliers', label: 'Fournisseurs' },
+      { to: '/catalog/markets', label: 'Marchés' },
+      { to: '/catalog/product-families', label: 'Familles de produits' },
       { to: '/production', label: 'Production' },
       { to: '/imports', label: 'Imports' },
     );

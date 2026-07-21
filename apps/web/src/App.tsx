@@ -6,6 +6,8 @@ import { CatalogPage } from './pages/CatalogPage';
 import { RecipesPage } from './pages/RecipesPage';
 import { MachinesPage } from './pages/MachinesPage';
 import { SuppliersPage } from './pages/SuppliersPage';
+import { MarketsPage } from './pages/MarketsPage';
+import { ProductFamiliesPage } from './pages/ProductFamiliesPage';
 import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { TraceabilityPage } from './pages/TraceabilityPage';
@@ -79,6 +81,22 @@ function App() {
         element={
           <ProtectedRoute requireFullAccess>
             <SuppliersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/catalog/markets"
+        element={
+          <ProtectedRoute requireFullAccess>
+            <MarketsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/catalog/product-families"
+        element={
+          <ProtectedRoute requireFullAccess>
+            <ProductFamiliesPage />
           </ProtectedRoute>
         }
       />
