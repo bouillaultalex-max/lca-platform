@@ -23,6 +23,8 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { Modal } from '../components/Modal';
+import { PageHeader } from '../components/ui/PageHeader';
+import { SectionCard } from '../components/ui/SectionCard';
 import {
   getEligibleMarketDeclinations,
   getEligibleStandaloneProducts,
@@ -408,18 +410,22 @@ export function ProductionPage() {
 
   return (
     <AppLayout>
-      <h2 className="text-xl font-semibold text-gray-900">Production</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        Création de batch, suivi des étapes de production, gestion des arrêts et clôture.
-      </p>
+      <PageHeader
+        title="Production"
+        description="Création de batch, suivi des étapes de production, gestion des arrêts et clôture."
+      />
 
       {loadError && <p className="mt-4 text-sm text-red-600">{loadError}</p>}
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Colonne gauche : liste des batches */}
-        <div>
+        <SectionCard title="Batches">
           <div className="mb-3 flex flex-wrap items-center gap-2">
+            <label htmlFor="production-status-filter" className="sr-only">
+              Filtrer par statut
+            </label>
             <select
+              id="production-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as BatchStatus | '')}
               className={`${inputClass} w-auto`}
@@ -432,13 +438,13 @@ export function ProductionPage() {
             </select>
             <button
               onClick={() => setCreateModalOpen(true)}
-              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+              className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
             >
               + Créer un batch
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-divider">
             {isLoadingBatches ? (
               <p className="p-4 text-sm text-gray-500">Chargement…</p>
             ) : (
@@ -467,7 +473,7 @@ export function ProductionPage() {
                         setLaunchBanner(null);
                         setFeasibilityReport(null);
                       }}
-                      className={`cursor-pointer transition-colors odd:bg-white even:bg-gray-50/60 ${batch.id === selectedBatchId ? 'bg-brand/10' : 'hover:bg-brand-bg'}`}
+                      className={`cursor-pointer transition-colors odd:bg-white even:bg-gray-50/60 ${batch.id === selectedBatchId ? 'bg-navy/10' : 'hover:bg-surface-muted'}`}
                     >
                       <td className="px-3 py-2">
                         <div className="font-medium text-gray-900">{batchLabel(batch)}</div>
@@ -485,22 +491,18 @@ export function ProductionPage() {
               </table>
             )}
           </div>
-        </div>
+        </SectionCard>
 
         {/* Colonne droite : détail du batch sélectionné */}
         <div>
           {!selectedBatch ? (
-            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-brand-border p-8 text-sm text-gray-500">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-divider p-8 text-sm text-gray-500">
               Sélectionnez un batch pour voir son détail.
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">{batchLabel(selectedBatch)}</h3>
-                  <StatusBadge status={selectedBatch.status} />
-                </div>
-                <p className="mt-1 text-sm text-gray-600">
+              <SectionCard title={batchLabel(selectedBatch)} action={<StatusBadge status={selectedBatch.status} />}>
+                <p className="text-sm text-gray-600">
                   Machine : {machinesById.get(selectedBatch.machineId)?.name ?? selectedBatch.machineId} · Quantité
                   prévue : {selectedBatch.plannedQuantity}
                 </p>
@@ -551,7 +553,7 @@ export function ProductionPage() {
                     {launchBanner.message}
                   </p>
                 )}
-              </div>
+              </SectionCard>
 
               {/*
                 Un batch avec allocations.length === 0 est traité côté frontend comme un
@@ -580,13 +582,11 @@ export function ProductionPage() {
                 />
               )}
 
-              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
-                <h4 className="mb-2 text-sm font-semibold text-gray-900">Préparation (aperçu)</h4>
+              <SectionCard title="Préparation (aperçu)">
                 <PreparationPreview ingredients={preparation} isLoading={isLoadingPreparation} />
-              </div>
+              </SectionCard>
 
-              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
-                <h4 className="mb-3 text-sm font-semibold text-gray-900">Étapes de production</h4>
+              <SectionCard title="Étapes de production">
                 <StepTracker status={selectedBatch.status} currentStep={selectedBatch.currentStep} />
 
                 {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}
@@ -596,7 +596,7 @@ export function ProductionPage() {
                   <button
                     onClick={() => void handleAdvanceStep()}
                     disabled={isCheckingFeasibility}
-                    className="mt-3 rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-3 rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isCheckingFeasibility
                       ? 'Vérification des stocks…'
@@ -605,21 +605,22 @@ export function ProductionPage() {
                         : 'Passer à l’étape suivante'}
                   </button>
                 )}
-              </div>
+              </SectionCard>
 
               {selectedBatch.status === 'EN_COURS' && (
-                <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-gray-900">Arrêts</h4>
-                    {!openStop && (
+                <SectionCard
+                  title="Arrêts"
+                  action={
+                    !openStop && (
                       <button
                         onClick={() => setStartStopModalOpen(true)}
-                        className="text-xs font-medium text-brand hover:underline"
+                        className="text-xs font-medium text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                       >
                         Signaler un arrêt
                       </button>
-                    )}
-                  </div>
+                    )
+                  }
+                >
                   {isLoadingStops ? (
                     <p className="text-sm text-gray-500">Chargement…</p>
                   ) : stops.length === 0 ? (
@@ -640,7 +641,7 @@ export function ProductionPage() {
                           {stop.endedAt === null && (
                             <button
                               onClick={() => setEndStopTarget(stop)}
-                              className="text-xs text-brand hover:underline"
+                              className="text-xs text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                             >
                               Clôturer l’arrêt
                             </button>
@@ -649,7 +650,7 @@ export function ProductionPage() {
                       ))}
                     </ul>
                   )}
-                </div>
+                </SectionCard>
               )}
 
               {selectedBatch.status === 'EN_COURS' && selectedBatch.currentStep === 'CONDITIONNEMENT' && (
@@ -1244,9 +1245,7 @@ function CloseBatchSection({
   }
 
   return (
-    <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
-      <h4 className="mb-3 text-sm font-semibold text-gray-900">Clôture du batch</h4>
-
+    <SectionCard title="Clôture du batch">
       {blocked ? (
         <p className="text-sm text-amber-700">Clôturez l’arrêt en cours avant de clôturer le batch.</p>
       ) : (
@@ -1360,13 +1359,13 @@ function CloseBatchSection({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-md bg-navy px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'Clôture…' : 'Clôturer le batch'}
           </button>
         </form>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1388,16 +1387,19 @@ function AllocationsSection({
   onAddClick: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-gray-900">Allocations</h4>
-        {canAddAllocation && (
-          <button onClick={onAddClick} className="text-xs font-medium text-brand hover:underline">
+    <SectionCard
+      title="Allocations"
+      action={
+        canAddAllocation && (
+          <button
+            onClick={onAddClick}
+            className="text-xs font-medium text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+          >
             + Ajouter une allocation
           </button>
-        )}
-      </div>
-
+        )
+      }
+    >
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {isLoading ? (
@@ -1422,7 +1424,7 @@ function AllocationsSection({
           Une allocation ne peut être ni modifiée ni supprimée depuis cette interface.
         </p>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
