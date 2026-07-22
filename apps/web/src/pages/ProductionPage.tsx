@@ -27,6 +27,7 @@ import {
   getEligibleStandaloneProducts,
   resolveAllocationMode,
 } from '../utils/allocationEligibility';
+import { validateAllocationClosureLines } from '../utils/allocationClosureValidation';
 
 const inputClass =
   'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
@@ -626,11 +627,16 @@ export function ProductionPage() {
 
               {selectedBatch.status === 'EN_COURS' && selectedBatch.currentStep === 'CONDITIONNEMENT' && (
                 <CloseBatchSection
+                  key={selectedBatch.id}
                   batch={selectedBatch}
                   blocked={openStop !== null}
+                  allocations={allocations}
+                  articlesById={articlesById}
+                  marketsById={marketsById}
                   onSuccess={async (lotNumber) => {
                     setClosureBanner({ batchId: selectedBatch.id, lotNumber });
                     await loadBatches();
+                    await loadAllocations(selectedBatch);
                   }}
                 />
               )}
@@ -1101,33 +1107,102 @@ function EndStopModal({
 function CloseBatchSection({
   batch,
   blocked,
+  allocations,
+  articlesById,
+  marketsById,
   onSuccess,
 }: {
   batch: Batch;
   blocked: boolean;
+  allocations: BatchProductAllocation[];
+  articlesById: Map<string, Article>;
+  marketsById: Map<string, Market>;
   onSuccess: (lotNumber: string) => void | Promise<void>;
 }) {
   const { token } = useAuth();
+
+  // Batch historique (antérieur à PRD-11, sans allocation) : le backend n'accepte
+  // que l'ancien format racine pour ce cas (voir BatchClosureService.buildClosureLines) —
+  // formulaire et payload conservés à l'identique.
+  const isHistorical = allocations.length === 0;
   const [producedQuantity, setProducedQuantity] = useState(String(batch.plannedQuantity));
   const [rejectedQuantity, setRejectedQuantity] = useState('0');
+
+  // Un couple conforme/rebuts par allocation. Initialisé une seule fois : aucune
+  // allocation ne peut plus être ajoutée une fois le conditionnement atteint (voir
+  // BatchProductAllocationsService.assertBatchAcceptsNewAllocation), la liste est
+  // donc stable pendant toute la durée de vie de ce composant.
+  const [lines, setLines] = useState<Record<string, { produced: string; rejected: string }>>(() =>
+    Object.fromEntries(
+      allocations.map((allocation) => [
+        allocation.id,
+        { produced: String(allocation.plannedQuantity), rejected: '0' },
+      ]),
+    ),
+  );
+
   const [endedAt, setEndedAt] = useState(() => new Date().toISOString().slice(0, 16));
   const [formatChanged, setFormatChanged] = useState(false);
   const [formatChangeDetail, setFormatChangeDetail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [lineErrors, setLineErrors] = useState<Map<string, string>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function updateLine(allocationId: string, field: 'produced' | 'rejected', value: string) {
+    setLines((prev) => ({ ...prev, [allocationId]: { ...prev[allocationId], [field]: value } }));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) return;
     setError(null);
+    setLineErrors(new Map());
+
+    const commonPayload = {
+      endedAt: new Date(endedAt).toISOString(),
+      formatChanged,
+      formatChangeDetail: formatChanged ? formatChangeDetail : undefined,
+    };
+
+    if (isHistorical) {
+      setIsSubmitting(true);
+      try {
+        const result = await api.closeBatch(token, batch.id, {
+          ...commonPayload,
+          producedQuantity: Number(producedQuantity),
+          rejectedQuantity: Number(rejectedQuantity),
+        });
+        await onSuccess(result.lot.lotNumber);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Impossible de clôturer ce batch.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    const allocationInputs = allocations.map((allocation) => ({
+      allocationId: allocation.id,
+      plannedQuantity: allocation.plannedQuantity,
+      producedQuantity: Number(lines[allocation.id]?.produced ?? ''),
+      rejectedQuantity: Number(lines[allocation.id]?.rejected ?? ''),
+    }));
+
+    const validationErrors = validateAllocationClosureLines(allocationInputs);
+    if (validationErrors.length > 0) {
+      setLineErrors(new Map(validationErrors.map((e) => [e.allocationId, e.message])));
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await api.closeBatch(token, batch.id, {
-        producedQuantity: Number(producedQuantity),
-        rejectedQuantity: Number(rejectedQuantity),
-        endedAt: new Date(endedAt).toISOString(),
-        formatChanged,
-        formatChangeDetail: formatChanged ? formatChangeDetail : undefined,
+        ...commonPayload,
+        allocations: allocationInputs.map(({ allocationId, producedQuantity, rejectedQuantity }) => ({
+          allocationId,
+          producedQuantity,
+          rejectedQuantity,
+        })),
       });
       await onSuccess(result.lot.lotNumber);
     } catch (err) {
@@ -1145,30 +1220,85 @@ function CloseBatchSection({
         <p className="text-sm text-amber-700">Clôturez l’arrêt en cours avant de clôturer le batch.</p>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité conforme</label>
-              <input
-                required
-                type="number"
-                min="0"
-                value={producedQuantity}
-                onChange={(e) => setProducedQuantity(e.target.value)}
-                className={inputClass}
-              />
+          {isHistorical ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité conforme</label>
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  value={producedQuantity}
+                  onChange={(e) => setProducedQuantity(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-gray-500">Rebuts</label>
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  value={rejectedQuantity}
+                  onChange={(e) => setRejectedQuantity(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
             </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-500">Rebuts</label>
-              <input
-                required
-                type="number"
-                min="0"
-                value={rejectedQuantity}
-                onChange={(e) => setRejectedQuantity(e.target.value)}
-                className={inputClass}
-              />
+          ) : (
+            <div className="space-y-3">
+              {allocations.map((allocation) => {
+                const line = lines[allocation.id] ?? { produced: '0', rejected: '0' };
+                const lineError = lineErrors.get(allocation.id);
+                const total = (Number(line.produced) || 0) + (Number(line.rejected) || 0);
+                return (
+                  <div
+                    key={allocation.id}
+                    className={`rounded-md border p-3 ${lineError ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+                  >
+                    {allocations.length > 1 && (
+                      <p className="mb-2 text-sm font-medium text-gray-900">
+                        {articlesById.get(allocation.productId)?.name ?? 'Produit inconnu'}
+                        {allocation.marketId &&
+                          ` · ${marketsById.get(allocation.marketId)?.label ?? 'Marché inconnu'}`}
+                        {' · Quantité prévue : '}
+                        {allocation.plannedQuantity}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-500">Quantité conforme</label>
+                        <input
+                          required
+                          type="number"
+                          min="0"
+                          value={line.produced}
+                          onChange={(e) => updateLine(allocation.id, 'produced', e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-500">Rebuts</label>
+                        <input
+                          required
+                          type="number"
+                          min="0"
+                          value={line.rejected}
+                          onChange={(e) => updateLine(allocation.id, 'rejected', e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      Total conforme + rebuts : {total} (prévu : {allocation.plannedQuantity})
+                    </p>
+                    {lineError && <p className="mt-1 text-xs font-medium text-red-600">{lineError}</p>}
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          )}
+
           <div>
             <label className="mb-1.5 block text-xs font-medium text-gray-500">Heure de fin</label>
             <input
