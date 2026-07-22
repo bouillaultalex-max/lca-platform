@@ -7,6 +7,7 @@ import {
   type AddBatchProductAllocationRequest,
   type Article,
   type Batch,
+  type BatchClosureResult,
   type BatchFeasibilityReport,
   type BatchProductAllocation,
   type BatchStatus,
@@ -28,6 +29,7 @@ import {
   resolveAllocationMode,
 } from '../utils/allocationEligibility';
 import { validateAllocationClosureLines } from '../utils/allocationClosureValidation';
+import { enrichClosureLots, resolveClosureLots, type EnrichedClosureLot } from '../utils/closureLots';
 
 const inputClass =
   'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
@@ -210,7 +212,7 @@ export function ProductionPage() {
   const [endStopTarget, setEndStopTarget] = useState<BatchStop | null>(null);
   const [addAllocationModalOpen, setAddAllocationModalOpen] = useState(false);
 
-  const [closureBanner, setClosureBanner] = useState<{ batchId: string; lotNumber: string } | null>(null);
+  const [closureBanner, setClosureBanner] = useState<{ batchId: string; lots: EnrichedClosureLot[] } | null>(null);
   const [launchBanner, setLaunchBanner] = useState<{ batchId: string; message: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -509,15 +511,40 @@ export function ProductionPage() {
                 )}
 
                 {closureBanner && closureBanner.batchId === selectedBatch.id && (
-                  <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
-                    Lot {closureBanner.lotNumber} généré.{' '}
-                    <Link
-                      to={`/traceability?lotNumber=${encodeURIComponent(closureBanner.lotNumber)}`}
-                      className="underline hover:text-green-900"
-                    >
-                      Voir sa traçabilité
-                    </Link>
-                  </p>
+                  <div className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+                    {closureBanner.lots.length === 1 ? (
+                      <p>
+                        Lot créé : {closureBanner.lots[0].lotNumber}{' '}
+                        <Link
+                          to={`/traceability?lotNumber=${encodeURIComponent(closureBanner.lots[0].lotNumber)}`}
+                          className="underline hover:text-green-900"
+                        >
+                          Voir sa traçabilité
+                        </Link>
+                      </p>
+                    ) : (
+                      <>
+                        <p>{closureBanner.lots.length} lots créés</p>
+                        <ul className="mt-1.5 space-y-1 font-normal">
+                          {closureBanner.lots.map((lot) => (
+                            <li key={lot.lotNumber}>
+                              {lot.lotNumber}
+                              {lot.productName && ` — ${lot.productName}`}
+                              {lot.marketLabel && ` (${lot.marketLabel})`}
+                              {' · Quantité : '}
+                              {lot.quantity}{' '}
+                              <Link
+                                to={`/traceability?lotNumber=${encodeURIComponent(lot.lotNumber)}`}
+                                className="underline hover:text-green-900"
+                              >
+                                Voir sa traçabilité
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
                 )}
                 {launchBanner && launchBanner.batchId === selectedBatch.id && (
                   <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
@@ -633,8 +660,12 @@ export function ProductionPage() {
                   allocations={allocations}
                   articlesById={articlesById}
                   marketsById={marketsById}
-                  onSuccess={async (lotNumber) => {
-                    setClosureBanner({ batchId: selectedBatch.id, lotNumber });
+                  onSuccess={async (result) => {
+                    const lots = resolveClosureLots(result);
+                    setClosureBanner({
+                      batchId: selectedBatch.id,
+                      lots: enrichClosureLots(lots, allocations, articlesById, marketsById),
+                    });
                     await loadBatches();
                     await loadAllocations(selectedBatch);
                   }}
@@ -1117,7 +1148,7 @@ function CloseBatchSection({
   allocations: BatchProductAllocation[];
   articlesById: Map<string, Article>;
   marketsById: Map<string, Market>;
-  onSuccess: (lotNumber: string) => void | Promise<void>;
+  onSuccess: (result: BatchClosureResult) => void | Promise<void>;
 }) {
   const { token } = useAuth();
 
@@ -1172,7 +1203,7 @@ function CloseBatchSection({
           producedQuantity: Number(producedQuantity),
           rejectedQuantity: Number(rejectedQuantity),
         });
-        await onSuccess(result.lot.lotNumber);
+        await onSuccess(result);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Impossible de clôturer ce batch.');
       } finally {
@@ -1204,7 +1235,7 @@ function CloseBatchSection({
           rejectedQuantity,
         })),
       });
-      await onSuccess(result.lot.lotNumber);
+      await onSuccess(result);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Impossible de clôturer ce batch.');
     } finally {
