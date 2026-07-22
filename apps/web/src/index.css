@@ -17,3 +17,29 @@
   --color-accent: #e63462;
   --color-accent-dark: #c81f5c;
 }
+
+/*
+ * Chantier UI-01 (AppShell/Sidebar/Header) : nouvelle identité "LCA Platform",
+ * additive et volontairement séparée de la palette Maison Fuel ci-dessus,
+ * encore utilisée par toutes les pages métier actuelles (aucune n'est
+ * retouchée par ce chantier). Bleu nuit + rouge d'accent pour la structure
+ * générale (sidebar, header) ; les pages migreront progressivement dans de
+ * futurs incréments, jamais par un changement de valeur ici qui repeindrait
+ * silencieusement tout le reste du site.
+ */
+@theme {
+  --color-navy: #0f172a;
+  --color-navy-dark: #0a0f1c;
+  --color-mf-red: #c8102e;
+  --color-mf-red-dark: #a50d25;
+  --color-surface-muted: #f8fafc;
+  --color-divider: #e2e8f0;
+
+  /* Dimensions de structure — consommées via la syntaxe de valeur arbitraire
+     Tailwind (`w-[var(--sidebar-width)]`, etc.), jamais comme classe générée
+     automatiquement, pour rester fiables indépendamment du mapping de
+     namespace Tailwind v4 réellement supporté pour largeur/hauteur. */
+  --sidebar-width: 15rem;
+  --sidebar-width-collapsed: 4.5rem;
+  --header-height: 4rem;
+}
