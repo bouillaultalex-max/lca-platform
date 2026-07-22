@@ -2,7 +2,7 @@
 
 ## Statut
 
-Accepté — 2026-07-16. **Révisé et figé — 2026-07-17** (avant toute implémentation, aucun code écrit sur la version initiale).
+Accepté — 2026-07-16. **Révisé et figé — 2026-07-17** (avant toute implémentation, aucun code écrit sur la version initiale). **Implémenté — 2026-07-22** (voir « Bilan de mise en œuvre » en fin de document).
 
 ## Historique des révisions
 
@@ -144,3 +144,9 @@ Aucun backfill, aucune migration rétroactive. Les batchs antérieurs à cette f
 - `LotNumberGeneratorService` confirme la pertinence de son isolement dès l'origine (`docs/regles-metier.md` §4) : aucune modification interne, seulement des appels supplémentaires.
 - Le calcul de faisabilité (ADR 0005) reste valide dans son principe (double vérification lancement/clôture, jamais de divergence) ; son périmètre de calcul s'étend à l'agrégation du besoin packaging sur toutes les allocations.
 - Si un futur écran nécessite un contrôle similaire "aperçu avant action irréversible, revérifié indépendamment à l'exécution réelle", le même patron pourra être réutilisé (déjà observé avec les imports OpenSi et l'ADR 0005).
+
+## Bilan de mise en œuvre
+
+**Implémenté — 2026-07-22.** Backend (migration Prisma, `catalog/markets`, `catalog/product-families`, `BatchProductAllocationsService`, `BatchFeasibilityService`/`BatchClosureService` étendus) et frontend (`ProductionPage.tsx`, écrans catalogue) développés conformément aux décisions ci-dessus, puis validés par une recette fonctionnelle globale le 2026-07-22 (conclusion : validé avec réserves mineures — voir `PROJECT_STATE.md`).
+
+Aucun écart sur les décisions structurantes (1 à 20) : chemin de traitement unique dans chaque service concerné, agrégats `Batch` authentiques vérifiés par invariants transactionnels, clé de répartition de la généalogie fondée sur la quantité traitée (décision 20), aucun backfill des données historiques (décision 12). Seul écart mineur constaté : la garde empêchant l'ajout d'une allocation à un batch historique (décision 13) n'est posée que côté frontend, pas par une vérification serveur dédiée — risque mineur documenté lors de la recette, non bloquant, correctif de durcissement proposé en suivi.
