@@ -12,6 +12,8 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { Modal } from '../components/Modal';
+import { PageHeader } from '../components/ui/PageHeader';
+import { SectionCard } from '../components/ui/SectionCard';
 
 const ARTICLE_TYPES: ArticleType[] = ['MATIERE_PREMIERE', 'PACKAGING', 'PRODUIT_FINI'];
 
@@ -152,24 +154,32 @@ export function StockPage() {
 
   return (
     <AppLayout>
-      <h2 className="text-xl font-semibold text-gray-900">Stock</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        Stock disponible par article, en unités. L’équivalent en cartons est un calcul d’affichage.
-      </p>
+      <PageHeader
+        title="Stock"
+        description="Stock disponible par article, en unités. L’équivalent en cartons est un calcul d’affichage."
+      />
 
       {loadError && <p className="mt-4 text-sm text-red-600">{loadError}</p>}
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Colonne gauche : liste des articles */}
-        <div>
+        <SectionCard title="Stock">
           <div className="mb-3 flex flex-wrap items-center gap-2">
+            <label htmlFor="stock-search" className="sr-only">
+              Rechercher un article
+            </label>
             <input
+              id="stock-search"
               placeholder="Rechercher (désignation, référence)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className={`${inputClass} max-w-xs`}
             />
+            <label htmlFor="stock-filter-type" className="sr-only">
+              Filtrer par type
+            </label>
             <select
+              id="stock-filter-type"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as ArticleType | '')}
               className={`${inputClass} w-auto`}
@@ -183,7 +193,7 @@ export function StockPage() {
             </select>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-divider">
             {isLoadingItems ? (
               <p className="p-4 text-sm text-gray-500">Chargement…</p>
             ) : (
@@ -209,7 +219,7 @@ export function StockPage() {
                       key={item.id}
                       onClick={() => setSelectedArticleId(item.articleId)}
                       className={`cursor-pointer transition-colors odd:bg-white even:bg-gray-50/60 ${
-                        item.articleId === selectedArticleId ? 'bg-brand/10' : 'hover:bg-brand-bg'
+                        item.articleId === selectedArticleId ? 'bg-navy/10' : 'hover:bg-surface-muted'
                       }`}
                     >
                       <td className="px-3 py-2">
@@ -231,19 +241,18 @@ export function StockPage() {
               </table>
             )}
           </div>
-        </div>
+        </SectionCard>
 
         {/* Colonne droite : détail de l'article sélectionné */}
         <div>
           {!selectedItem ? (
-            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-brand-border p-8 text-sm text-gray-500">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-divider p-8 text-sm text-gray-500">
               Sélectionnez un article pour voir le détail de son stock.
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900">{selectedItem.article.name}</h3>
-                <p className="mt-1 text-sm text-gray-600">
+              <SectionCard title={selectedItem.article.name}>
+                <p className="text-sm text-gray-600">
                   Stock disponible :{' '}
                   <span className="font-medium">
                     {selectedItem.availableQuantity} {selectedItem.article.unitOfMeasure}
@@ -266,7 +275,7 @@ export function StockPage() {
                       </div>
                       <button
                         onClick={() => void handleSaveThreshold()}
-                        className="rounded-md border border-brand-border px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+                        className="rounded-md border border-divider px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                       >
                         Enregistrer
                       </button>
@@ -275,7 +284,7 @@ export function StockPage() {
 
                     <button
                       onClick={() => setReceiveModalOpen(true)}
-                      className="mt-4 rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+                      className="mt-4 rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                     >
                       Réceptionner un lot
                     </button>
@@ -285,54 +294,55 @@ export function StockPage() {
                     Seuil minimum : {selectedItem.minimumThreshold ?? 'non défini'}
                   </p>
                 )}
-              </div>
+              </SectionCard>
 
-              <div className="overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
-                <h4 className="border-b border-brand-border px-4 py-2 text-sm font-semibold text-gray-900">
-                  Lots (ordre FIFO — le plus ancien en premier)
-                </h4>
-                {isLoadingLots ? (
-                  <p className="p-4 text-sm text-gray-500">Chargement…</p>
-                ) : (
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">N° lot</th>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">Reçu le</th>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">Reçu</th>
-                        <th className="px-3 py-2 text-left font-medium text-gray-500">Restant</th>
-                        <th className="px-3 py-2" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {lots.length === 0 && (
+              <SectionCard title="Lots (ordre FIFO — le plus ancien en premier)">
+                <div className="overflow-x-auto rounded-xl border border-divider">
+                  {isLoadingLots ? (
+                    <p className="p-4 text-sm text-gray-500">Chargement…</p>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
                         <tr>
-                          <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
-                            Aucun lot reçu pour cet article.
-                          </td>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">N° lot</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">Reçu le</th>
+                          <th className="px-3 py-2 text-right font-medium text-gray-500">Reçu</th>
+                          <th className="px-3 py-2 text-right font-medium text-gray-500">Restant</th>
+                          <th className="px-3 py-2" />
                         </tr>
-                      )}
-                      {lots.map((lot) => (
-                        <Fragment key={lot.id}>
-                          <tr className="transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg">
-                            <td className="px-3 py-2 font-mono text-xs">{lot.supplierLotNumber}</td>
-                            <td className="px-3 py-2">{lot.receivedAt.slice(0, 10)}</td>
-                            <td className="px-3 py-2">{lot.receivedQuantity}</td>
-                            <td className="px-3 py-2">{lot.remainingQuantity}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-right">
-                              {canWrite && (
-                                <button
-                                  onClick={() => setAdjustLot(lot)}
-                                  className="mr-3 text-xs text-brand hover:underline"
-                                >
-                                  Ajuster
-                                </button>
-                              )}
-                              <button onClick={() => void toggleHistory(lot)} className="text-xs text-gray-600 hover:underline">
-                                {expandedLotId === lot.id ? 'Masquer' : 'Historique'}
-                              </button>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {lots.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                              Aucun lot reçu pour cet article.
                             </td>
                           </tr>
+                        )}
+                        {lots.map((lot) => (
+                          <Fragment key={lot.id}>
+                            <tr className="transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-surface-muted">
+                              <td className="px-3 py-2 font-mono text-xs">{lot.supplierLotNumber}</td>
+                              <td className="px-3 py-2">{lot.receivedAt.slice(0, 10)}</td>
+                              <td className="px-3 py-2 text-right">{lot.receivedQuantity}</td>
+                              <td className="px-3 py-2 text-right">{lot.remainingQuantity}</td>
+                              <td className="px-3 py-2 whitespace-nowrap text-right">
+                                {canWrite && (
+                                  <button
+                                    onClick={() => setAdjustLot(lot)}
+                                    className="mr-3 text-xs text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                                  >
+                                    Ajuster
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => void toggleHistory(lot)}
+                                  className="text-xs text-gray-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                                >
+                                  {expandedLotId === lot.id ? 'Masquer' : 'Historique'}
+                                </button>
+                              </td>
+                            </tr>
                           {expandedLotId === lot.id && (
                             <tr>
                               <td colSpan={5} className="bg-gray-50 px-3 py-2">
@@ -358,8 +368,9 @@ export function StockPage() {
                       ))}
                     </tbody>
                   </table>
-                )}
-              </div>
+                  )}
+                </div>
+              </SectionCard>
             </div>
           )}
         </div>
