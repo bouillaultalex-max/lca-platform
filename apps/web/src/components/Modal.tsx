@@ -20,7 +20,7 @@ export function Modal({
           <button
             onClick={onClose}
             aria-label="Fermer"
-            className="text-gray-400 transition hover:text-gray-600"
+            className="text-gray-400 transition hover:text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
           >
             ✕
           </button>

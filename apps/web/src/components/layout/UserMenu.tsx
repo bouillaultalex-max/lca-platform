@@ -78,7 +78,7 @@ export function UserMenu() {
             role="menuitem"
             to="/change-password"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-2 hover:bg-gray-50"
+            className="block px-3 py-2 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
           >
             Changer mon mot de passe
           </Link>
@@ -89,7 +89,7 @@ export function UserMenu() {
               setIsOpen(false);
               logout();
             }}
-            className="block w-full px-3 py-2 text-left text-red-600 hover:bg-gray-50"
+            className="block w-full px-3 py-2 text-left text-red-600 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
           >
             Se déconnecter
           </button>

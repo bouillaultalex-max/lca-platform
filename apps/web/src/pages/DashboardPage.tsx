@@ -79,8 +79,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div>
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Vue d'ensemble</h2>
+        <SectionCard title="Vue d'ensemble">
           {summaryError && <p className="mb-3 text-sm text-red-600">{summaryError}</p>}
           {isLoadingSummary ? (
             <p className="text-sm text-gray-500">Chargement…</p>
@@ -102,7 +101,7 @@ export function DashboardPage() {
               </SummaryDashboard>
             )
           )}
-        </div>
+        </SectionCard>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <SectionCard title="Actions rapides">
