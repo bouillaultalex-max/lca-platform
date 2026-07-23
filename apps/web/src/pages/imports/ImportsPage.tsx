@@ -17,6 +17,8 @@ import type {
 import { api, ApiError } from '../../api/client';
 import { useAuth } from '../../auth/useAuth';
 import { AppLayout } from '../../components/AppLayout';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { SectionCard } from '../../components/ui/SectionCard';
 import { MappingPanel } from './MappingPanel';
 import { ArticlesPreviewPanel } from './ArticlesPreviewPanel';
 import { StocksPreviewPanel } from './StocksPreviewPanel';
@@ -114,7 +116,7 @@ function WizardStepper({ currentStep }: { currentStep: WizardStepId }) {
                 isDone
                   ? 'rounded-full bg-green-50 px-2.5 py-1 font-medium text-green-700'
                   : isCurrent
-                    ? 'rounded-full bg-brand/10 px-2.5 py-1 font-medium text-brand'
+                    ? 'rounded-full bg-navy/10 px-2.5 py-1 font-medium text-navy'
                     : 'rounded-full bg-gray-100 px-2.5 py-1 text-gray-500'
               }
             >
@@ -157,7 +159,7 @@ function FileDropZone({
       }}
       onClick={() => inputRef.current?.click()}
       className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center transition ${
-        isDragging ? 'border-brand bg-brand/5' : 'border-brand-border bg-white hover:bg-gray-50'
+        isDragging ? 'border-navy bg-navy/5' : 'border-divider bg-white hover:bg-gray-50'
       }`}
     >
       <input
@@ -388,200 +390,208 @@ export function ImportsPage() {
 
   return (
     <AppLayout>
-      <h2 className="text-xl font-semibold text-gray-900">Imports</h2>
-      <p className="text-sm text-gray-500">Importer des fichiers OpenSi (articles, stocks, besoins attendus, inventaire).</p>
+      <div className="space-y-6">
+        <PageHeader
+          title="Imports"
+          description="Importer des fichiers OpenSi (articles, stocks, besoins attendus, inventaire)."
+        />
 
-      {lastLog && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm">
-          <span className="font-medium text-gray-500">Dernier import : </span>
-          {lastLog.fileName} — {formatImportDate(lastLog.importedAt)} —{' '}
-          {lastLog.status === 'VALIDE' ? '✅ Réussi' : lastLog.status === 'ERREUR' ? '❌ Échec' : '⏳ Prévisualisé'}
+        {lastLog && (
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm">
+            <span className="font-medium text-gray-500">Dernier import : </span>
+            {lastLog.fileName} — {formatImportDate(lastLog.importedAt)} —{' '}
+            {lastLog.status === 'VALIDE' ? '✅ Réussi' : lastLog.status === 'ERREUR' ? '❌ Échec' : '⏳ Prévisualisé'}
+          </div>
+        )}
+
+        <div className="flex gap-1 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab('wizard')}
+            className={`rounded-t-md px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy ${
+              activeTab === 'wizard' ? 'border-b-2 border-navy text-navy' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Nouvel import
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`rounded-t-md px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy ${
+              activeTab === 'history' ? 'border-b-2 border-navy text-navy' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Historique
+          </button>
         </div>
-      )}
 
-      <div className="mt-6 flex gap-1 border-b border-gray-200">
-        <button
-          type="button"
-          onClick={() => setActiveTab('wizard')}
-          className={`rounded-t-md px-4 py-2 text-sm font-medium transition ${
-            activeTab === 'wizard' ? 'border-b-2 border-accent text-brand' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Nouvel import
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('history')}
-          className={`rounded-t-md px-4 py-2 text-sm font-medium transition ${
-            activeTab === 'history' ? 'border-b-2 border-accent text-brand' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Historique
-        </button>
-      </div>
+        {activeTab === 'history' ? (
+          <SectionCard title="Historique des imports">
+            <ImportHistoryPanel
+              logs={logs}
+              isLoading={isLoadingLogs}
+              typeFilter={historyTypeFilter}
+              onTypeFilterChange={setHistoryTypeFilter}
+            />
+          </SectionCard>
+        ) : (
+          <div className="space-y-6">
+            <WizardStepper currentStep={step} />
 
-      {activeTab === 'history' ? (
-        <div className="mt-6">
-          <ImportHistoryPanel
-            logs={logs}
-            isLoading={isLoadingLogs}
-            typeFilter={historyTypeFilter}
-            onTypeFilterChange={setHistoryTypeFilter}
-          />
-        </div>
-      ) : (
-        <div className="mt-6 space-y-6">
-          <WizardStepper currentStep={step} />
+            {wizardError && (
+              <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                {wizardError}
+              </p>
+            )}
 
-          {wizardError && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{wizardError}</p>}
-
-          {step === 'type' && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {IMPORT_TYPE_OPTIONS.map((option) => (
-                <button
-                  key={option.type}
-                  type="button"
-                  onClick={() => handleSelectType(option.type)}
-                  className="flex flex-col items-start rounded-xl border border-brand-border bg-white p-4 text-left shadow-sm transition-colors hover:border-brand hover:shadow-md"
-                >
-                  <span className="text-3xl">{option.emoji}</span>
-                  <span className="mt-2 font-semibold text-gray-900">{option.title}</span>
-                  <span className="mt-1 text-xs text-gray-500">{option.description}</span>
-                  {option.note && (
-                    <span className="mt-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      {option.note}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {step === 'file' && <FileDropZone onFileSelected={handleFileSelected} isLoading={isLoadingPreview} />}
-
-          {step === 'mapping' && previewResult && (
-            <div className="space-y-4">
-              <MappingPanel
-                mapping={previewResult.mapping}
-                pendingCorrections={mappingCorrections}
-                onApplyCorrection={handleApplyCorrection}
-              />
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleRevalidateMapping}
-                  disabled={isLoadingPreview || mappingCorrections.length === 0}
-                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isLoadingPreview ? 'Revalidation…' : 'Revalider les colonnes'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep('preview')}
-                  disabled={!previewResult.mappingComplete}
-                  className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Continuer vers l'aperçu →
-                </button>
+            {step === 'type' && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {IMPORT_TYPE_OPTIONS.map((option) => (
+                  <button
+                    key={option.type}
+                    type="button"
+                    onClick={() => handleSelectType(option.type)}
+                    className="flex flex-col items-start rounded-xl border border-divider bg-white p-4 text-left shadow-sm transition-colors hover:border-navy hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                  >
+                    <span className="text-3xl">{option.emoji}</span>
+                    <span className="mt-2 font-semibold text-gray-900">{option.title}</span>
+                    <span className="mt-1 text-xs text-gray-500">{option.description}</span>
+                    {option.note && (
+                      <span className="mt-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        {option.note}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
-              {!previewResult.mappingComplete && (
-                <p className="text-xs text-gray-500">
-                  Complétez les colonnes à vérifier ci-dessus pour continuer.
-                </p>
-              )}
-            </div>
-          )}
+            )}
 
-          {step === 'preview' && previewResult && selectedType === 'ARTICLES' && (
-            <ArticlesPreviewPanel
-              result={previewResult as ArticlesImportPreviewResult}
-              selectedLines={selectedLines}
-              onToggleLine={handleToggleLine}
-              onToggleAll={handleToggleAll}
-              onConfirm={handleConfirm}
-              isConfirming={isConfirming}
-              confirmError={confirmError}
-            />
-          )}
-          {step === 'preview' && previewResult && selectedType === 'STOCKS' && (
-            <StocksPreviewPanel
-              result={previewResult as StocksImportPreviewResult}
-              selectedLines={selectedLines}
-              onToggleLine={handleToggleLine}
-              onToggleAll={handleToggleAll}
-              onConfirm={handleConfirm}
-              isConfirming={isConfirming}
-              confirmError={confirmError}
-            />
-          )}
-          {step === 'preview' && previewResult && selectedType === 'BESOINS_ATTENDUS' && (
-            <ExpectedRequirementsPreviewPanel
-              result={previewResult as ExpectedRequirementsImportPreviewResult}
-              selectedLines={selectedLines}
-              onToggleLine={handleToggleLine}
-              onToggleAll={handleToggleAll}
-              onConfirm={handleConfirm}
-              isConfirming={isConfirming}
-              confirmError={confirmError}
-            />
-          )}
-          {step === 'preview' && previewResult && selectedType === 'INVENTAIRE' && (
-            <InventoryPreviewPanel
-              result={previewResult as InventoryImportPreviewResult}
-              onFinish={resetWizard}
-            />
-          )}
+            {step === 'file' && <FileDropZone onFileSelected={handleFileSelected} isLoading={isLoadingPreview} />}
 
-          {step === 'success' && confirmResult && selectedType === 'ARTICLES' && (
-            <SuccessScreen
-              lines={[
-                `${(confirmResult as ArticlesImportConfirmResult).created} articles créés`,
-                `${(confirmResult as ArticlesImportConfirmResult).updated} articles mis à jour`,
-                ...((confirmResult as ArticlesImportConfirmResult).errors.length === 0 ? ['Aucune erreur'] : []),
-              ]}
-              errorSummary={
-                (confirmResult as ArticlesImportConfirmResult).errors.length > 0
-                  ? `${(confirmResult as ArticlesImportConfirmResult).errors.length} ligne(s) en erreur`
-                  : undefined
-              }
-              onBackToImports={handleBackToImports}
-              onNewImport={resetWizard}
-            />
-          )}
-          {step === 'success' && confirmResult && selectedType === 'STOCKS' && (
-            <SuccessScreen
-              lines={[
-                `${(confirmResult as StocksImportConfirmResult).received} réceptions enregistrées`,
-                ...((confirmResult as StocksImportConfirmResult).errors.length === 0 ? ['Aucune erreur'] : []),
-              ]}
-              errorSummary={
-                (confirmResult as StocksImportConfirmResult).errors.length > 0
-                  ? `${(confirmResult as StocksImportConfirmResult).errors.length} ligne(s) en erreur`
-                  : undefined
-              }
-              onBackToImports={handleBackToImports}
-              onNewImport={resetWizard}
-            />
-          )}
-          {step === 'success' && confirmResult && selectedType === 'BESOINS_ATTENDUS' && (
-            <SuccessScreen
-              lines={[
-                `${(confirmResult as ExpectedRequirementsImportConfirmResult).imported} besoins ajoutés`,
-                ...((confirmResult as ExpectedRequirementsImportConfirmResult).errors.length === 0
-                  ? ['Aucune erreur']
-                  : []),
-              ]}
-              errorSummary={
-                (confirmResult as ExpectedRequirementsImportConfirmResult).errors.length > 0
-                  ? `${(confirmResult as ExpectedRequirementsImportConfirmResult).errors.length} ligne(s) en erreur`
-                  : undefined
-              }
-              onBackToImports={handleBackToImports}
-              onNewImport={resetWizard}
-            />
-          )}
-        </div>
-      )}
+            {step === 'mapping' && previewResult && (
+              <div className="space-y-4">
+                <MappingPanel
+                  mapping={previewResult.mapping}
+                  pendingCorrections={mappingCorrections}
+                  onApplyCorrection={handleApplyCorrection}
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleRevalidateMapping}
+                    disabled={isLoadingPreview || mappingCorrections.length === 0}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isLoadingPreview ? 'Revalidation…' : 'Revalider les colonnes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep('preview')}
+                    disabled={!previewResult.mappingComplete}
+                    className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Continuer vers l'aperçu →
+                  </button>
+                </div>
+                {!previewResult.mappingComplete && (
+                  <p className="text-xs text-gray-500">
+                    Complétez les colonnes à vérifier ci-dessus pour continuer.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {step === 'preview' && previewResult && selectedType === 'ARTICLES' && (
+              <ArticlesPreviewPanel
+                result={previewResult as ArticlesImportPreviewResult}
+                selectedLines={selectedLines}
+                onToggleLine={handleToggleLine}
+                onToggleAll={handleToggleAll}
+                onConfirm={handleConfirm}
+                isConfirming={isConfirming}
+                confirmError={confirmError}
+              />
+            )}
+            {step === 'preview' && previewResult && selectedType === 'STOCKS' && (
+              <StocksPreviewPanel
+                result={previewResult as StocksImportPreviewResult}
+                selectedLines={selectedLines}
+                onToggleLine={handleToggleLine}
+                onToggleAll={handleToggleAll}
+                onConfirm={handleConfirm}
+                isConfirming={isConfirming}
+                confirmError={confirmError}
+              />
+            )}
+            {step === 'preview' && previewResult && selectedType === 'BESOINS_ATTENDUS' && (
+              <ExpectedRequirementsPreviewPanel
+                result={previewResult as ExpectedRequirementsImportPreviewResult}
+                selectedLines={selectedLines}
+                onToggleLine={handleToggleLine}
+                onToggleAll={handleToggleAll}
+                onConfirm={handleConfirm}
+                isConfirming={isConfirming}
+                confirmError={confirmError}
+              />
+            )}
+            {step === 'preview' && previewResult && selectedType === 'INVENTAIRE' && (
+              <InventoryPreviewPanel
+                result={previewResult as InventoryImportPreviewResult}
+                onFinish={resetWizard}
+              />
+            )}
+
+            {step === 'success' && confirmResult && selectedType === 'ARTICLES' && (
+              <SuccessScreen
+                lines={[
+                  `${(confirmResult as ArticlesImportConfirmResult).created} articles créés`,
+                  `${(confirmResult as ArticlesImportConfirmResult).updated} articles mis à jour`,
+                  ...((confirmResult as ArticlesImportConfirmResult).errors.length === 0 ? ['Aucune erreur'] : []),
+                ]}
+                errorSummary={
+                  (confirmResult as ArticlesImportConfirmResult).errors.length > 0
+                    ? `${(confirmResult as ArticlesImportConfirmResult).errors.length} ligne(s) en erreur`
+                    : undefined
+                }
+                onBackToImports={handleBackToImports}
+                onNewImport={resetWizard}
+              />
+            )}
+            {step === 'success' && confirmResult && selectedType === 'STOCKS' && (
+              <SuccessScreen
+                lines={[
+                  `${(confirmResult as StocksImportConfirmResult).received} réceptions enregistrées`,
+                  ...((confirmResult as StocksImportConfirmResult).errors.length === 0 ? ['Aucune erreur'] : []),
+                ]}
+                errorSummary={
+                  (confirmResult as StocksImportConfirmResult).errors.length > 0
+                    ? `${(confirmResult as StocksImportConfirmResult).errors.length} ligne(s) en erreur`
+                    : undefined
+                }
+                onBackToImports={handleBackToImports}
+                onNewImport={resetWizard}
+              />
+            )}
+            {step === 'success' && confirmResult && selectedType === 'BESOINS_ATTENDUS' && (
+              <SuccessScreen
+                lines={[
+                  `${(confirmResult as ExpectedRequirementsImportConfirmResult).imported} besoins ajoutés`,
+                  ...((confirmResult as ExpectedRequirementsImportConfirmResult).errors.length === 0
+                    ? ['Aucune erreur']
+                    : []),
+                ]}
+                errorSummary={
+                  (confirmResult as ExpectedRequirementsImportConfirmResult).errors.length > 0
+                    ? `${(confirmResult as ExpectedRequirementsImportConfirmResult).errors.length} ligne(s) en erreur`
+                    : undefined
+                }
+                onBackToImports={handleBackToImports}
+                onNewImport={resetWizard}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </AppLayout>
   );
 }

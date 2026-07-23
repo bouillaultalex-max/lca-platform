@@ -41,7 +41,7 @@ export function InventoryPreviewPanel({
       {rows.length > 0 && (
         <section>
           <h3 className="text-sm font-semibold text-gray-900">Contenu du fichier ({rows.length} lignes)</h3>
-          <div className="mt-2 max-h-[400px] overflow-auto rounded-lg border border-gray-200">
+          <div className="mt-2 max-h-[400px] overflow-auto rounded-xl border border-divider">
             <table className="min-w-full border-collapse text-sm">
               <thead className="sticky top-0 bg-gray-50">
                 <tr>
@@ -67,7 +67,7 @@ export function InventoryPreviewPanel({
       <button
         type="button"
         onClick={onFinish}
-        className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100"
+        className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
       >
         Terminer
       </button>

@@ -44,6 +44,7 @@ export function ExpectedRequirementsPreviewPanel({
             type="checkbox"
             checked={allSelected}
             onChange={(event) => onToggleAll(event.target.checked, selectableLines)}
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
           />
           Tout sélectionner ({selectedCount} / {selectableLines.length} lignes retenues)
         </label>
@@ -52,7 +53,7 @@ export function ExpectedRequirementsPreviewPanel({
       {toImport.length > 0 && (
         <section>
           <h3 className="text-sm font-semibold text-gray-900">Besoins attendus à ajouter</h3>
-          <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200">
+          <div className="mt-2 overflow-x-auto rounded-xl border border-divider">
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -69,8 +70,10 @@ export function ExpectedRequirementsPreviewPanel({
                     <td className={cellClass}>
                       <input
                         type="checkbox"
+                        aria-label={`Sélectionner la ligne ${row.line}`}
                         checked={selectedLines.has(row.line)}
                         onChange={() => onToggleLine(row.line)}
+                        className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                       />
                     </td>
                     <td className={cellClass}>{row.articleReference}</td>
@@ -114,12 +117,16 @@ export function ExpectedRequirementsPreviewPanel({
       {selectedCount > 0 && (
         <>
           <ReassuranceBox lines={[`${selectedCount} nouveaux besoins attendus`, '0 mise à jour', '0 suppression']} />
-          {confirmError && <p className="text-sm text-red-600">{confirmError}</p>}
+          {confirmError && (
+            <p role="alert" className="text-sm text-red-600">
+              {confirmError}
+            </p>
+          )}
           <button
             type="button"
             onClick={onConfirm}
             disabled={isConfirming}
-            className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isConfirming ? 'Confirmation en cours…' : "Confirmer l'import"}
           </button>

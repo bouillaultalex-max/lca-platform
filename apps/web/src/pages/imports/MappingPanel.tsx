@@ -3,7 +3,7 @@ import type { ColumnMappingSuggestion, MappingCorrection } from '@lca-mes/shared
 import { describeRecognizedField } from './importFormatting';
 
 const selectClass =
-  'w-full rounded-md border border-brand-border px-2 py-1.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
+  'w-full rounded-md border border-divider px-2 py-1.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy';
 
 interface MappingPanelProps {
   mapping: ColumnMappingSuggestion;
@@ -36,7 +36,7 @@ export function MappingPanel({ mapping, pendingCorrections, onApplyCorrection }:
   return (
     <div className="space-y-6">
       {recognizedFields.length > 0 && (
-        <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-divider bg-white p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-900">Colonnes reconnues</h3>
           <p className="mt-1 text-xs text-gray-500">
             Voici comment le logiciel a compris votre fichier. Corrigez uniquement si besoin.
@@ -116,7 +116,7 @@ export function MappingPanel({ mapping, pendingCorrections, onApplyCorrection }:
                       💡 La colonne « {hint.suggestedColumnName} » pourrait convenir.{' '}
                       <button
                         type="button"
-                        className="font-medium text-brand hover:underline"
+                        className="font-medium text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                         onClick={() => onApplyCorrection(field.fieldKey, hint.suggestedColumnName)}
                       >
                         Utiliser cette colonne

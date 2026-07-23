@@ -44,6 +44,7 @@ export function ArticlesPreviewPanel({
             type="checkbox"
             checked={allSelected}
             onChange={(event) => onToggleAll(event.target.checked, selectableLines)}
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
           />
           Tout sélectionner ({selectedCount} / {selectableLines.length} lignes retenues)
         </label>
@@ -52,7 +53,7 @@ export function ArticlesPreviewPanel({
       {toCreate.length > 0 && (
         <section>
           <h3 className="text-sm font-semibold text-gray-900">Nouveaux articles à créer</h3>
-          <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200">
+          <div className="mt-2 overflow-x-auto rounded-xl border border-divider">
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -70,8 +71,10 @@ export function ArticlesPreviewPanel({
                     <td className={cellClass}>
                       <input
                         type="checkbox"
+                        aria-label={`Sélectionner la ligne ${row.line}`}
                         checked={selectedLines.has(row.line)}
                         onChange={() => onToggleLine(row.line)}
+                        className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                       />
                     </td>
                     <td className={cellClass}>{row.openSiReference}</td>
@@ -90,7 +93,7 @@ export function ArticlesPreviewPanel({
       {toUpdate.length > 0 && (
         <section>
           <h3 className="text-sm font-semibold text-gray-900">Articles existants à mettre à jour</h3>
-          <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200">
+          <div className="mt-2 overflow-x-auto rounded-xl border border-divider">
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -105,8 +108,10 @@ export function ArticlesPreviewPanel({
                     <td className={cellClass}>
                       <input
                         type="checkbox"
+                        aria-label={`Sélectionner la ligne ${row.line}`}
                         checked={selectedLines.has(row.line)}
                         onChange={() => onToggleLine(row.line)}
+                        className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                       />
                     </td>
                     <td className={cellClass}>{row.openSiReference}</td>
@@ -117,7 +122,7 @@ export function ArticlesPreviewPanel({
                             <span className="text-gray-500">{change.label} : </span>
                             <span className="text-gray-700">{change.before}</span>
                             <span className="mx-1 text-gray-400">→</span>
-                            <span className="font-medium text-brand">{change.after}</span>
+                            <span className="font-medium text-navy">{change.after}</span>
                           </li>
                         ))}
                       </ul>
@@ -165,12 +170,16 @@ export function ArticlesPreviewPanel({
               '0 suppression',
             ]}
           />
-          {confirmError && <p className="text-sm text-red-600">{confirmError}</p>}
+          {confirmError && (
+            <p role="alert" className="text-sm text-red-600">
+              {confirmError}
+            </p>
+          )}
           <button
             type="button"
             onClick={onConfirm}
             disabled={isConfirming}
-            className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isConfirming ? 'Confirmation en cours…' : "Confirmer l'import"}
           </button>

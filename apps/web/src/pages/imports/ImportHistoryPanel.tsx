@@ -34,7 +34,7 @@ export function ImportHistoryPanel({
       <select
         value={typeFilter}
         onChange={(event) => onTypeFilterChange(event.target.value as ImportType | '')}
-        className="rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        className="rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
       >
         <option value="">Tous les types</option>
         {(Object.entries(IMPORT_TYPE_LABELS) as [ImportType, string][]).map(([value, label]) => (
@@ -44,7 +44,7 @@ export function ImportHistoryPanel({
         ))}
       </select>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-divider bg-white shadow-sm">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>

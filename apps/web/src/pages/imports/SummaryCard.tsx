@@ -4,7 +4,7 @@ export type SummaryCardTone = 'green' | 'blue' | 'amber' | 'red' | 'gray';
 
 const ICON_BADGE_CLASSES: Record<SummaryCardTone, string> = {
   green: 'bg-green-50 text-green-600',
-  blue: 'bg-brand/10 text-brand',
+  blue: 'bg-navy/10 text-navy',
   amber: 'bg-amber-50 text-amber-600',
   red: 'bg-red-50 text-red-600',
   gray: 'bg-gray-100 text-gray-500',
@@ -28,7 +28,7 @@ export function SummaryCard({
   tone: SummaryCardTone;
 }) {
   return (
-    <div className="rounded-xl border border-brand-border bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-divider bg-white p-4 shadow-sm">
       <div className={`inline-flex h-10 w-10 items-center justify-center rounded-lg text-xl ${ICON_BADGE_CLASSES[tone]}`}>
         {icon}
       </div>
