@@ -40,8 +40,8 @@ export function ChangePasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-bg px-4">
-      <div className="w-full max-w-sm rounded-xl border border-brand-border bg-white p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
+      <div className="w-full max-w-sm rounded-xl border border-divider bg-white p-8 shadow-sm">
         <h1 className="mb-1 text-xl font-semibold text-gray-900">Changement de mot de passe</h1>
         <p className="mb-6 text-sm text-gray-500">
           {user?.mustChangePassword
@@ -61,7 +61,7 @@ export function ChangePasswordPage() {
               autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
             />
           </div>
 
@@ -77,7 +77,7 @@ export function ChangePasswordPage() {
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
             />
           </div>
 
@@ -93,16 +93,20 @@ export function ChangePasswordPage() {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-md bg-brand px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-md bg-navy px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'Enregistrement…' : 'Changer le mot de passe'}
           </button>
@@ -111,7 +115,7 @@ export function ChangePasswordPage() {
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100"
+              className="w-full rounded-md border border-divider px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
             >
               Annuler
             </button>
@@ -120,7 +124,7 @@ export function ChangePasswordPage() {
           <button
             type="button"
             onClick={logout}
-            className="w-full text-center text-xs text-gray-400 hover:underline"
+            className="w-full text-center text-xs text-gray-400 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
           >
             Se déconnecter
           </button>
