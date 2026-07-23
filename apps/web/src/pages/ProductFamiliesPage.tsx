@@ -3,12 +3,14 @@ import type { ProductFamily } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
+import { PageHeader } from '../components/ui/PageHeader';
+import { SectionCard } from '../components/ui/SectionCard';
 
 const inputClass =
-  'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
+  'w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy';
 
 const rowClass = (active: boolean) =>
-  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${active ? '' : 'opacity-50'}`;
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-surface-muted ${active ? '' : 'opacity-50'}`;
 
 const emptyForm = { name: '' };
 
@@ -104,131 +106,143 @@ export function ProductFamiliesPage() {
 
   return (
     <AppLayout>
-      <h2 className="text-xl font-semibold text-gray-900">Familles de produits</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        Regroupent les déclinaisons commerciales d'un même produit par marché (ex. "Recharge Lavande" → France,
-        Suisse). La désactivation préserve l'historique.
-      </p>
+      <div className="space-y-6">
+        <PageHeader
+          title="Familles de produits"
+          description={
+            'Regroupent les déclinaisons commerciales d\'un même produit par marché (ex. "Recharge Lavande" → France, Suisse). La désactivation préserve l\'historique.'
+          }
+        />
 
-      <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer une famille commerciale</h3>
-        <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-500">Nom</label>
-            <input
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Ex : Recharge Lavande"
-              className={inputClass}
-            />
-          </div>
+        <SectionCard title="Créer une famille commerciale">
+          <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label htmlFor="product-family-name" className="mb-1.5 block text-xs font-medium text-gray-500">
+                Nom
+              </label>
+              <input
+                id="product-family-name"
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Ex : Recharge Lavande"
+                className={inputClass}
+              />
+            </div>
 
-          <div className="sm:col-span-2 lg:col-span-4">
-            {formError && <p className="mb-2 text-sm text-red-600">{formError}</p>}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSubmitting ? 'Création…' : 'Créer la famille'}
-            </button>
-          </div>
-        </form>
-      </div>
+            <div className="sm:col-span-2 lg:col-span-4">
+              {formError && <p className="mb-2 text-sm text-red-600">{formError}</p>}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting ? 'Création…' : 'Créer la famille'}
+              </button>
+            </div>
+          </form>
+        </SectionCard>
 
-      <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
-        {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
-        {isLoading ? (
-          <p className="p-4 text-sm text-gray-500">Chargement…</p>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Nom</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Statut</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {productFamilies.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
-                    Aucune famille commerciale. Créez-en une ci-dessus avant de pouvoir l'associer à un produit fini.
-                  </td>
-                </tr>
-              )}
-              {productFamilies.map((productFamily) => {
-                const isEditing = editingId === productFamily.id;
-                return (
-                  <tr key={productFamily.id} className={rowClass(productFamily.active)}>
-                    {isEditing && editForm ? (
-                      <>
-                        <td className="px-4 py-2">
-                          <input
-                            value={editForm.name}
-                            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-gray-500">{productFamily.active ? 'Actif' : 'Désactivé'}</td>
-                        <td className="px-4 py-2 text-right whitespace-nowrap">
-                          {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
-                          <button
-                            onClick={() => void handleSaveEdit(productFamily.id)}
-                            className="mr-2 text-xs font-medium text-brand hover:underline"
-                          >
-                            Enregistrer
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditForm(null);
-                            }}
-                            className="text-xs text-gray-500 hover:underline"
-                          >
-                            Annuler
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 font-medium text-gray-900">{productFamily.name}</td>
-                        <td className="px-4 py-2">
-                          <span
-                            className={
-                              productFamily.active
-                                ? 'rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700'
-                                : 'rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500'
-                            }
-                          >
-                            {productFamily.active ? 'Actif' : 'Désactivé'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-right whitespace-nowrap">
-                          <button
-                            onClick={() => startEdit(productFamily)}
-                            className="mr-3 text-xs text-brand hover:underline"
-                          >
-                            Modifier
-                          </button>
-                          {productFamily.active && (
-                            <button
-                              onClick={() => void handleDeactivate(productFamily)}
-                              className="text-xs text-red-600 hover:underline"
-                            >
-                              Désactiver
-                            </button>
-                          )}
-                        </td>
-                      </>
-                    )}
+        <SectionCard title="Familles de produits">
+          {loadError && <p className="mb-4 text-sm text-red-600">{loadError}</p>}
+          {isLoading ? (
+            <p className="text-sm text-gray-500">Chargement…</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-divider">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500">Nom</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500">Statut</th>
+                    <th className="px-4 py-2" />
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {productFamilies.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-6 text-center text-gray-500">
+                        Aucune famille commerciale. Créez-en une ci-dessus avant de pouvoir l'associer à un produit fini.
+                      </td>
+                    </tr>
+                  )}
+                  {productFamilies.map((productFamily) => {
+                    const isEditing = editingId === productFamily.id;
+                    return (
+                      <tr key={productFamily.id} className={rowClass(productFamily.active)}>
+                        {isEditing && editForm ? (
+                          <>
+                            <td className="px-4 py-2">
+                              <label htmlFor={`product-family-edit-name-${productFamily.id}`} className="sr-only">
+                                Nom
+                              </label>
+                              <input
+                                id={`product-family-edit-name-${productFamily.id}`}
+                                aria-label="Nom"
+                                value={editForm.name}
+                                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                className="w-full rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-gray-500">{productFamily.active ? 'Actif' : 'Désactivé'}</td>
+                            <td className="px-4 py-2 text-right whitespace-nowrap">
+                              {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
+                              <button
+                                onClick={() => void handleSaveEdit(productFamily.id)}
+                                className="mr-2 text-xs font-medium text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                              >
+                                Enregistrer
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingId(null);
+                                  setEditForm(null);
+                                }}
+                                className="text-xs text-gray-500 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                              >
+                                Annuler
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-2 font-medium text-gray-900">{productFamily.name}</td>
+                            <td className="px-4 py-2">
+                              <span
+                                className={
+                                  productFamily.active
+                                    ? 'rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700'
+                                    : 'rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500'
+                                }
+                              >
+                                {productFamily.active ? 'Actif' : 'Désactivé'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-right whitespace-nowrap">
+                              <button
+                                onClick={() => startEdit(productFamily)}
+                                className="mr-3 text-xs text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                              >
+                                Modifier
+                              </button>
+                              {productFamily.active && (
+                                <button
+                                  onClick={() => void handleDeactivate(productFamily)}
+                                  className="text-xs text-red-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                                >
+                                  Désactiver
+                                </button>
+                              )}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
       </div>
     </AppLayout>
   );
