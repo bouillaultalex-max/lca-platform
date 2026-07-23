@@ -22,7 +22,8 @@ import { StockFifoService } from './stock-fifo/stock-fifo.service';
   // StockFifoService : injecté par `production` pour la déduction de stock à la
   // clôture d'un batch. StockLotsService : réutilisé par `import-export` (Import
   // Stocks) pour réceptionner chaque ligne valide via receive(), sans dupliquer
-  // sa logique (voir docs/adr).
-  exports: [StockFifoService, StockLotsService],
+  // sa logique (voir docs/adr). StockItemsService : réutilisé par `assistant`
+  // (outils stock.getArticleAvailability / stock.listLowStockItems, voir AI-03).
+  exports: [StockFifoService, StockLotsService, StockItemsService],
 })
 export class StockModule {}

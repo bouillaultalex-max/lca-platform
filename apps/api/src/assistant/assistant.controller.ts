@@ -26,7 +26,7 @@ export class AssistantController {
   @ApiOperation({
     summary:
       "Envoie un message à l'assistant et reçoit la réponse en flux (Server-Sent Events). " +
-      'Infrastructure uniquement (AI-02) : aucun outil métier, réponse simulée.',
+      'Aucune action métier : les outils enregistrés (AI-03) sont en lecture seule.',
   })
   async streamMessage(
     @CurrentUser() user: AuthenticatedUser,
@@ -46,9 +46,14 @@ export class AssistantController {
     // Annulation : le client ferme la connexion (bouton "Arrêter", changement de
     // page, timeout réseau) → on cesse d'écrire dans le flux dès l'événement en
     // cours traité, sans jamais tenter d'écrire après la fermeture du socket.
+    // `abortController` (AI-03) propage cette même annulation jusqu'au
+    // fournisseur IA (voir AssistantService/AiProvider), pas seulement à
+    // l'écriture HTTP.
     let closed = false;
+    const abortController = new AbortController();
     req.on('close', () => {
       closed = true;
+      abortController.abort();
     });
 
     const heartbeat = setInterval(() => {
@@ -59,6 +64,7 @@ export class AssistantController {
       for await (const event of this.assistantService.streamMessage(
         user,
         dto,
+        abortController.signal,
       )) {
         if (closed) break;
         res.write(`data: ${JSON.stringify(event)}\n\n`);

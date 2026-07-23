@@ -7,7 +7,7 @@ describe('ToolRegistryService', () => {
   const sampleTool: ToolDefinition = {
     name: 'sample.tool',
     description: 'Outil de test.',
-    inputSchema: {},
+    inputSchema: undefined,
     permission: { kind: 'authenticated' },
     category: 'read',
     handler: () => Promise.resolve({}),

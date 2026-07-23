@@ -59,11 +59,15 @@ export class AssistantService {
    * Flux d'événements SSE pour un message envoyé par l'utilisateur — voir
    * AssistantController pour l'écriture réelle des trames HTTP. Générateur
    * asynchrone : le contrôleur peut arrêter la consommation à tout moment
-   * (annulation côté client) sans logique supplémentaire ici.
+   * (annulation côté client). `signal` (AI-03) est transmis tel quel au
+   * fournisseur et vérifié entre chaque fragment, pour cesser d'interroger le
+   * fournisseur dès l'annulation — sans quoi seule l'écriture HTTP s'arrêterait
+   * (voir AssistantController), pas la génération elle-même.
    */
   async *streamMessage(
     user: AuthenticatedUser,
     dto: SendAssistantMessageDto,
+    signal: AbortSignal,
   ): AsyncGenerator<AssistantSseEvent> {
     const startedAt = Date.now();
     const model = this.configService.get<string>('AI_MODEL')!;
@@ -114,11 +118,16 @@ export class AssistantService {
           model,
           maxOutputTokens,
         },
+        signal,
       );
       const iterator = stream[Symbol.asyncIterator]();
       const deadline = startedAt + requestTimeoutMs;
 
       while (true) {
+        // Annulation cliente : arrêt propre (pas une erreur), avant même de
+        // redemander un fragment au fournisseur — voir AI-03.
+        if (signal.aborted) break;
+
         const remainingMs = deadline - Date.now();
         if (remainingMs <= 0) {
           throw new Error(TIMEOUT_MESSAGE);
@@ -161,7 +170,11 @@ export class AssistantService {
         });
       }
 
-      yield { type: 'done' };
+      // Pas de `done` si le client a déjà annulé : plus personne n'écoute
+      // (voir AssistantController), et ce n'est pas une erreur à signaler.
+      if (!signal.aborted) {
+        yield { type: 'done' };
+      }
       this.logOutcome(user, conversation.id, model, startedAt, true);
     } catch (err) {
       this.logOutcome(user, conversation.id, model, startedAt, false, err);

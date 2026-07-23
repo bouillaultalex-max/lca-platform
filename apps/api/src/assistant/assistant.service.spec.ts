@@ -18,6 +18,7 @@ describe('AssistantService', () => {
   };
   let aiProvider: { streamResponse: jest.Mock };
   let configValues: Record<string, unknown>;
+  let signal: AbortSignal;
 
   const siteId = 'site-1';
   const userId = 'user-1';
@@ -67,6 +68,7 @@ describe('AssistantService', () => {
       AI_REQUEST_TIMEOUT_MS: 5000,
       AI_MAX_OUTPUT_TOKENS: 256,
     };
+    signal = new AbortController().signal;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -95,7 +97,7 @@ describe('AssistantService', () => {
     prisma.aiMessage.create.mockResolvedValue({});
 
     const events = await collect(
-      service.streamMessage(user, { content: 'Bonjour' }),
+      service.streamMessage(user, { content: 'Bonjour' }, signal),
     );
 
     expect(prisma.aiConversation.create).toHaveBeenCalledWith({
@@ -120,10 +122,11 @@ describe('AssistantService', () => {
     prisma.aiMessage.create.mockResolvedValue({});
 
     const events = await collect(
-      service.streamMessage(user, {
-        conversationId: 'conv-2',
-        content: 'Suite',
-      }),
+      service.streamMessage(
+        user,
+        { conversationId: 'conv-2', content: 'Suite' },
+        signal,
+      ),
     );
 
     expect(prisma.aiConversation.findFirst).toHaveBeenCalledWith({
@@ -140,10 +143,11 @@ describe('AssistantService', () => {
     prisma.aiConversation.findFirst.mockResolvedValue(null);
 
     const events = await collect(
-      service.streamMessage(user, {
-        conversationId: 'inconnue',
-        content: 'Salut',
-      }),
+      service.streamMessage(
+        user,
+        { conversationId: 'inconnue', content: 'Salut' },
+        signal,
+      ),
     );
 
     expect(events).toEqual([
@@ -167,7 +171,7 @@ describe('AssistantService', () => {
       { type: 'done' },
     ]);
 
-    await collect(service.streamMessage(user, { content: 'Salut' }));
+    await collect(service.streamMessage(user, { content: 'Salut' }, signal));
 
     expect(prisma.aiMessage.create).toHaveBeenNthCalledWith(1, {
       data: { conversationId: 'conv-3', role: 'USER', content: 'Salut' },
@@ -177,7 +181,7 @@ describe('AssistantService', () => {
     });
   });
 
-  it('transmet la liste des outils du registre (vide en AI-02) au fournisseur', async () => {
+  it('transmet la liste des outils du registre (vide dans ce test, ToolRegistryService fraîchement instancié) et le signal au fournisseur', async () => {
     prisma.aiConversation.create.mockResolvedValue({
       id: 'conv-4',
       siteId,
@@ -187,7 +191,7 @@ describe('AssistantService', () => {
     });
     prisma.aiMessage.create.mockResolvedValue({});
 
-    await collect(service.streamMessage(user, { content: 'Salut' }));
+    await collect(service.streamMessage(user, { content: 'Salut' }, signal));
 
     expect(aiProvider.streamResponse).toHaveBeenCalledWith(
       expect.any(Array),
@@ -196,6 +200,7 @@ describe('AssistantService', () => {
         model: 'stub-echo',
         maxOutputTokens: 256,
       },
+      signal,
     );
   });
 
@@ -213,7 +218,7 @@ describe('AssistantService', () => {
     ]);
 
     const events = await collect(
-      service.streamMessage(user, { content: 'Salut' }),
+      service.streamMessage(user, { content: 'Salut' }, signal),
     );
 
     expect(events).toContainEqual({
@@ -242,12 +247,67 @@ describe('AssistantService', () => {
       });
 
     const events = await collect(
-      service.streamMessage(user, { content: 'Salut' }),
+      service.streamMessage(user, { content: 'Salut' }, signal),
     );
 
     expect(events).toContainEqual({
       type: 'error',
       message: 'Une erreur est survenue pendant la génération de la réponse.',
+    });
+  });
+
+  describe('annulation (AbortSignal)', () => {
+    it('ne demande aucun fragment au fournisseur si le signal est déjà annulé', async () => {
+      prisma.aiConversation.create.mockResolvedValue({
+        id: 'conv-7',
+        siteId,
+        userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.aiMessage.create.mockResolvedValue({});
+      const controller = new AbortController();
+      controller.abort();
+
+      const events = await collect(
+        service.streamMessage(user, { content: 'Salut' }, controller.signal),
+      );
+
+      // Seul l'événement "conversation" est émis : ni fragment, ni "done" (le
+      // client est déjà parti, voir AssistantController), ni erreur.
+      expect(events).toEqual([
+        { type: 'conversation', conversationId: 'conv-7' },
+      ]);
+      // Le message utilisateur reste persisté (déjà écrit avant la boucle
+      // d'appel au fournisseur), mais jamais de réponse assistant.
+      expect(prisma.aiMessage.create).toHaveBeenCalledTimes(1);
+      expect(prisma.aiMessage.create).toHaveBeenCalledWith({
+        data: { conversationId: 'conv-7', role: 'USER', content: 'Salut' },
+      });
+    });
+
+    it('transmet le signal reçu au fournisseur sans le remplacer', async () => {
+      prisma.aiConversation.create.mockResolvedValue({
+        id: 'conv-8',
+        siteId,
+        userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.aiMessage.create.mockResolvedValue({});
+      const controller = new AbortController();
+
+      await collect(
+        service.streamMessage(user, { content: 'Salut' }, controller.signal),
+      );
+
+      const [, , , passedSignal] = aiProvider.streamResponse.mock.calls[0] as [
+        unknown,
+        unknown,
+        unknown,
+        AbortSignal,
+      ];
+      expect(passedSignal).toBe(controller.signal);
     });
   });
 });

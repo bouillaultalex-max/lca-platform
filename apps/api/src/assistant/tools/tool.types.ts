@@ -32,9 +32,13 @@ export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   /** Nom stable, convention "domaine.verbeObjet" (ex: stock.getArticleAvailability). */
   name: string;
   description: string;
-  /** Schéma de validation de l'entrée. Type précis volontairement différé à
-   * l'ajout du premier outil réel (AI-03) : AI-02 ne définit que l'emplacement. */
-  inputSchema: unknown;
+  /**
+   * Classe DTO validée via `class-validator` (mêmes décorateurs et la même
+   * discipline — whitelist, rejet des champs inattendus — que le `ValidationPipe`
+   * global des endpoints HTTP, voir validate-tool-input.util.ts), ou `undefined`
+   * si l'outil ne prend aucun paramètre (voir AI-03).
+   */
+  inputSchema: (new () => TInput) | undefined;
   permission: ToolPermission;
   category: ToolCategory;
   handler: (user: AuthenticatedUser, input: TInput) => Promise<TOutput>;

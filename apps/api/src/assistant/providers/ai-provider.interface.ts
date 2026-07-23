@@ -28,15 +28,18 @@ export interface AiProviderOptions {
 
 /**
  * Contrat minimal qu'un fournisseur IA doit respecter. `tools` provient toujours
- * du registre (voir tools/tool-registry.service.ts), vide en AI-02 : un
- * fournisseur réel branché plus tard (AI-03+) recevra la liste à jour sans
- * qu'AssistantService ait besoin d'être modifié pour la lui transmettre.
+ * du registre (voir tools/tool-registry.service.ts). `signal` est propagé depuis
+ * la requête HTTP (voir AssistantController) en passant par AssistantService,
+ * sans rien changer d'autre à cette chaîne (AI-03) : une implémentation réelle
+ * doit le transmettre à son appel réseau sous-jacent (ex: `fetch(url, { signal })`,
+ * même principe que FeedbackWebhookService) pour honorer l'annulation cliente.
  */
 export interface AiProvider {
   streamResponse(
     messages: AiProviderMessage[],
     tools: ToolDefinition[],
     options: AiProviderOptions,
+    signal: AbortSignal,
   ): AsyncIterable<AiProviderStreamChunk>;
 }
 

@@ -21,5 +21,8 @@ import { LotNumberGeneratorService } from './lot-number-generator/lot-number-gen
     BatchClosureService,
     LotNumberGeneratorService,
   ],
+  // BatchStopsService : réutilisé par `assistant` (outil production.getBatch,
+  // voir AI-03).
+  exports: [BatchStopsService],
 })
 export class ProductionModule {}

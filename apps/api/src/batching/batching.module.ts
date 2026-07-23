@@ -20,7 +20,9 @@ import { BatchProductAllocationsService } from './batch-product-allocations/batc
   // bloquer le lancement d'un batch si les stocks sont insuffisants.
   // BatchProductAllocationsService sera réutilisé par BatchesService.create (étape 6,
   // PRD-11) et par BatchClosureService (étape 10, module `production`).
+  // BatchesService : réutilisé par `assistant` (outil production.getBatch, voir AI-03).
   exports: [
+    BatchesService,
     BatchPreparationService,
     BatchFeasibilityService,
     BatchProductAllocationsService,
