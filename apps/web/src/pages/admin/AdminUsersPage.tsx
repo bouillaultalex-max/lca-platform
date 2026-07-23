@@ -8,6 +8,8 @@ import {
 import { api, ApiError } from '../../api/client';
 import { useAuth } from '../../auth/useAuth';
 import { AppLayout } from '../../components/AppLayout';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { SectionCard } from '../../components/ui/SectionCard';
 
 const ROLES: UserRole[] = ['RESPONSABLE_LABORATOIRE', 'RESPONSABLE_ADJOINT', 'DIRECTION', 'DAF'];
 
@@ -33,7 +35,7 @@ function formatDate(value: string | null): string {
 }
 
 const rowClass = (active: boolean) =>
-  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${active ? '' : 'opacity-50'}`;
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-surface-muted ${active ? '' : 'opacity-50'}`;
 
 export function AdminUsersPage() {
   const { token, user: currentUser } = useAuth();
@@ -205,114 +207,133 @@ export function AdminUsersPage() {
 
   return (
     <AppLayout>
-      <h2 className="text-xl font-semibold text-gray-900">Administration des utilisateurs</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        Création et gestion des comptes nominatifs. La désactivation empêche immédiatement toute connexion, sans
-        supprimer l'historique du compte.
-      </p>
+      <div className="space-y-6">
+        <PageHeader
+          title="Administration des utilisateurs"
+          description="Création et gestion des comptes nominatifs. La désactivation empêche immédiatement toute connexion, sans supprimer l'historique du compte."
+        />
 
-      {temporaryPasswordInfo && (
-        <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900">
-            Mot de passe temporaire pour {temporaryPasswordInfo.email}
-          </p>
-          <p className="mt-1 font-mono text-lg text-amber-900">{temporaryPasswordInfo.password}</p>
-          <p className="mt-2 text-xs text-amber-800">
-            Notez-le maintenant et transmettez-le à la personne concernée : il ne sera plus jamais affiché. Le
-            changement de mot de passe sera exigé à la première connexion.
-          </p>
-          <button
-            onClick={() => setTemporaryPasswordInfo(null)}
-            className="mt-3 rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
-          >
-            J'ai noté le mot de passe
-          </button>
-        </div>
-      )}
-
-      {/* Création d'un compte utilisateur */}
-      <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer un compte utilisateur</h3>
-        <form onSubmit={handleCreateUser} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-500">Nom complet</label>
-            <input
-              required
-              value={userForm.fullName}
-              onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-500">Adresse e-mail</label>
-            <input
-              required
-              type="email"
-              value={userForm.email}
-              onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-500">Fonction métier</label>
-            <select
-              required
-              value={userForm.jobTitleId}
-              onChange={(e) => setUserForm({ ...userForm, jobTitleId: e.target.value })}
-              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-            >
-              <option value="">Sélectionner…</option>
-              {activeJobTitles.map((jobTitle) => (
-                <option key={jobTitle.id} value={jobTitle.id}>
-                  {jobTitle.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-500">Rôle logiciel</label>
-            <select
-              value={userForm.role}
-              onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
-              className="w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-            >
-              {ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {USER_ROLE_LABELS[role]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={userForm.isSystemAdmin}
-                onChange={(e) => setUserForm({ ...userForm, isSystemAdmin: e.target.checked })}
-              />
-              Administrateur système
-            </label>
-          </div>
-
-          <div className="sm:col-span-2 lg:col-span-5">
-            {userFormError && <p className="mb-2 text-sm text-red-600">{userFormError}</p>}
+        {temporaryPasswordInfo && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-900">
+              Mot de passe temporaire pour {temporaryPasswordInfo.email}
+            </p>
+            <p className="mt-1 font-mono text-lg text-amber-900">{temporaryPasswordInfo.password}</p>
+            <p className="mt-2 text-xs text-amber-800">
+              Notez-le maintenant et transmettez-le à la personne concernée : il ne sera plus jamais affiché. Le
+              changement de mot de passe sera exigé à la première connexion.
+            </p>
             <button
-              type="submit"
-              disabled={isCreatingUser}
-              className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => setTemporaryPasswordInfo(null)}
+              className="mt-3 rounded-md border border-amber-300 px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
             >
-              {isCreatingUser ? 'Création…' : 'Créer le compte'}
+              J'ai noté le mot de passe
             </button>
           </div>
-        </form>
-      </div>
+        )}
 
-      {/* Liste des utilisateurs */}
-      <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
-        {loadError && <p className="p-4 text-sm text-red-600">{loadError}</p>}
-        {isLoading ? (
-          <p className="p-4 text-sm text-gray-500">Chargement…</p>
-        ) : (
+        <SectionCard title="Créer un compte utilisateur">
+          <form onSubmit={handleCreateUser} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div>
+              <label htmlFor="admin-user-fullname" className="mb-1.5 block text-xs font-medium text-gray-500">
+                Nom complet
+              </label>
+              <input
+                id="admin-user-fullname"
+                required
+                value={userForm.fullName}
+                onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
+                className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+              />
+            </div>
+            <div>
+              <label htmlFor="admin-user-email" className="mb-1.5 block text-xs font-medium text-gray-500">
+                Adresse e-mail
+              </label>
+              <input
+                id="admin-user-email"
+                required
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+              />
+            </div>
+            <div>
+              <label htmlFor="admin-user-jobtitle" className="mb-1.5 block text-xs font-medium text-gray-500">
+                Fonction métier
+              </label>
+              <select
+                id="admin-user-jobtitle"
+                required
+                value={userForm.jobTitleId}
+                onChange={(e) => setUserForm({ ...userForm, jobTitleId: e.target.value })}
+                className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+              >
+                <option value="">Sélectionner…</option>
+                {activeJobTitles.map((jobTitle) => (
+                  <option key={jobTitle.id} value={jobTitle.id}>
+                    {jobTitle.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="admin-user-role" className="mb-1.5 block text-xs font-medium text-gray-500">
+                Rôle logiciel
+              </label>
+              <select
+                id="admin-user-role"
+                value={userForm.role}
+                onChange={(e) => setUserForm({ ...userForm, role: e.target.value as UserRole })}
+                className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+              >
+                {ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {USER_ROLE_LABELS[role]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={userForm.isSystemAdmin}
+                  onChange={(e) => setUserForm({ ...userForm, isSystemAdmin: e.target.checked })}
+                  className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                />
+                Administrateur système
+              </label>
+            </div>
+
+            <div className="sm:col-span-2 lg:col-span-5">
+              {userFormError && (
+                <p role="alert" className="mb-2 text-sm text-red-600">
+                  {userFormError}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={isCreatingUser}
+                className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCreatingUser ? 'Création…' : 'Créer le compte'}
+              </button>
+            </div>
+          </form>
+        </SectionCard>
+
+        <SectionCard title="Utilisateurs">
+          {loadError && (
+            <p role="alert" className="mb-4 text-sm text-red-600">
+              {loadError}
+            </p>
+          )}
+          {isLoading ? (
+            <p className="text-sm text-gray-500">Chargement…</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-divider">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
@@ -341,25 +362,40 @@ export function AdminUsersPage() {
                     {isEditing && editForm ? (
                       <>
                         <td className="px-4 py-2">
+                          <label htmlFor={`admin-user-edit-fullname-${user.id}`} className="sr-only">
+                            Nom complet
+                          </label>
                           <input
+                            id={`admin-user-edit-fullname-${user.id}`}
+                            aria-label="Nom complet"
                             value={editForm.fullName}
                             onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                            className="w-full rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           />
                         </td>
                         <td className="px-4 py-2">
+                          <label htmlFor={`admin-user-edit-email-${user.id}`} className="sr-only">
+                            Adresse e-mail
+                          </label>
                           <input
+                            id={`admin-user-edit-email-${user.id}`}
+                            aria-label="Adresse e-mail"
                             type="email"
                             value={editForm.email}
                             onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                            className="w-full rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           />
                         </td>
                         <td className="px-4 py-2">
+                          <label htmlFor={`admin-user-edit-jobtitle-${user.id}`} className="sr-only">
+                            Fonction métier
+                          </label>
                           <select
+                            id={`admin-user-edit-jobtitle-${user.id}`}
+                            aria-label="Fonction métier"
                             value={editForm.jobTitleId}
                             onChange={(e) => setEditForm({ ...editForm, jobTitleId: e.target.value })}
-                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                            className="w-full rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           >
                             <option value="">—</option>
                             {activeJobTitles.map((jobTitle) => (
@@ -370,10 +406,15 @@ export function AdminUsersPage() {
                           </select>
                         </td>
                         <td className="px-4 py-2">
+                          <label htmlFor={`admin-user-edit-role-${user.id}`} className="sr-only">
+                            Rôle logiciel
+                          </label>
                           <select
+                            id={`admin-user-edit-role-${user.id}`}
+                            aria-label="Rôle logiciel"
                             value={editForm.role}
                             onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
-                            className="w-full rounded-md border border-brand-border px-2 py-1 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                            className="w-full rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           >
                             {ROLES.map((role) => (
                               <option key={role} value={role}>
@@ -383,7 +424,11 @@ export function AdminUsersPage() {
                           </select>
                         </td>
                         <td className="px-4 py-2">
+                          <label htmlFor={`admin-user-edit-isadmin-${user.id}`} className="sr-only">
+                            Administrateur système
+                          </label>
                           <input
+                            id={`admin-user-edit-isadmin-${user.id}`}
                             type="checkbox"
                             checked={editForm.isSystemAdmin}
                             disabled={user.id === currentUser?.id}
@@ -393,6 +438,7 @@ export function AdminUsersPage() {
                                 : undefined
                             }
                             onChange={(e) => setEditForm({ ...editForm, isSystemAdmin: e.target.checked })}
+                            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           />
                         </td>
                         <td className="px-4 py-2 text-gray-500">{formatDate(user.lastLoginAt)}</td>
@@ -400,10 +446,14 @@ export function AdminUsersPage() {
                           {user.active ? 'Actif' : 'Désactivé'}
                         </td>
                         <td className="px-4 py-2 text-right whitespace-nowrap">
-                          {editError && <p className="mb-1 text-xs text-red-600">{editError}</p>}
+                          {editError && (
+                            <p role="alert" className="mb-1 text-xs text-red-600">
+                              {editError}
+                            </p>
+                          )}
                           <button
                             onClick={() => void handleSaveEdit(user.id)}
-                            className="mr-2 text-xs font-medium text-brand hover:underline"
+                            className="mr-2 text-xs font-medium text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           >
                             Enregistrer
                           </button>
@@ -412,7 +462,7 @@ export function AdminUsersPage() {
                               setEditingUserId(null);
                               setEditForm(null);
                             }}
-                            className="text-xs text-gray-500 hover:underline"
+                            className="text-xs text-gray-500 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           >
                             Annuler
                           </button>
@@ -426,7 +476,7 @@ export function AdminUsersPage() {
                         <td className="px-4 py-2">{USER_ROLE_LABELS[user.role]}</td>
                         <td className="px-4 py-2">
                           {user.isSystemAdmin ? (
-                            <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand">
+                            <span className="rounded-full bg-navy/10 px-2.5 py-0.5 text-xs font-medium text-navy">
                               Administrateur
                             </span>
                           ) : (
@@ -453,13 +503,13 @@ export function AdminUsersPage() {
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           <button
                             onClick={() => startEdit(user)}
-                            className="mr-3 text-xs text-brand hover:underline"
+                            className="mr-3 text-xs text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           >
                             Modifier
                           </button>
                           <button
                             onClick={() => void handleResetPassword(user)}
-                            className="mr-3 text-xs text-gray-600 hover:underline"
+                            className="mr-3 text-xs text-gray-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                           >
                             Réinitialiser mot de passe
                           </button>
@@ -467,14 +517,14 @@ export function AdminUsersPage() {
                             <button
                               onClick={() => void handleDeactivate(user)}
                               disabled={user.id === currentUser?.id}
-                              className="text-xs text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                              className="text-xs text-red-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               Désactiver
                             </button>
                           ) : (
                             <button
                               onClick={() => void handleReactivate(user)}
-                              className="text-xs text-green-600 hover:underline"
+                              className="text-xs text-green-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                             >
                               Réactiver
                             </button>
@@ -487,60 +537,67 @@ export function AdminUsersPage() {
               })}
             </tbody>
           </table>
-        )}
-      </div>
+            </div>
+          )}
+        </SectionCard>
 
-      {/* Fonctions métier */}
-      <div className="mt-10 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
-        <h3 className="mb-1 text-sm font-semibold text-gray-900">Fonctions métier</h3>
-        <p className="mb-4 text-xs text-gray-500">
-          Utilisées pour attribuer une fonction précise à chaque utilisateur (tableau de bord personnalisé,
-          statistiques par fonction...), distinctes des rôles logiciels.
-        </p>
-        <form onSubmit={handleCreateJobTitle} className="flex items-end gap-3">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-500">Nom de la fonction</label>
-            <input
-              required
-              value={jobTitleName}
-              onChange={(e) => setJobTitleName(e.target.value)}
-              placeholder="Ex : Responsable adjoint"
-              className="w-64 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-            />
-          </div>
-          <button
-            type="submit"
-            className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
-          >
-            Ajouter
-          </button>
-        </form>
-        {jobTitleError && <p className="mt-2 text-sm text-red-600">{jobTitleError}</p>}
+        <SectionCard title="Fonctions métier">
+          <p className="mb-4 text-xs text-gray-500">
+            Utilisées pour attribuer une fonction précise à chaque utilisateur (tableau de bord personnalisé,
+            statistiques par fonction...), distinctes des rôles logiciels.
+          </p>
+          <form onSubmit={handleCreateJobTitle} className="flex flex-wrap items-end gap-3">
+            <div className="w-full sm:w-auto">
+              <label htmlFor="admin-jobtitle-name" className="mb-1.5 block text-xs font-medium text-gray-500">
+                Nom de la fonction
+              </label>
+              <input
+                id="admin-jobtitle-name"
+                required
+                value={jobTitleName}
+                onChange={(e) => setJobTitleName(e.target.value)}
+                placeholder="Ex : Responsable adjoint"
+                className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy sm:w-64"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+            >
+              Ajouter
+            </button>
+          </form>
+          {jobTitleError && (
+            <p role="alert" className="mt-2 text-sm text-red-600">
+              {jobTitleError}
+            </p>
+          )}
 
-        <ul className="mt-4 divide-y divide-gray-100">
-          {jobTitles.map((jobTitle) => (
-            <li key={jobTitle.id} className="flex items-center justify-between py-2 text-sm">
-              <span className={jobTitle.active ? 'text-gray-900' : 'text-gray-400 line-through'}>
-                {jobTitle.name}
-              </span>
-              {jobTitle.active ? (
-                <button
-                  onClick={() => void handleDeactivateJobTitle(jobTitle)}
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  Désactiver
-                </button>
-              ) : (
-                <button
-                  onClick={() => void handleReactivateJobTitle(jobTitle)}
-                  className="text-xs text-green-600 hover:underline"
-                >
-                  Réactiver
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+          <ul className="mt-4 divide-y divide-gray-100">
+            {jobTitles.map((jobTitle) => (
+              <li key={jobTitle.id} className="flex items-center justify-between py-2 text-sm">
+                <span className={jobTitle.active ? 'text-gray-900' : 'text-gray-400 line-through'}>
+                  {jobTitle.name}
+                </span>
+                {jobTitle.active ? (
+                  <button
+                    onClick={() => void handleDeactivateJobTitle(jobTitle)}
+                    className="text-xs text-red-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                  >
+                    Désactiver
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void handleReactivateJobTitle(jobTitle)}
+                    className="text-xs text-green-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                  >
+                    Réactiver
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       </div>
     </AppLayout>
   );
