@@ -5,6 +5,8 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { ArticleSearchSelect } from '../components/ArticleSearchSelect';
+import { PageHeader } from '../components/ui/PageHeader';
+import { SectionCard } from '../components/ui/SectionCard';
 import { useRecipeDraftAutosave, type RecipeDraftAutosaveContent } from '../hooks/useRecipeDraftAutosave';
 
 interface LineDraft {
@@ -31,7 +33,7 @@ function formatTime(date: Date): string {
 }
 
 const rowClass = (archived: boolean) =>
-  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-brand-bg ${archived ? 'opacity-60' : ''}`;
+  `transition-colors odd:bg-white even:bg-gray-50/60 hover:bg-surface-muted ${archived ? 'opacity-60' : ''}`;
 
 export function RecipesPage() {
   const { token } = useAuth();
@@ -286,282 +288,317 @@ export function RecipesPage() {
 
   return (
     <AppLayout>
-      <h2 className="text-xl font-semibold text-gray-900">Recettes</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        Créer une recette crée toujours une nouvelle version : si une version active existe déjà pour ce produit
-        et ce format, elle est archivée automatiquement.
-      </p>
+      <div className="space-y-6">
+        <PageHeader
+          title="Recettes"
+          description="Créer une recette crée toujours une nouvelle version : si une version active existe déjà pour ce produit et ce format, elle est archivée automatiquement."
+        />
 
-      {loadError && <p className="mt-4 text-sm text-red-600">{loadError}</p>}
-
-      <div className="mt-6">
-        <label className="mb-1.5 block text-xs font-medium text-gray-500">Produit fini</label>
-        <select
-          value={selectedProductId}
-          onChange={(e) => setSelectedProductId(e.target.value)}
-          className="w-full max-w-md rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-        >
-          <option value="">— Sélectionner un produit fini —</option>
-          {finishedProducts.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.name} ({product.openSiReference})
-            </option>
-          ))}
-        </select>
-        {finishedProducts.length === 0 && (
-          <p className="mt-2 text-sm text-gray-500">
-            Aucun produit fini actif. Créez-en un dans le <Link className="text-brand underline" to="/catalog">catalogue</Link>{' '}
-            (type « Produit fini ») avant de créer une recette.
+        {loadError && (
+          <p role="alert" className="text-sm text-red-600">
+            {loadError}
           </p>
         )}
-      </div>
 
-      {selectedProductId && (
-        <>
-          <div className="mt-6 overflow-x-auto rounded-xl border border-brand-border bg-white shadow-sm">
-            <h3 className="border-b border-brand-border px-4 py-2 text-sm font-semibold text-gray-900">
-              Historique des versions
-            </h3>
-            {isLoadingRecipes ? (
-              <p className="p-4 text-sm text-gray-500">Chargement…</p>
-            ) : (
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500">Format</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500">Version</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500">Statut</th>
-                    <th className="px-4 py-2" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {recipes.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
-                        Aucune recette pour ce produit.
-                      </td>
-                    </tr>
-                  )}
-                  {recipes.map((recipe) => (
-                    <tr key={recipe.id} className={rowClass(recipe.status === 'ARCHIVEE')}>
-                      <td className="px-4 py-2">{recipe.format} ml</td>
-                      <td className="px-4 py-2">v{recipe.version}</td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={
-                            recipe.status === 'ACTIVE'
-                              ? 'rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700'
-                              : 'rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500'
-                          }
-                        >
-                          {recipe.status === 'ACTIVE' ? 'Active' : 'Archivée'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => setSelectedRecipeId(recipe.id === selectedRecipeId ? null : recipe.id)}
-                          className="mr-3 text-xs text-brand hover:underline"
-                        >
-                          {recipe.id === selectedRecipeId ? 'Masquer' : 'Voir la composition'}
-                        </button>
-                        {recipe.status === 'ACTIVE' && (
-                          <button
-                            onClick={() => void handleArchive(recipe)}
-                            className="text-xs text-red-600 hover:underline"
-                          >
-                            Archiver
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {selectedRecipe && (
-              <div className="border-t border-brand-border px-4 py-3">
-                <h4 className="mb-2 text-sm font-semibold text-gray-900">
-                  Composition — v{selectedRecipe.version} ({selectedRecipe.format} ml)
-                </h4>
-                <ul className="space-y-1 text-sm text-gray-700">
-                  {selectedRecipe.lines.map((line) => (
-                    <li key={line.id}>
-                      {articleById.get(line.articleId)?.name ?? line.articleId} — {line.quantityPerUnit} {line.unit}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {isCheckingDraft && (
-            <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 text-sm text-gray-500 shadow-sm">
-              Vérification d’un brouillon existant…
-            </div>
+        <SectionCard title="Sélection du produit">
+          <label htmlFor="recipe-product" className="mb-1.5 block text-xs font-medium text-gray-500">
+            Produit fini
+          </label>
+          <select
+            id="recipe-product"
+            value={selectedProductId}
+            onChange={(e) => setSelectedProductId(e.target.value)}
+            className="w-full max-w-md rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+          >
+            <option value="">— Sélectionner un produit fini —</option>
+            {finishedProducts.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name} ({product.openSiReference})
+              </option>
+            ))}
+          </select>
+          {finishedProducts.length === 0 && (
+            <p className="mt-2 text-sm text-gray-500">
+              Aucun produit fini actif. Créez-en un dans le{' '}
+              <Link
+                className="text-navy underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                to="/catalog"
+              >
+                catalogue
+              </Link>{' '}
+              (type « Produit fini ») avant de créer une recette.
+            </p>
           )}
+        </SectionCard>
 
-          {showDraftBanner && existingDraft && (
-            <div className="mt-6 rounded-xl border border-accent bg-accent/5 p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-900">Un brouillon existe pour ce produit</h3>
-              <p className="mt-1 text-sm text-gray-600">
-                Brouillon enregistré à {formatTime(new Date(existingDraft.updatedAt))}.
-              </p>
-              {draftActionError && <p className="mt-2 text-sm text-red-600">{draftActionError}</p>}
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleResumeDraft}
-                  className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
-                >
-                  Reprendre le brouillon
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDuplicateDraft}
-                  className="rounded-md border border-brand-border bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-brand-bg"
-                >
-                  Dupliquer le brouillon
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteDraft()}
-                  className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                >
-                  Supprimer le brouillon
-                </button>
-              </div>
-            </div>
-          )}
-
-          {showForm && (
-            <div className="mt-6 rounded-xl border border-brand-border bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-sm font-semibold text-gray-900">Créer une nouvelle version</h3>
-
-              {draftAutosave.conflict && (
-                <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4">
-                  <p className="text-sm font-medium text-amber-800">
-                    Ce brouillon a été modifié depuis un autre poste ou un autre onglet.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleReloadAfterConflict()}
-                      className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700"
-                    >
-                      Recharger la dernière version
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void draftAutosave.resolveConflictForce()}
-                      className="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100"
-                    >
-                      Forcer l’enregistrement de ma version
-                    </button>
-                  </div>
+        {selectedProductId && (
+          <>
+            <SectionCard title="Historique des versions">
+              {isLoadingRecipes ? (
+                <p className="text-sm text-gray-500">Chargement…</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-divider">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500">Format</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500">Version</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500">Statut</th>
+                        <th className="px-4 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {recipes.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                            Aucune recette pour ce produit.
+                          </td>
+                        </tr>
+                      )}
+                      {recipes.map((recipe) => (
+                        <tr key={recipe.id} className={rowClass(recipe.status === 'ARCHIVEE')}>
+                          <td className="px-4 py-2">{recipe.format} ml</td>
+                          <td className="px-4 py-2">v{recipe.version}</td>
+                          <td className="px-4 py-2">
+                            <span
+                              className={
+                                recipe.status === 'ACTIVE'
+                                  ? 'rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700'
+                                  : 'rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500'
+                              }
+                            >
+                              {recipe.status === 'ACTIVE' ? 'Active' : 'Archivée'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              onClick={() => setSelectedRecipeId(recipe.id === selectedRecipeId ? null : recipe.id)}
+                              className="mr-3 text-xs text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                            >
+                              {recipe.id === selectedRecipeId ? 'Masquer' : 'Voir la composition'}
+                            </button>
+                            {recipe.status === 'ACTIVE' && (
+                              <button
+                                onClick={() => void handleArchive(recipe)}
+                                className="text-xs text-red-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                              >
+                                Archiver
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-gray-500">Format (ml)</label>
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value)}
-                    className="w-40 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                  />
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <label className="block text-xs font-medium text-gray-500">Lignes de composition</label>
-                    <span className="text-xs text-gray-500">
-                      Total matières premières :{' '}
-                      <span className={percentageTotal === 100 ? 'font-medium text-green-700' : 'font-medium text-amber-700'}>
-                        {percentageTotal}%
-                      </span>{' '}
-                      (doit être 100%)
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {lines.map((line, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <ArticleSearchSelect
-                          id={`recipe-line-${index}-article`}
-                          articles={ingredientArticles}
-                          supplierById={supplierById}
-                          value={line.articleId}
-                          onChange={(articleId) => updateLine(index, { articleId })}
-                        />
-                        <input
-                          required
-                          type="number"
-                          step="0.0001"
-                          min="0"
-                          placeholder="Quantité / %"
-                          value={line.quantityPerUnit}
-                          onChange={(e) => updateLine(index, { quantityPerUnit: e.target.value })}
-                          className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                        />
-                        <input
-                          required
-                          placeholder="Unité (%, unité...)"
-                          value={line.unit}
-                          onChange={(e) => updateLine(index, { unit: e.target.value })}
-                          className="w-36 rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeLine(index)}
-                          disabled={lines.length === 1}
-                          className="text-xs text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          Retirer
-                        </button>
-                      </div>
+              {selectedRecipe && (
+                <div className="mt-4 border-t border-divider pt-3">
+                  <h4 className="mb-2 text-sm font-semibold text-gray-900">
+                    Composition — v{selectedRecipe.version} ({selectedRecipe.format} ml)
+                  </h4>
+                  <ul className="space-y-1 text-sm text-gray-700">
+                    {selectedRecipe.lines.map((line) => (
+                      <li key={line.id}>
+                        {articleById.get(line.articleId)?.name ?? line.articleId} — {line.quantityPerUnit} {line.unit}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
+                </div>
+              )}
+            </SectionCard>
 
+            {isCheckingDraft && (
+              <div className="rounded-xl border border-divider bg-white p-6 text-sm text-gray-500 shadow-sm">
+                Vérification d’un brouillon existant…
+              </div>
+            )}
+
+            {showDraftBanner && existingDraft && (
+              <div className="rounded-xl border border-mf-red bg-white p-6 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-900">Un brouillon existe pour ce produit</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Brouillon enregistré à {formatTime(new Date(existingDraft.updatedAt))}.
+                </p>
+                {draftActionError && (
+                  <p role="alert" className="mt-2 text-sm text-red-600">
+                    {draftActionError}
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={addLine}
-                    className="mt-2 text-xs font-medium text-brand hover:underline"
+                    onClick={handleResumeDraft}
+                    className="rounded-md bg-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                   >
-                    + Ajouter une ligne
+                    Reprendre le brouillon
                   </button>
-                </div>
-
-                {formError && <p className="text-sm text-red-600">{formError}</p>}
-
-                <div className="flex items-center gap-4">
                   <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+                    type="button"
+                    onClick={handleDuplicateDraft}
+                    className="rounded-md border border-divider bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-surface-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                   >
-                    {isSubmitting ? 'Création…' : 'Créer la version'}
+                    Dupliquer le brouillon
                   </button>
-                  <p className="text-xs text-gray-500">
-                    {draftAutosave.isSaving
-                      ? 'Enregistrement du brouillon…'
-                      : draftAutosave.saveError
-                        ? `Échec de l’enregistrement automatique — dernière sauvegarde ${
-                            draftAutosave.lastSavedAt ? `à ${formatTime(draftAutosave.lastSavedAt)}` : 'jamais effectuée'
-                          }.`
-                        : draftAutosave.lastSavedAt
-                          ? `Brouillon enregistré à ${formatTime(draftAutosave.lastSavedAt)}`
-                          : ''}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteDraft()}
+                    className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                  >
+                    Supprimer le brouillon
+                  </button>
                 </div>
-              </form>
-            </div>
-          )}
-        </>
-      )}
+              </div>
+            )}
+
+            {showForm && (
+              <SectionCard title="Créer une nouvelle version">
+                {draftAutosave.conflict && (
+                  <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4">
+                    <p className="text-sm font-medium text-amber-800">
+                      Ce brouillon a été modifié depuis un autre poste ou un autre onglet.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleReloadAfterConflict()}
+                        className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                      >
+                        Recharger la dernière version
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void draftAutosave.resolveConflictForce()}
+                        className="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                      >
+                        Forcer l’enregistrement de ma version
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleCreate} className="space-y-4">
+                  <div>
+                    <label htmlFor="recipe-format" className="mb-1.5 block text-xs font-medium text-gray-500">
+                      Format (ml)
+                    </label>
+                    <input
+                      id="recipe-format"
+                      required
+                      type="number"
+                      min="1"
+                      value={format}
+                      onChange={(e) => setFormat(e.target.value)}
+                      className="w-40 rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="block text-xs font-medium text-gray-500">Lignes de composition</label>
+                      <span className="text-xs text-gray-500">
+                        Total matières premières :{' '}
+                        <span className={percentageTotal === 100 ? 'font-medium text-green-700' : 'font-medium text-amber-700'}>
+                          {percentageTotal}%
+                        </span>{' '}
+                        (doit être 100%)
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {lines.map((line, index) => (
+                        <div key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                          <div className="w-full sm:w-auto sm:flex-1">
+                            <label htmlFor={`recipe-line-${index}-article`} className="sr-only">
+                              Article
+                            </label>
+                            <ArticleSearchSelect
+                              id={`recipe-line-${index}-article`}
+                              articles={ingredientArticles}
+                              supplierById={supplierById}
+                              value={line.articleId}
+                              onChange={(articleId) => updateLine(index, { articleId })}
+                            />
+                          </div>
+                          <label htmlFor={`recipe-line-${index}-quantity`} className="sr-only">
+                            Quantité / %
+                          </label>
+                          <input
+                            id={`recipe-line-${index}-quantity`}
+                            required
+                            type="number"
+                            step="0.0001"
+                            min="0"
+                            placeholder="Quantité / %"
+                            value={line.quantityPerUnit}
+                            onChange={(e) => updateLine(index, { quantityPerUnit: e.target.value })}
+                            className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy sm:w-36"
+                          />
+                          <label htmlFor={`recipe-line-${index}-unit`} className="sr-only">
+                            Unité
+                          </label>
+                          <input
+                            id={`recipe-line-${index}-unit`}
+                            required
+                            placeholder="Unité (%, unité...)"
+                            value={line.unit}
+                            onChange={(e) => updateLine(index, { unit: e.target.value })}
+                            className="w-full rounded-md border border-divider px-3 py-2.5 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy sm:w-36"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeLine(index)}
+                            disabled={lines.length === 1}
+                            className="text-xs text-red-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Retirer
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={addLine}
+                      className="mt-2 text-xs font-medium text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                    >
+                      + Ajouter une ligne
+                    </button>
+                  </div>
+
+                  {formError && (
+                    <p role="alert" className="text-sm text-red-600">
+                      {formError}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="rounded-md bg-navy px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSubmitting ? 'Création…' : 'Créer la version'}
+                    </button>
+                    <p role={draftAutosave.saveError ? 'alert' : undefined} className="text-xs text-gray-500">
+                      {draftAutosave.isSaving
+                        ? 'Enregistrement du brouillon…'
+                        : draftAutosave.saveError
+                          ? `Échec de l’enregistrement automatique — dernière sauvegarde ${
+                              draftAutosave.lastSavedAt ? `à ${formatTime(draftAutosave.lastSavedAt)}` : 'jamais effectuée'
+                            }.`
+                          : draftAutosave.lastSavedAt
+                            ? `Brouillon enregistré à ${formatTime(draftAutosave.lastSavedAt)}`
+                            : ''}
+                    </p>
+                  </div>
+                </form>
+              </SectionCard>
+            )}
+          </>
+        )}
+      </div>
     </AppLayout>
   );
 }
