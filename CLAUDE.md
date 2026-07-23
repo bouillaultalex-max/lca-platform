@@ -16,6 +16,7 @@ Avant toute intervention significative sur ce projet, lire :
 
 - **Monolithe modulaire NestJS.** Pas de microservices, pas de message broker, pas de gateway edge en V0.9.
 - Un module Nest par domaine métier : `catalog`, `stock`, `batching`, `production`, `traceability`, `quality`, `costing`, `import-export`, `auth`, `audit-log`. La logique métier vit dans les services, jamais dans les controllers.
+- Module `assistant` (voir ci-dessous, AI-01/AI-02) : infrastructure de l'assistant IA — orchestrateur, abstraction `AiProvider`, registre d'outils métier. Ne doit jamais accéder directement à la base ni contourner les guards/permissions existants : passe systématiquement par les services métier déjà en place.
 - **Prisma schema = source unique de vérité** du modèle de données. Toute évolution de modèle passe par une migration Prisma versionnée, jamais par une modification manuelle de la base.
 - **Un seul processus backend** sert l'API et les fichiers statiques du build React (un seul port, pas de CORS à gérer en interne).
 - **Une seule base PostgreSQL**, aucune duplication.
@@ -29,7 +30,7 @@ Ne pas implémenter, ni suggérer d'implémenter sans validation explicite de l'
 - Connexion machine (OPC-UA, Modbus, MQTT), gateway edge, IoT
 - Multi-site complet / multi-tenant
 - Application mobile
-- IA avancée, optimisation de planning
+- IA avancée, optimisation de planning — **exception explicite et assumée (2026-07-23, voir `docs/roadmap.md`)** : le socle d'infrastructure de l'assistant IA (module `assistant`, tickets AI-01/AI-02) est une extension de périmètre volontaire, à portée strictement limitée à l'infrastructure (aucun outil métier, aucune action, aucun fournisseur IA réel branché). Toute extension au-delà de ce socle (outils métier, actions, planning) reste hors périmètre tant qu'elle n'a pas fait l'objet d'une validation explicite équivalente, ticket par ticket.
 
 Ces éléments sont des évolutions futures anticipées dans l'architecture (points d'extension documentés) mais ne doivent **pas** être codés par avance.
 

@@ -4,6 +4,7 @@ import { useSidebarState } from '../../hooks/useSidebarState';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { PageContainer } from './PageContainer';
+import { AssistantPanel } from '../assistant/AssistantPanel';
 
 /**
  * Structure globale de l'application : Sidebar + Header + zone de contenu.
@@ -17,6 +18,7 @@ import { PageContainer } from './PageContainer';
 export function AppShell({ children }: { children: ReactNode }) {
   const { isCollapsed, toggle } = useSidebarState();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -40,11 +42,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           isSidebarCollapsed={isCollapsed}
           onToggleSidebar={toggle}
           onOpenMobileNav={() => setIsMobileNavOpen(true)}
+          onOpenAssistant={() => setIsAssistantOpen(true)}
         />
         <main className="flex-1">
           <PageContainer>{children}</PageContainer>
         </main>
       </div>
+
+      <AssistantPanel isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} />
     </div>
   );
 }

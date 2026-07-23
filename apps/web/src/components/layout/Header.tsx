@@ -1,4 +1,5 @@
 import { FeedbackButton } from '../FeedbackButton';
+import { AssistantButton } from '../assistant/AssistantButton';
 import { UserMenu } from './UserMenu';
 
 function MenuIcon() {
@@ -31,10 +32,12 @@ export function Header({
   isSidebarCollapsed,
   onToggleSidebar,
   onOpenMobileNav,
+  onOpenAssistant,
 }: {
   isSidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   onOpenMobileNav: () => void;
+  onOpenAssistant: () => void;
 }) {
   return (
     <header className="sticky top-0 z-20 flex h-[var(--header-height)] items-center justify-between gap-4 bg-navy px-4 text-white sm:px-6">
@@ -63,6 +66,7 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-3">
+        <AssistantButton onClick={onOpenAssistant} />
         <FeedbackButton />
         <UserMenu />
       </div>

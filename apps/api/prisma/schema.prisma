@@ -185,6 +185,7 @@ model Site {
   expectedRequirements ExpectedRequirement[]
   columnMappingRules   ColumnMappingRule[]
   feedbackEntries      Feedback[]
+  aiConversations      AiConversation[]
 
   @@map("sites")
 }
@@ -242,6 +243,7 @@ model User {
   exportLogs      ExportLog[]
   feedbackEntries Feedback[]
   recipeDrafts    RecipeDraft[]
+  aiConversations AiConversation[]
 
   @@map("users")
 }
@@ -303,6 +305,53 @@ model Feedback {
   createdAt  DateTime         @default(now()) @map("created_at")
 
   @@map("feedback")
+}
+
+// ---------------------------------------------------------------------------
+// Assistant IA (AI-01/AI-02) — infrastructure uniquement : aucun outil métier,
+// aucune action, aucune confirmation à ce stade. Voir docs/roadmap.md.
+// ---------------------------------------------------------------------------
+
+/// Rôle d'un message dans une conversation avec l'assistant. Volontairement
+/// limité à USER/ASSISTANT pour l'instant (AI-02) : pas encore de rôle TOOL,
+/// introduit seulement quand des outils métier existeront réellement (AI-03+).
+enum AiMessageRole {
+  USER
+  ASSISTANT
+
+  @@map("ai_message_role")
+}
+
+/// Conversation avec l'assistant IA. Persistance minimale (AI-02) : identité et
+/// horodatage uniquement — pas encore de résultats d'outils, d'actions proposées
+/// ni de confirmations (voir AI-05/AI-06 dans docs/roadmap.md).
+model AiConversation {
+  id        String   @id @default(uuid())
+  siteId    String   @map("site_id")
+  site      Site     @relation(fields: [siteId], references: [id])
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages AiMessage[]
+
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+/// Message d'une conversation. `content` est le texte brut échangé ; aucun champ
+/// de résultat d'outil ni d'action à ce stade (AI-02 = infrastructure seule).
+model AiMessage {
+  id             String         @id @default(uuid())
+  conversationId String         @map("conversation_id")
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           AiMessageRole
+  content        String
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  @@index([conversationId])
+  @@map("ai_messages")
 }
 
 // ---------------------------------------------------------------------------

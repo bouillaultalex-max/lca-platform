@@ -48,6 +48,7 @@ export default defineConfig({
       '/feedback': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
       '/dashboard': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
       '/traceability': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
+      '/assistant': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
       '/health': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
     },
   },

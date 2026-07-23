@@ -34,7 +34,10 @@ export function isWeakJwtSecret(secret: string): boolean {
   return WEAK_JWT_SECRET_MARKERS.some((marker) => normalized.includes(marker));
 }
 
-function rejectWeakJwtSecret(value: string, helpers: Joi.CustomHelpers<string>) {
+function rejectWeakJwtSecret(
+  value: string,
+  helpers: Joi.CustomHelpers<string>,
+) {
   if (isWeakJwtSecret(value)) {
     return helpers.message({
       custom:
@@ -59,7 +62,8 @@ export const envValidationSchema = Joi.object({
     .required()
     .custom(rejectWeakJwtSecret, 'rejet des secrets JWT faibles ou d’exemple')
     .messages({
-      'string.min': 'JWT_SECRET doit contenir au moins 32 caractères (ex: `openssl rand -hex 32`).',
+      'string.min':
+        'JWT_SECRET doit contenir au moins 32 caractères (ex: `openssl rand -hex 32`).',
       'string.empty': 'JWT_SECRET est obligatoire et ne peut pas être vide.',
       'any.required':
         'JWT_SECRET est obligatoire : définissez une valeur forte et unique dans .env (voir .env.example).',
@@ -73,4 +77,18 @@ export const envValidationSchema = Joi.object({
   // vide (ligne présente mais non renseignée, cas courant en copiant .env.example)
   // est traitée exactement comme une variable absente, jamais comme une erreur.
   MAKE_FEEDBACK_WEBHOOK_URL: Joi.string().uri().allow('').optional(),
+
+  // Assistant IA (voir AI-01/AI-02, docs/roadmap.md) — infrastructure uniquement,
+  // aucun fournisseur réel branché pour l'instant (voir EchoAiProvider). La clé
+  // reste optionnelle tant qu'aucun fournisseur réel n'est appelé : elle
+  // deviendra probablement obligatoire quand un vrai fournisseur sera branché
+  // (AI-03+), avec la même rigueur que JWT_SECRET (rejet des valeurs faibles).
+  AI_PROVIDER_API_KEY: Joi.string().allow('').optional(),
+  // Nom du modèle, jamais codé en dur dans l'orchestrateur (voir AssistantService).
+  AI_MODEL: Joi.string().min(1).default('stub-echo'),
+  // Délai maximal (ms) accordé à une génération complète avant abandon explicite.
+  AI_REQUEST_TIMEOUT_MS: Joi.number().integer().positive().default(30000),
+  // Limite de tokens de sortie transmise au fournisseur (non appliquée par
+  // EchoAiProvider, qui ne génère pas de tokens réels — voir AI-02).
+  AI_MAX_OUTPUT_TOKENS: Joi.number().integer().positive().default(1024),
 });

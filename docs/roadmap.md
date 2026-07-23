@@ -123,13 +123,22 @@ Non conçu, non codé — à cadrer explicitement avec l'utilisateur avant tout 
 
 **Livrable** : V0.9 complète, sauvegardée automatiquement, documentée, prête pour une utilisation réelle au laboratoire.
 
+## Chantier IA — Assistant (AI-01/AI-02) ✅ Socle terminé le 2026-07-23
+
+**Décision explicite (2026-07-23)** : ce chantier constitue une extension consciente et assumée du périmètre V0.9 par rapport à la section "Hors périmètre" ci-dessous, qui excluait jusque-là toute "IA avancée". Portée volontairement restreinte pour ne pas menacer l'échéance de fin août 2026 : infrastructure uniquement, aucune fonctionnalité métier tant que les tickets suivants (AI-03 et suivants) ne sont pas explicitement ouverts.
+
+- ✅ **AI-01** : analyse d'architecture (orchestrateur hébergé dans le backend NestJS existant, pas de service séparé — voir `docs/adr` à venir), cartographie des domaines/API existants, abstraction fournisseur, protocole de confirmation humaine pour de futures actions, MVP recommandé.
+- ✅ **AI-02** : socle technique — module `assistant` (NestJS), abstraction `AiProvider` (aucun SDK concret importé ailleurs que le fournisseur temporaire `EchoAiProvider`), registre d'outils métier (vide, aucun outil Stock/Production/Traceability/Dashboard/Imports), endpoint `POST /assistant/messages` en flux (Server-Sent Events), persistance minimale des conversations (`AiConversation`/`AiMessage`), journalisation applicative (utilisateur, conversation, durée, modèle, succès/échec). Côté frontend : panneau assistant minimal (bouton d'ouverture dans le Header, panneau latéral dans `AppShell`, historique de conversation en mémoire côté client), accessibilité de base (focus, Échap, `aria-live`).
+
+**Périmètre explicitement non couvert par ce socle** (voir AI-01) : aucun outil métier réel, aucune action proposée ni confirmée, aucun fournisseur IA réel branché (implémentation temporaire à but d'infrastructure uniquement), aucune persistance d'historique consultable côté serveur au-delà de la conversation courante.
+
 ## Hors périmètre V0.9 (rappel)
 
 Ces éléments ne font partie d'aucun jalon ci-dessus et ne doivent pas être anticipés :
 - Connexion machine (OPC-UA, Modbus, MQTT), gateway edge, IoT
 - Multi-site complet
 - Application mobile
-- IA avancée, optimisation de planning
+- IA avancée, optimisation de planning — **à l'exception du socle d'infrastructure assistant (AI-01/AI-02) ci-dessus, décision explicite du 2026-07-23** ; toute fonctionnalité IA allant au-delà de cette infrastructure (outils métier, actions, planning) reste hors périmètre tant qu'elle n'a pas fait l'objet d'une validation explicite similaire, ticket par ticket.
 
 ## Évolutions futures (post-V0.9, actées le 2026-07-06 mais non planifiées en détail)
 
