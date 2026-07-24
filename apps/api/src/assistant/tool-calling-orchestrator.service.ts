@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AI_PROVIDER,
@@ -12,6 +12,8 @@ import type { AiToolSpec } from './providers/ai-tool-spec';
 import { ToolRegistryService } from './tools/tool-registry.service';
 import { ToolExecutorService } from './tools/tool-executor.service';
 import { buildAiToolCatalog } from './tools/ai-tool-catalog';
+import { ContextEngine } from './context-engine.service';
+import type { AiMessage } from '../../generated/prisma/client';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user';
 
 const DEADLINE_MESSAGE = "L'assistant n'a pas répondu à temps.";
@@ -25,6 +27,16 @@ export interface ToolCallingContext {
   signal: AbortSignal;
   /** Échéance absolue (`Date.now()` + délai configuré), calculée une seule fois. */
   deadline: number;
+}
+
+/** Entrée brute d'un échange (AI-05) : l'historique tel que chargé depuis la
+ * base par AssistantService (jamais pré-filtré/mis en forme — voir
+ * ContextEngine, seul responsable de décider ce qui est effectivement transmis
+ * au fournisseur) et le nouveau message utilisateur, pas encore inclus dans
+ * `history`. */
+export interface ToolCallingInput {
+  history: AiMessage[];
+  newUserMessage: string;
 }
 
 /**
@@ -60,18 +72,27 @@ interface ToolCallingLimits {
  * explicite pour un nom inconnu — cette exception est traitée ici exactement
  * comme n'importe quelle autre erreur d'outil (voir `runTurn`), jamais comme
  * une erreur de transport.
+ *
+ * `ContextEngine` (AI-05) est appelé exactement une fois par échange, ici
+ * dans `run()`, jamais dans `runTurn()` : le raisonnement déjà commencé (tours,
+ * ToolCall/ToolResult de l'échange courant) n'est jamais retronqué ni résumé —
+ * `runTurn` reste par ailleurs strictement inchangée depuis AI-04 (tours,
+ * profondeur, limites d'appels, exécution des outils).
  */
 @Injectable()
 export class ToolCallingOrchestrator {
+  private readonly logger = new Logger(ToolCallingOrchestrator.name);
+
   constructor(
     @Inject(AI_PROVIDER) private readonly aiProvider: AiProvider,
     private readonly toolRegistry: ToolRegistryService,
     private readonly toolExecutor: ToolExecutorService,
+    private readonly contextEngine: ContextEngine,
     private readonly configService: ConfigService,
   ) {}
 
   async *run(
-    initialMessages: AiProviderMessage[],
+    input: ToolCallingInput,
     options: AiProviderOptions,
     context: ToolCallingContext,
   ): AsyncGenerator<ToolCallingEvent> {
@@ -83,12 +104,29 @@ export class ToolCallingOrchestrator {
     // Construit une seule fois pour tout l'échange (potentiellement plusieurs
     // tours) : le registre ne change jamais pendant un échange.
     const toolCatalog = buildAiToolCatalog(this.toolRegistry.list());
+
+    const request = this.contextEngine.prepare({
+      history: input.history,
+      newUserMessage: input.newUserMessage,
+      toolCatalog,
+      options,
+    });
+    // ContextEngine ne journalise jamais lui-même (préparateur pur) : c'est
+    // ici, une seule fois par échange, que ses métadonnées sont journalisées —
+    // jamais le contenu des messages ni le résumé complet (voir AI-05).
+    this.logger.log(`Contexte préparé : ${JSON.stringify(request.metadata)}`);
+
+    const initialMessages: AiProviderMessage[] = [
+      request.system,
+      request.context,
+      ...request.messages,
+    ];
     const toolCallState = { count: 0 };
 
     yield* this.runTurn(
       initialMessages,
-      toolCatalog,
-      options,
+      request.tools,
+      request.options,
       context,
       limits,
       1,

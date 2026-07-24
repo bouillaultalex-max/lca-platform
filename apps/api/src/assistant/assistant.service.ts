@@ -1,7 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import type { AiProviderMessage } from './providers/ai-provider.interface';
 import {
   ToolCallingOrchestrator,
   type ToolCallingContext,
@@ -9,16 +8,20 @@ import {
 import { SendAssistantMessageDto } from './dto/send-assistant-message.dto';
 import type { AssistantSseEvent } from './types/assistant-sse-event';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user';
-import { AiConversation, AiMessage } from '../../generated/prisma/client';
+import { AiConversation } from '../../generated/prisma/client';
 
 /**
  * Orchestrateur de conversation de l'assistant IA — ne contient **aucune**
- * logique de raisonnement ni de tool calling (voir ToolCallingOrchestrator,
- * AI-04, qui pilote les tours et exécute les outils) : ce service ne fait que
- * gérer les conversations, persister les messages, traduire en SSE et
- * journaliser l'issue globale d'un échange.
+ * logique de raisonnement, de tool calling (voir ToolCallingOrchestrator,
+ * AI-04) ni de préparation du contexte (voir ContextEngine, AI-05) : ce
+ * service ne fait que gérer les conversations, persister les messages,
+ * traduire en SSE et journaliser l'issue globale d'un échange. Il transmet
+ * l'historique **brut** (lignes `AiMessage` telles que lues en base) à
+ * l'orchestrateur — jamais pré-filtré ni mis en forme : c'est ContextEngine,
+ * jamais AssistantService, qui décide ce qui est effectivement envoyé au
+ * fournisseur (voir AI-05).
  *
- * Persistance (AI-04) : USER et ASSISTANT (texte final) comme avant, plus
+ * Persistance (AI-04/05) : USER et ASSISTANT (texte final) comme avant, plus
  * TOOL_CALL (nom de l'outil uniquement) pour chaque appel demandé par le
  * modèle — jamais de ToolResult ni de donnée métier renvoyée par un outil,
  * qui restent strictement éphémères (voir ToolCallingOrchestrator).
@@ -52,26 +55,6 @@ export class AssistantService {
       );
     }
     return conversation;
-  }
-
-  /**
-   * Historique renvoyé au fournisseur pour une NOUVELLE requête : uniquement
-   * les messages texte (USER/ASSISTANT). Les lignes TOOL_CALL persistées
-   * existent pour l'audit (voir classe ci-dessus) mais ne sont jamais
-   * rejouées telles quelles — sans leur ToolResult (jamais persisté), elles ne
-   * représentent pas un tour valide pour un fournisseur (AI-04, mémoire
-   * minimale : seule la réponse finale déjà formulée est "mémorisée" d'un
-   * échange à l'autre).
-   */
-  private toProviderMessages(history: AiMessage[]): AiProviderMessage[] {
-    return history
-      .filter(
-        (message) => message.role === 'USER' || message.role === 'ASSISTANT',
-      )
-      .map((message) => ({
-        role: message.role === 'USER' ? 'user' : 'assistant',
-        content: message.content,
-      }));
   }
 
   /**
@@ -109,6 +92,15 @@ export class AssistantService {
 
     yield { type: 'conversation', conversationId: conversation.id };
 
+    // Historique chargé AVANT persistance du nouveau message : ContextEngine
+    // (AI-05) reçoit `history` (tout ce qui précède) et `newUserMessage`
+    // (dto.content) comme deux entrées distinctes — jamais l'historique brut
+    // mélangé avec le message courant (voir ToolCallingOrchestrator.run()).
+    const history = await this.prisma.aiMessage.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: 'asc' },
+    });
+
     await this.prisma.aiMessage.create({
       data: {
         conversationId: conversation.id,
@@ -116,12 +108,6 @@ export class AssistantService {
         content: dto.content,
       },
     });
-
-    const history = await this.prisma.aiMessage.findMany({
-      where: { conversationId: conversation.id },
-      orderBy: { createdAt: 'asc' },
-    });
-    const providerMessages = this.toProviderMessages(history);
 
     const context: ToolCallingContext = {
       user,
@@ -133,7 +119,7 @@ export class AssistantService {
     let receivedDone = false;
     try {
       for await (const event of this.orchestrator.run(
-        providerMessages,
+        { history, newUserMessage: dto.content },
         { model, maxOutputTokens },
         context,
       )) {

@@ -13,14 +13,37 @@ import {
 } from './providers/ai-provider.interface';
 import { ToolRegistryService } from './tools/tool-registry.service';
 import { ToolExecutorService } from './tools/tool-executor.service';
+import { ContextEngine } from './context-engine.service';
+import type { AiProviderRequest } from './context/ai-provider-request';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user';
 import { UserRole } from '../../generated/prisma/client';
+
+const SYSTEM_MESSAGE: AiProviderMessage = { role: 'system', content: 'SYSTEM' };
+const CONTEXT_MESSAGE: AiProviderMessage = {
+  role: 'system',
+  content: 'CONTEXT',
+};
+
+const ZERO_METADATA = {
+  estimatedTokens: 0,
+  messageCount: 0,
+  systemMessageCount: 2,
+  historicalMessageCount: 0,
+  discardedHistoricalMessageCount: 0,
+  toolCallCount: 0,
+  toolResultCount: 0,
+  summaryIncluded: false,
+  truncatedMessageCount: 0,
+  truncatedCharacterCount: 0,
+  preparationDurationMs: 0,
+};
 
 describe('ToolCallingOrchestrator', () => {
   let orchestrator: ToolCallingOrchestrator;
   let aiProvider: { streamResponse: jest.Mock };
   let toolRegistry: { list: jest.Mock };
   let toolExecutor: { execute: jest.Mock };
+  let contextEngine: { prepare: jest.Mock };
   let configValues: Record<string, unknown>;
 
   const user: AuthenticatedUser = {
@@ -85,6 +108,9 @@ describe('ToolCallingOrchestrator', () => {
     });
   }
 
+  const OPTIONS = { model: 'stub-echo', maxOutputTokens: 256 };
+  const INPUT = { history: [], newUserMessage: 'Salut' };
+
   beforeEach(async () => {
     aiProvider = {
       streamResponse: scriptedProvider([
@@ -93,6 +119,27 @@ describe('ToolCallingOrchestrator', () => {
     };
     toolRegistry = { list: jest.fn().mockReturnValue(REGISTERED_TOOLS) };
     toolExecutor = { execute: jest.fn() };
+    // Fake ContextEngine générique : transmet le catalogue reçu et enveloppe
+    // le nouveau message utilisateur, comme le ferait le vrai ContextEngine
+    // pour un historique vide — les tests de ContextEngine lui-même vivent
+    // dans context-engine.service.spec.ts, pas ici.
+    contextEngine = {
+      prepare: jest.fn().mockImplementation(
+        (input: {
+          newUserMessage: string;
+          toolCatalog: unknown[];
+          options: unknown;
+        }): AiProviderRequest =>
+          ({
+            system: SYSTEM_MESSAGE,
+            context: CONTEXT_MESSAGE,
+            messages: [{ role: 'user', content: input.newUserMessage }],
+            tools: input.toolCatalog,
+            options: input.options,
+            metadata: ZERO_METADATA,
+          }) as unknown as AiProviderRequest,
+      ),
+    };
     configValues = {
       AI_MAX_TOOL_CALLS: 10,
       AI_MAX_TOOL_CALL_TURNS: 5,
@@ -105,6 +152,7 @@ describe('ToolCallingOrchestrator', () => {
         { provide: AI_PROVIDER, useValue: aiProvider },
         { provide: ToolRegistryService, useValue: toolRegistry },
         { provide: ToolExecutorService, useValue: toolExecutor },
+        { provide: ContextEngine, useValue: contextEngine },
         {
           provide: ConfigService,
           useValue: { get: (key: string) => configValues[key] },
@@ -115,12 +163,9 @@ describe('ToolCallingOrchestrator', () => {
     orchestrator = module.get(ToolCallingOrchestrator);
   });
 
-  const messages: AiProviderMessage[] = [{ role: 'user', content: 'Salut' }];
-  const options = { model: 'stub-echo', maxOutputTokens: 256 };
-
   it('retourne un texte simple sans appel d’outil quand le fournisseur ne demande rien', async () => {
     const events = await collect(
-      orchestrator.run(messages, options, buildContext()),
+      orchestrator.run(INPUT, OPTIONS, buildContext()),
     );
 
     expect(events).toEqual([
@@ -130,8 +175,58 @@ describe('ToolCallingOrchestrator', () => {
     expect(toolExecutor.execute).not.toHaveBeenCalled();
   });
 
-  it('transmet le catalogue construit depuis le registre (AiToolSpec[], jamais ToolDefinition[]) au fournisseur', async () => {
-    await collect(orchestrator.run(messages, options, buildContext()));
+  it('appelle ContextEngine.prepare() exactement une fois par échange, quel que soit le nombre de tours', async () => {
+    aiProvider.streamResponse = scriptedProvider([
+      [
+        {
+          type: 'tool_call',
+          id: 'call-1',
+          name: 'dashboard.getSummary',
+          input: {},
+        },
+        { type: 'done' },
+      ],
+      [
+        {
+          type: 'tool_call',
+          id: 'call-2',
+          name: 'stock.listLowStockItems',
+          input: {},
+        },
+        { type: 'done' },
+      ],
+      [{ type: 'text', delta: 'Terminé.' }, { type: 'done' }],
+    ]);
+    toolExecutor.execute.mockResolvedValue({});
+
+    await collect(orchestrator.run(INPUT, OPTIONS, buildContext()));
+
+    expect(aiProvider.streamResponse).toHaveBeenCalledTimes(3);
+    expect(contextEngine.prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it('assemble les messages initiaux dans l’ordre system, contexte, puis messages préparés', async () => {
+    await collect(orchestrator.run(INPUT, OPTIONS, buildContext()));
+
+    const [firstCallMessages] = aiProvider.streamResponse.mock.calls[0] as [
+      AiProviderMessage[],
+    ];
+    expect(firstCallMessages).toEqual([
+      SYSTEM_MESSAGE,
+      CONTEXT_MESSAGE,
+      { role: 'user', content: 'Salut' },
+    ]);
+  });
+
+  it('transmet le catalogue construit depuis le registre (AiToolSpec[], jamais ToolDefinition[]) au fournisseur, via ContextEngine', async () => {
+    await collect(orchestrator.run(INPUT, OPTIONS, buildContext()));
+
+    const [prepareInput] = contextEngine.prepare.mock.calls[0] as [
+      { toolCatalog: { name: string }[] },
+    ];
+    expect(prepareInput.toolCatalog.map((t) => t.name)).toContain(
+      'dashboard.getSummary',
+    );
 
     const [, tools] = aiProvider.streamResponse.mock.calls[0] as [
       unknown,
@@ -162,7 +257,7 @@ describe('ToolCallingOrchestrator', () => {
       toolExecutor.execute.mockResolvedValue({ articlesCount: 3 });
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(toolExecutor.execute).toHaveBeenCalledWith(
@@ -182,7 +277,7 @@ describe('ToolCallingOrchestrator', () => {
       expect(JSON.stringify(events)).not.toContain('articlesCount');
     });
 
-    it('réinjecte le résultat de l’outil au fournisseur sous forme de message tool_result', async () => {
+    it('réinjecte le résultat de l’outil au fournisseur sous forme de message tool_result, en conservant le préfixe system/contexte', async () => {
       aiProvider.streamResponse = scriptedProvider([
         [
           {
@@ -197,7 +292,7 @@ describe('ToolCallingOrchestrator', () => {
       ]);
       toolExecutor.execute.mockResolvedValue({ articlesCount: 3 });
 
-      await collect(orchestrator.run(messages, options, buildContext()));
+      await collect(orchestrator.run(INPUT, OPTIONS, buildContext()));
 
       const secondCall = aiProvider.streamResponse.mock.calls[1] as [
         AiProviderMessage[],
@@ -206,6 +301,8 @@ describe('ToolCallingOrchestrator', () => {
         unknown,
       ];
       const secondCallMessages = secondCall[0];
+      expect(secondCallMessages[0]).toEqual(SYSTEM_MESSAGE);
+      expect(secondCallMessages[1]).toEqual(CONTEXT_MESSAGE);
       expect(secondCallMessages).toContainEqual({
         role: 'assistant_tool_call',
         toolCalls: [{ id: 'call-1', name: 'dashboard.getSummary', input: {} }],
@@ -244,7 +341,7 @@ describe('ToolCallingOrchestrator', () => {
         .mockResolvedValueOnce([{ articleName: 'Flacon' }]);
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(toolExecutor.execute).toHaveBeenNthCalledWith(
@@ -294,7 +391,7 @@ describe('ToolCallingOrchestrator', () => {
       toolExecutor.execute.mockResolvedValue({});
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(aiProvider.streamResponse).toHaveBeenCalledTimes(3);
@@ -328,7 +425,7 @@ describe('ToolCallingOrchestrator', () => {
       );
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(events).toContainEqual({
@@ -359,7 +456,7 @@ describe('ToolCallingOrchestrator', () => {
       );
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(events).toContainEqual({
@@ -387,7 +484,7 @@ describe('ToolCallingOrchestrator', () => {
         new Error('Lot 000000 introuvable.'),
       );
 
-      await collect(orchestrator.run(messages, options, buildContext()));
+      await collect(orchestrator.run(INPUT, OPTIONS, buildContext()));
 
       const secondCall = aiProvider.streamResponse.mock.calls[1] as [
         AiProviderMessage[],
@@ -405,7 +502,7 @@ describe('ToolCallingOrchestrator', () => {
     });
   });
 
-  describe('limites', () => {
+  describe('limites (inchangées depuis AI-04)', () => {
     it("arrête l'échange avec un message explicite au-delà du nombre maximal de tours", async () => {
       configValues.AI_MAX_TOOL_CALL_TURNS = 2;
       configValues.AI_MAX_TOOL_CALL_DEPTH = 10;
@@ -433,7 +530,7 @@ describe('ToolCallingOrchestrator', () => {
       toolExecutor.execute.mockResolvedValue({});
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(events).toContainEqual({
@@ -461,7 +558,7 @@ describe('ToolCallingOrchestrator', () => {
       toolExecutor.execute.mockResolvedValue({});
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(events).toContainEqual({
@@ -494,7 +591,7 @@ describe('ToolCallingOrchestrator', () => {
       toolExecutor.execute.mockResolvedValue({});
 
       const events = await collect(
-        orchestrator.run(messages, options, buildContext()),
+        orchestrator.run(INPUT, OPTIONS, buildContext()),
       );
 
       expect(events).toContainEqual({
@@ -506,7 +603,7 @@ describe('ToolCallingOrchestrator', () => {
     });
   });
 
-  describe('timeout / deadline globale', () => {
+  describe('timeout / deadline globale (inchangée depuis AI-04)', () => {
     it("arrête l'échange si le fournisseur ne répond pas avant l'échéance globale", async () => {
       aiProvider.streamResponse = jest
         .fn()
@@ -517,8 +614,8 @@ describe('ToolCallingOrchestrator', () => {
 
       const events = await collect(
         orchestrator.run(
-          messages,
-          options,
+          INPUT,
+          OPTIONS,
           buildContext({ deadline: Date.now() + 20 }),
         ),
       );
@@ -546,8 +643,8 @@ describe('ToolCallingOrchestrator', () => {
 
       const events = await collect(
         orchestrator.run(
-          messages,
-          options,
+          INPUT,
+          OPTIONS,
           // Déjà expirée avant même le premier appel.
           buildContext({ deadline: Date.now() - 1 }),
         ),
@@ -560,15 +657,15 @@ describe('ToolCallingOrchestrator', () => {
     });
   });
 
-  describe('annulation (AbortSignal)', () => {
+  describe('annulation (AbortSignal, inchangée depuis AI-04)', () => {
     it('ne produit aucun événement si le signal est déjà annulé', async () => {
       const controller = new AbortController();
       controller.abort();
 
       const events = await collect(
         orchestrator.run(
-          messages,
-          options,
+          INPUT,
+          OPTIONS,
           buildContext({ signal: controller.signal }),
         ),
       );
@@ -598,8 +695,8 @@ describe('ToolCallingOrchestrator', () => {
 
       const events = await collect(
         orchestrator.run(
-          messages,
-          options,
+          INPUT,
+          OPTIONS,
           buildContext({ signal: controller.signal }),
         ),
       );
@@ -613,8 +710,8 @@ describe('ToolCallingOrchestrator', () => {
 
       await collect(
         orchestrator.run(
-          messages,
-          options,
+          INPUT,
+          OPTIONS,
           buildContext({ signal: controller.signal }),
         ),
       );

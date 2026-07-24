@@ -35,10 +35,13 @@ export type AiToolResultPayload =
 /** Message de l'historique de conversation transmis au fournisseur — étendu en
  * AI-04 pour porter les tours de tool calling de l'échange en cours (jamais
  * persistés tels quels, voir AssistantService : seuls USER/ASSISTANT/TOOL_CALL
- * sont écrits en base, ToolResult reste strictement éphémère). */
+ * sont écrits en base, ToolResult reste strictement éphémère). `system` (AI-05,
+ * voir context/system-prompt.ts et ContextEngine) : un vrai rôle dédié, jamais
+ * un prompt système déguisé en faux message `assistant`. */
 export type AiProviderMessage =
   | { role: 'user'; content: string }
   | { role: 'assistant'; content: string }
+  | { role: 'system'; content: string }
   | { role: 'assistant_tool_call'; toolCalls: AiToolCallRequest[] }
   | {
       role: 'tool_result';

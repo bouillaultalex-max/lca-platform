@@ -103,4 +103,22 @@ export const envValidationSchema = Joi.object({
   // Profondeur maximale d'imbrication de la boucle de tool calling (récursion de
   // ToolCallingOrchestrator) — configurable indépendamment de AI_MAX_TOOL_CALL_TURNS.
   AI_MAX_TOOL_CALL_DEPTH: Joi.number().integer().positive().default(5),
+
+  // Context Engine (AI-05, voir ContextEngine) — budget de préparation du
+  // contexte envoyé au fournisseur, indépendant des limites de tool calling
+  // ci-dessus (qui bornent le nombre de tours/appels, pas la taille du contexte).
+  // Estimation maximale de jetons (voir context/token-estimator.util.ts, aucun
+  // tokenizer réel) pour l'ensemble system + contexte statique + résumé éventuel
+  // + historique conservé + nouveau message utilisateur.
+  AI_CONTEXT_MAX_TOKENS: Joi.number().integer().positive().default(8000),
+  // Nombre maximal de messages transmis au fournisseur, tous rôles confondus.
+  AI_CONTEXT_MAX_MESSAGES: Joi.number().integer().positive().default(40),
+  // Taille maximale (caractères) d'un message individuel transmis — au-delà,
+  // troncature explicite (voir context/truncate-message.util.ts), jamais une
+  // suppression silencieuse.
+  AI_CONTEXT_MAX_MESSAGE_CHARS: Joi.number().integer().positive().default(4000),
+  // Nombre minimal de messages historiques récents en dessous duquel un résumé
+  // déterministe (voir context/conversation-summary.util.ts) remplace la simple
+  // troncature silencieuse des messages plus anciens.
+  AI_CONTEXT_RECENT_MESSAGES_MIN: Joi.number().integer().min(0).default(6),
 });

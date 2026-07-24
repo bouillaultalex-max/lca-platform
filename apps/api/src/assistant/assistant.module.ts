@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AssistantController } from './assistant.controller';
 import { AssistantService } from './assistant.service';
 import { ToolCallingOrchestrator } from './tool-calling-orchestrator.service';
+import { ContextEngine } from './context-engine.service';
+import { ASSISTANT_CLOCK, SystemClock } from './context/clock';
 import { ToolRegistryService } from './tools/tool-registry.service';
 import { ToolExecutorService } from './tools/tool-executor.service';
 import { AssistantToolsRegistrationService } from './tools/assistant-tools-registration.service';
@@ -25,6 +27,10 @@ import { ImportExportModule } from '../import-export/import-export.module';
  * concentre toute la logique de raisonnement (tours, exécution des outils,
  * limites) : `AssistantService` ne fait que gérer les conversations, persister
  * les messages et traduire en SSE (voir tool-calling-orchestrator.service.ts).
+ * `ContextEngine` (AI-05) prépare exactement ce qui est envoyé au fournisseur
+ * (prompt système, contexte statique, sélection/résumé de l'historique) —
+ * aucune dépendance base de données, uniquement une horloge injectable
+ * (`ASSISTANT_CLOCK`, voir context/clock.ts) pour rester déterministe en test.
  */
 @Module({
   imports: [
@@ -39,6 +45,8 @@ import { ImportExportModule } from '../import-export/import-export.module';
   providers: [
     AssistantService,
     ToolCallingOrchestrator,
+    ContextEngine,
+    { provide: ASSISTANT_CLOCK, useClass: SystemClock },
     ToolRegistryService,
     ToolExecutorService,
     AssistantToolsRegistrationService,

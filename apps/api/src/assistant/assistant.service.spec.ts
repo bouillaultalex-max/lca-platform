@@ -174,7 +174,7 @@ describe('AssistantService', () => {
     });
   });
 
-  it('transmet uniquement l’historique USER/ASSISTANT (jamais TOOL_CALL) et le signal à l’orchestrateur', async () => {
+  it('transmet l’historique BRUT (avant le nouveau message) et le nouveau message séparément à l’orchestrateur — jamais pré-filtré ni mis en forme (voir ContextEngine, AI-05)', async () => {
     prisma.aiConversation.findFirst.mockResolvedValue({
       id: 'conv-4',
       siteId,
@@ -183,12 +183,12 @@ describe('AssistantService', () => {
       updatedAt: new Date(),
     });
     prisma.aiMessage.create.mockResolvedValue({});
-    prisma.aiMessage.findMany.mockResolvedValue([
+    const rawHistory = [
       { role: 'USER', content: 'Précédent' },
       { role: 'ASSISTANT', content: 'Réponse précédente' },
       { role: 'TOOL_CALL', content: '', toolName: 'dashboard.getSummary' },
-      { role: 'USER', content: 'Salut' },
-    ]);
+    ];
+    prisma.aiMessage.findMany.mockResolvedValue(rawHistory);
 
     await collect(
       service.streamMessage(
@@ -199,14 +199,35 @@ describe('AssistantService', () => {
     );
 
     expect(orchestrator.run).toHaveBeenCalledWith(
-      [
-        { role: 'user', content: 'Précédent' },
-        { role: 'assistant', content: 'Réponse précédente' },
-        { role: 'user', content: 'Salut' },
-      ],
+      { history: rawHistory, newUserMessage: 'Salut' },
       { model: 'stub-echo', maxOutputTokens: 256 },
       expect.objectContaining({ user, signal }),
     );
+  });
+
+  it('charge l’historique AVANT de persister le nouveau message utilisateur (jamais mélangé — voir ContextEngine, AI-05)', async () => {
+    prisma.aiConversation.create.mockResolvedValue({
+      id: 'conv-4b',
+      siteId,
+      userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    prisma.aiMessage.create.mockResolvedValue({});
+    const callOrder: string[] = [];
+    prisma.aiMessage.findMany.mockImplementation(() => {
+      callOrder.push('findMany');
+      return Promise.resolve([]);
+    });
+    prisma.aiMessage.create.mockImplementation(() => {
+      callOrder.push('create');
+      return Promise.resolve({});
+    });
+
+    await collect(service.streamMessage(user, { content: 'Salut' }, signal));
+
+    expect(callOrder[0]).toBe('findMany');
+    expect(callOrder[1]).toBe('create');
   });
 
   it('persiste un message TOOL_CALL (nom uniquement) pour chaque appel d’outil signalé par l’orchestrateur, et diffuse tool_call/tool_result en SSE', async () => {
