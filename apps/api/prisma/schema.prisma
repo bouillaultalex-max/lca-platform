@@ -312,12 +312,14 @@ model Feedback {
 // aucune action, aucune confirmation à ce stade. Voir docs/roadmap.md.
 // ---------------------------------------------------------------------------
 
-/// Rôle d'un message dans une conversation avec l'assistant. Volontairement
-/// limité à USER/ASSISTANT pour l'instant (AI-02) : pas encore de rôle TOOL,
-/// introduit seulement quand des outils métier existeront réellement (AI-03+).
+/// Rôle d'un message dans une conversation avec l'assistant. TOOL_CALL (AI-04) :
+/// trace qu'un outil a été appelé (nom uniquement, voir AiMessage.toolName) —
+/// aucun rôle équivalent pour le résultat d'un outil : ToolResult reste
+/// strictement éphémère (voir ToolCallingOrchestrator), jamais persisté.
 enum AiMessageRole {
   USER
   ASSISTANT
+  TOOL_CALL
 
   @@map("ai_message_role")
 }
@@ -340,14 +342,17 @@ model AiConversation {
   @@map("ai_conversations")
 }
 
-/// Message d'une conversation. `content` est le texte brut échangé ; aucun champ
-/// de résultat d'outil ni d'action à ce stade (AI-02 = infrastructure seule).
+/// Message d'une conversation. `content` est le texte brut échangé (vide pour
+/// role = TOOL_CALL). `toolName` (AI-04) n'est renseigné que pour role =
+/// TOOL_CALL : nom de l'outil appelé, jamais ses paramètres ni son résultat
+/// (voir ToolCallingOrchestrator — aucune donnée métier persistée ici).
 model AiMessage {
   id             String         @id @default(uuid())
   conversationId String         @map("conversation_id")
   conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           AiMessageRole
   content        String
+  toolName       String?        @map("tool_name")
   createdAt      DateTime       @default(now()) @map("created_at")
 
   @@index([conversationId])

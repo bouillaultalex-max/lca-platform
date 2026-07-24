@@ -1,27 +1,27 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AiProviderMessage } from './providers/ai-provider.interface';
 import {
-  AI_PROVIDER,
-  type AiProvider,
-  type AiProviderMessage,
-} from './providers/ai-provider.interface';
-import { ToolRegistryService } from './tools/tool-registry.service';
+  ToolCallingOrchestrator,
+  type ToolCallingContext,
+} from './tool-calling-orchestrator.service';
 import { SendAssistantMessageDto } from './dto/send-assistant-message.dto';
 import type { AssistantSseEvent } from './types/assistant-sse-event';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user';
-import { AiConversation } from '../../generated/prisma/client';
-
-const TIMEOUT_MESSAGE = "L'assistant n'a pas répondu à temps.";
+import { AiConversation, AiMessage } from '../../generated/prisma/client';
 
 /**
- * Orchestrateur de l'assistant IA (AI-02, infrastructure uniquement) :
- * - ne contient aucune logique métier, aucun outil, aucune action ;
- * - ne connaît jamais un SDK de fournisseur concret (voir AiProvider) ;
- * - persiste la conversation (minimal : id/rôle/contenu/horodatage) ;
- * - journalise chaque appel (utilisateur, conversation, durée, modèle,
- *   succès/échec) via le Logger applicatif standard — un journal dédié en base
- *   (au-delà de la conversation elle-même) est différé à AI-05 (voir AI-01 §12).
+ * Orchestrateur de conversation de l'assistant IA — ne contient **aucune**
+ * logique de raisonnement ni de tool calling (voir ToolCallingOrchestrator,
+ * AI-04, qui pilote les tours et exécute les outils) : ce service ne fait que
+ * gérer les conversations, persister les messages, traduire en SSE et
+ * journaliser l'issue globale d'un échange.
+ *
+ * Persistance (AI-04) : USER et ASSISTANT (texte final) comme avant, plus
+ * TOOL_CALL (nom de l'outil uniquement) pour chaque appel demandé par le
+ * modèle — jamais de ToolResult ni de donnée métier renvoyée par un outil,
+ * qui restent strictement éphémères (voir ToolCallingOrchestrator).
  */
 @Injectable()
 export class AssistantService {
@@ -29,8 +29,7 @@ export class AssistantService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(AI_PROVIDER) private readonly aiProvider: AiProvider,
-    private readonly toolRegistry: ToolRegistryService,
+    private readonly orchestrator: ToolCallingOrchestrator,
     private readonly configService: ConfigService,
   ) {}
 
@@ -56,13 +55,31 @@ export class AssistantService {
   }
 
   /**
+   * Historique renvoyé au fournisseur pour une NOUVELLE requête : uniquement
+   * les messages texte (USER/ASSISTANT). Les lignes TOOL_CALL persistées
+   * existent pour l'audit (voir classe ci-dessus) mais ne sont jamais
+   * rejouées telles quelles — sans leur ToolResult (jamais persisté), elles ne
+   * représentent pas un tour valide pour un fournisseur (AI-04, mémoire
+   * minimale : seule la réponse finale déjà formulée est "mémorisée" d'un
+   * échange à l'autre).
+   */
+  private toProviderMessages(history: AiMessage[]): AiProviderMessage[] {
+    return history
+      .filter(
+        (message) => message.role === 'USER' || message.role === 'ASSISTANT',
+      )
+      .map((message) => ({
+        role: message.role === 'USER' ? 'user' : 'assistant',
+        content: message.content,
+      }));
+  }
+
+  /**
    * Flux d'événements SSE pour un message envoyé par l'utilisateur — voir
    * AssistantController pour l'écriture réelle des trames HTTP. Générateur
    * asynchrone : le contrôleur peut arrêter la consommation à tout moment
-   * (annulation côté client). `signal` (AI-03) est transmis tel quel au
-   * fournisseur et vérifié entre chaque fragment, pour cesser d'interroger le
-   * fournisseur dès l'annulation — sans quoi seule l'écriture HTTP s'arrêterait
-   * (voir AssistantController), pas la génération elle-même.
+   * (annulation côté client). `signal` est transmis tel quel à
+   * ToolCallingOrchestrator via `ToolCallingContext`.
    */
   async *streamMessage(
     user: AuthenticatedUser,
@@ -104,59 +121,46 @@ export class AssistantService {
       where: { conversationId: conversation.id },
       orderBy: { createdAt: 'asc' },
     });
-    const providerMessages: AiProviderMessage[] = history.map((message) => ({
-      role: message.role === 'USER' ? 'user' : 'assistant',
-      content: message.content,
-    }));
+    const providerMessages = this.toProviderMessages(history);
+
+    const context: ToolCallingContext = {
+      user,
+      signal,
+      deadline: startedAt + requestTimeoutMs,
+    };
 
     let assembledResponse = '';
+    let receivedDone = false;
     try {
-      const stream = this.aiProvider.streamResponse(
+      for await (const event of this.orchestrator.run(
         providerMessages,
-        this.toolRegistry.list(),
-        {
-          model,
-          maxOutputTokens,
-        },
-        signal,
-      );
-      const iterator = stream[Symbol.asyncIterator]();
-      const deadline = startedAt + requestTimeoutMs;
-
-      while (true) {
-        // Annulation cliente : arrêt propre (pas une erreur), avant même de
-        // redemander un fragment au fournisseur — voir AI-03.
-        if (signal.aborted) break;
-
-        const remainingMs = deadline - Date.now();
-        if (remainingMs <= 0) {
-          throw new Error(TIMEOUT_MESSAGE);
-        }
-
-        // Course entre la prochaine étape du fournisseur et le budget de temps
-        // restant : un fournisseur qui ne répond jamais ne bloque jamais la
-        // requête au-delà de AI_REQUEST_TIMEOUT_MS (voir AI-01 §7). Le minuteur
-        // est systématiquement nettoyé (`finally`), qu'il ait gagné la course ou
-        // non, pour ne jamais laisser un timer actif derrière une requête déjà
-        // terminée.
-        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-        const result = await Promise.race([
-          iterator.next(),
-          new Promise<never>((_resolve, reject) => {
-            timeoutHandle = setTimeout(
-              () => reject(new Error(TIMEOUT_MESSAGE)),
-              remainingMs,
-            );
-          }),
-        ]).finally(() => clearTimeout(timeoutHandle));
-
-        if (result.done) break;
-        const chunk = result.value;
-        if (chunk.type === 'text') {
-          assembledResponse += chunk.delta;
-          yield { type: 'chunk', delta: chunk.delta };
-        } else if (chunk.type === 'error') {
-          throw new Error(chunk.message);
+        { model, maxOutputTokens },
+        context,
+      )) {
+        if (event.type === 'text') {
+          assembledResponse += event.delta;
+          yield { type: 'chunk', delta: event.delta };
+        } else if (event.type === 'tool_call') {
+          await this.prisma.aiMessage.create({
+            data: {
+              conversationId: conversation.id,
+              role: 'TOOL_CALL',
+              content: '',
+              toolName: event.name,
+            },
+          });
+          yield { type: 'tool_call', name: event.name };
+        } else if (event.type === 'tool_result') {
+          // Jamais persisté (voir classe ci-dessus) : strictement éphémère.
+          yield {
+            type: 'tool_result',
+            name: event.name,
+            success: event.success,
+          };
+        } else if (event.type === 'error') {
+          throw new Error(event.message);
+        } else if (event.type === 'done') {
+          receivedDone = true;
         }
       }
 
@@ -170,9 +174,10 @@ export class AssistantService {
         });
       }
 
-      // Pas de `done` si le client a déjà annulé : plus personne n'écoute
-      // (voir AssistantController), et ce n'est pas une erreur à signaler.
-      if (!signal.aborted) {
+      // Pas de `done` si l'orchestrateur ne l'a jamais émis (annulation ou
+      // erreur déjà signalée) : plus personne n'écoute ou une erreur a déjà
+      // été renvoyée, dans les deux cas ce n'est pas un succès à signaler.
+      if (receivedDone) {
         yield { type: 'done' };
       }
       this.logOutcome(user, conversation.id, model, startedAt, true);

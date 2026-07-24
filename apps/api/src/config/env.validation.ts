@@ -91,4 +91,16 @@ export const envValidationSchema = Joi.object({
   // Limite de tokens de sortie transmise au fournisseur (non appliquée par
   // EchoAiProvider, qui ne génère pas de tokens réels — voir AI-02).
   AI_MAX_OUTPUT_TOKENS: Joi.number().integer().positive().default(1024),
+
+  // Tool calling (AI-04, voir ToolCallingOrchestrator) — trois garde-fous
+  // structurels indépendants contre une boucle de raisonnement infinie, chacun
+  // vérifié séparément : un fournisseur défaillant ne peut dépasser aucun des
+  // trois, quel que soit son comportement.
+  // Nombre total d'appels d'outils pour un même message utilisateur, tous tours confondus.
+  AI_MAX_TOOL_CALLS: Joi.number().integer().positive().default(10),
+  // Nombre de tours (aller-retours complets avec le fournisseur) pour un même message.
+  AI_MAX_TOOL_CALL_TURNS: Joi.number().integer().positive().default(5),
+  // Profondeur maximale d'imbrication de la boucle de tool calling (récursion de
+  // ToolCallingOrchestrator) — configurable indépendamment de AI_MAX_TOOL_CALL_TURNS.
+  AI_MAX_TOOL_CALL_DEPTH: Joi.number().integer().positive().default(5),
 });

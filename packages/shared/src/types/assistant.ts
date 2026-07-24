@@ -26,9 +26,17 @@ export interface SendAssistantMessageRequest {
  * Événements du flux SSE reçus par le frontend (voir api/assistantStream.ts).
  * Le type est toujours porté par le champ `type`, jamais par le champ `event:`
  * de la trame SSE elle-même (un seul format à parser).
+ *
+ * `tool_call`/`tool_result` (AI-04) : un outil métier a été appelé et son
+ * issue (succès/échec) — jamais son résultat ni ses paramètres. Le frontend
+ * actuel les ignore sans erreur (voir useAssistantConversation.ts) : ajoutés
+ * ici uniquement pour stabiliser le protocole, aucun traitement visuel pour
+ * l'instant.
  */
 export type AssistantSseEvent =
   | { type: 'conversation'; conversationId: string }
   | { type: 'chunk'; delta: string }
+  | { type: 'tool_call'; name: string }
+  | { type: 'tool_result'; name: string; success: boolean }
   | { type: 'done' }
   | { type: 'error'; message: string };
