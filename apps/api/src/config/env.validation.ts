@@ -49,6 +49,33 @@ function rejectWeakJwtSecret(
   return value;
 }
 
+// AI_BASE_URL (AI-06) : jamais une donnée utilisateur (variable d'environnement
+// contrôlée par l'exploitant), mais une hygiène de configuration minimale reste
+// utile — https systématiquement autorisé, http uniquement vers une passerelle
+// locale (localhost/127.0.0.1), refusé pour tout autre hôte.
+function restrictAiBaseUrl(value: string, helpers: Joi.CustomHelpers<string>) {
+  if (value === '') return value;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return helpers.message({ custom: 'AI_BASE_URL doit être une URL valide.' });
+  }
+
+  const isHttps = parsed.protocol === 'https:';
+  const isLocalHttp =
+    parsed.protocol === 'http:' &&
+    (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+  if (isHttps || isLocalHttp) return value;
+
+  return helpers.message({
+    custom:
+      'AI_BASE_URL doit utiliser https, ou http uniquement vers localhost/127.0.0.1 ' +
+      '(passerelle locale) — refusé pour tout autre hôte en http.',
+  });
+}
+
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
@@ -78,14 +105,50 @@ export const envValidationSchema = Joi.object({
   // est traitée exactement comme une variable absente, jamais comme une erreur.
   MAKE_FEEDBACK_WEBHOOK_URL: Joi.string().uri().allow('').optional(),
 
-  // Assistant IA (voir AI-01/AI-02, docs/roadmap.md) — infrastructure uniquement,
-  // aucun fournisseur réel branché pour l'instant (voir EchoAiProvider). La clé
-  // reste optionnelle tant qu'aucun fournisseur réel n'est appelé : elle
-  // deviendra probablement obligatoire quand un vrai fournisseur sera branché
-  // (AI-03+), avec la même rigueur que JWT_SECRET (rejet des valeurs faibles).
-  AI_PROVIDER_API_KEY: Joi.string().allow('').optional(),
-  // Nom du modèle, jamais codé en dur dans l'orchestrateur (voir AssistantService).
-  AI_MODEL: Joi.string().min(1).default('stub-echo'),
+  // Sélecteur de fournisseur IA (AI-06, voir AssistantModule) : seul point de
+  // décision de toute l'application — jamais un if/else dispersé ailleurs.
+  // `echo` reste la valeur par défaut sûre (dev/test), aucun repli silencieux
+  // vers `echo` si `openai` est sélectionné mais mal configuré (échec net
+  // au démarrage via les règles conditionnelles ci-dessous).
+  AI_PROVIDER: Joi.string().valid('echo', 'openai').default('echo'),
+  // Obligatoire uniquement si AI_PROVIDER=openai — jamais lue directement via
+  // process.env ailleurs que dans la factory NestJS (voir AssistantModule).
+  AI_API_KEY: Joi.string().when('AI_PROVIDER', {
+    is: 'openai',
+    then: Joi.string().min(1).required().messages({
+      'any.required':
+        'AI_API_KEY est obligatoire quand AI_PROVIDER=openai (voir .env.example).',
+      'string.empty': 'AI_API_KEY est obligatoire quand AI_PROVIDER=openai.',
+    }),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  // Passerelle personnalisée (proxy d'entreprise, self-hosted compatible OpenAI,
+  // ex: vLLM/LiteLLM) — optionnelle quel que soit AI_PROVIDER. Voir
+  // restrictAiBaseUrl : https systématiquement autorisé, http uniquement vers
+  // localhost/127.0.0.1.
+  AI_BASE_URL: Joi.string()
+    .allow('')
+    .optional()
+    .custom(
+      restrictAiBaseUrl,
+      'restriction de AI_BASE_URL aux hôtes autorisés',
+    ),
+  // Organisation/projet OpenAI — optionnels, sans effet pour les autres valeurs
+  // de AI_PROVIDER (jamais lus ni requis en dehors du cas openai).
+  AI_ORGANIZATION: Joi.string().allow('').optional(),
+  AI_PROJECT: Joi.string().allow('').optional(),
+  // Nom du modèle, jamais codé en dur dans l'orchestrateur (voir AssistantService) —
+  // obligatoire quand AI_PROVIDER=openai (un modèle réel doit être choisi
+  // explicitement), défaut `stub-echo` sinon.
+  AI_MODEL: Joi.string()
+    .min(1)
+    .when('AI_PROVIDER', {
+      is: 'openai',
+      then: Joi.required().messages({
+        'any.required': 'AI_MODEL est obligatoire quand AI_PROVIDER=openai.',
+      }),
+      otherwise: Joi.optional().default('stub-echo'),
+    }),
   // Délai maximal (ms) accordé à une génération complète avant abandon explicite.
   AI_REQUEST_TIMEOUT_MS: Joi.number().integer().positive().default(30000),
   // Limite de tokens de sortie transmise au fournisseur (non appliquée par
