@@ -4,7 +4,7 @@ Logiciel de gestion de production pour le laboratoire de **LCA Distribution** (m
 
 ## État du projet
 
-**Jalon 1 (socle technique) terminé** — voir `docs/roadmap.md`. Le monorepo, l'authentification (JWT + rôles), Swagger, Prisma/PostgreSQL, le frontend React/Tailwind et une option de déploiement Docker sont en place. Les modules métier (catalogue, stock, batching, production, traçabilité...) restent à développer (jalons suivants).
+**L'état réel et à jour du dépôt est documenté dans [`PROJECT_STATE.md`](./PROJECT_STATE.md)**, mis à jour à la fin de chaque jalon/chantier — ce `README.md` ne duplique volontairement pas ce contenu en détail pour ne pas risquer de devenir obsolète (voir ticket DOC-01, 2026-07-26). Se référer à `PROJECT_STATE.md` §1 pour le tableau des jalons et leur statut réel.
 
 ## Stack technique
 
@@ -82,6 +82,8 @@ docker-compose.yml, apps/api/Dockerfile   # déploiement (optionnel)
 ## Documentation
 
 - [`MASTER_SPECIFICATION.md`](./MASTER_SPECIFICATION.md) — spécification fonctionnelle et technique de référence
+- [`PROJECT_STATE.md`](./PROJECT_STATE.md) — état réel et à jour du dépôt (source de vérité de l'avancement)
+- [`MASTER_BACKLOG.md`](./MASTER_BACKLOG.md) — backlog consolidé (features, dette technique, priorisation)
 - [`docs/architecture.md`](./docs/architecture.md) — architecture détaillée, découpage modulaire, organisation des dossiers
 - [`docs/modele-donnees.md`](./docs/modele-donnees.md) — modèle de données (entités, relations)
 - [`docs/regles-metier.md`](./docs/regles-metier.md) — règles métier
@@ -92,7 +94,7 @@ docker-compose.yml, apps/api/Dockerfile   # déploiement (optionnel)
 
 **Inclus** : catalogue, recettes, matières premières, packaging, stocks, imports OpenSi (Excel/CSV), batching, production (saisie manuelle), lots, traçabilité, contrôle qualité simple, coût matière + packaging par flacon.
 
-**Hors périmètre** (évolutions futures) : connexion machine (OPC-UA/Modbus/MQTT), gateway edge, IoT, multi-site complet, application mobile, IA avancée, optimisation de planning.
+**Hors périmètre** (évolutions futures) : connexion machine (OPC-UA/Modbus/MQTT), gateway edge, IoT, multi-site complet, application mobile, IA avancée, optimisation de planning — à l'exception du chantier assistant (AI-01 à AI-06 : infrastructure, 6 outils métier en lecture seule, fournisseur OpenAI optionnel, aucune action en écriture — voir `docs/roadmap.md` et `PROJECT_STATE.md`).
 
 ## Utilisateurs et rôles
 
@@ -102,4 +104,3 @@ docker-compose.yml, apps/api/Dockerfile   # déploiement (optionnel)
 | `RESPONSABLE_ADJOINT` | Complet |
 | `DIRECTION` | Lecture seule (rapports, statistiques, coûts, stocks, tableaux de bord) |
 | `DAF` | Lecture seule (rapports, statistiques, coûts, stocks, tableaux de bord) |
-Dernier test

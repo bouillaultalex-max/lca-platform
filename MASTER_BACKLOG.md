@@ -8,7 +8,7 @@
 >
 > Backlog → Analyse PO → Analyse Architecte → Validation humaine → Développement → QA → Documentation → Terminé
 >
-> Construit à partir de `CLAUDE.md`, `README.md`, `MASTER_SPECIFICATION.md`, `PROJECT_STATE.md` et de l'ensemble de `docs/` (architecture, modèle de données, règles métier, roadmap, ADR 0001-0005). Toute feature listée ci-dessous est justifiée par au moins un de ces documents.
+> Construit à partir de `CLAUDE.md`, `README.md`, `MASTER_SPECIFICATION.md`, `PROJECT_STATE.md` et de l'ensemble de `docs/` (architecture, modèle de données, règles métier, roadmap, ADR 0001-0006). Toute feature listée ci-dessous est justifiée par au moins un de ces documents.
 
 ---
 
@@ -179,8 +179,14 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 
 | ID | Feature | Priorité | Statut | Version |
 |----|---------|----------|--------|---------|
+| AI-01 | Analyse d'architecture de l'assistant IA (orchestrateur, cartographie des domaines existants, abstraction fournisseur, protocole de confirmation humaine pour de futures actions) | Haute | Terminé (2026-07-23) | V0.9 (extension assumée, voir `docs/roadmap.md`) |
+| AI-02 | Socle technique de l'assistant (module `assistant`, abstraction `AiProvider`, endpoint SSE, persistance `AiConversation`/`AiMessage`, panneau frontend minimal) | Haute | Terminé (2026-07-23) | V0.9 |
+| AI-03 | 6 outils métier réels, strictement en lecture seule (dashboard, stock, traçabilité, production, imports) | Haute | Terminé (2026-07-23) | V0.9 |
+| AI-04 | Orchestration du tool calling (`ToolCallingOrchestrator` : tours de raisonnement, exécution des outils, garde-fous anti-boucle) | Haute | Terminé (2026-07-24) | V0.9 |
+| AI-05 | Moteur de contexte (`ContextEngine` : prompt système, contexte statique, résumé/troncature de l'historique, budget de tokens) | Haute | Terminé (2026-07-24) | V0.9 |
+| AI-06 | Fournisseur OpenAI réel (`OpenAiProvider`, SDK officiel `openai`), optionnel via `AI_PROVIDER=openai` ; `EchoAiProvider` reste le fournisseur par défaut et le repli local | Haute | Terminé (2026-07-24) | V0.9 |
 
-*Aucune fonctionnalité IA n'est mentionnée comme construite ou planifiée en détail ; explicitement hors périmètre V0.9 (`MASTER_SPECIFICATION.md` §5, `README.md`).*
+**Tickets AI-01 à AI-06 tous validés explicitement par l'utilisateur, ticket par ticket, avant implémentation et commit** (voir `docs/roadmap.md`, section « Chantier IA — Assistant »). Périmètre strictement limité à l'infrastructure, à 6 outils en lecture seule et à un fournisseur optionnel : **aucune action métier en écriture, aucune optimisation de planning** n'est couverte — toute extension reste hors périmètre tant qu'elle n'a pas fait l'objet d'une validation équivalente, ticket par ticket.
 
 ## EPIC 12 — Imports/Exports OpenSi
 
@@ -242,6 +248,7 @@ Audit de sécurité mené en dehors du backlog fonctionnel courant, huit tickets
 | DEBT-10 | Bandeau global d'avertissement pour un brouillon référençant un ou plusieurs articles désactivés (le texte de repli par ligne est fait, pas le bandeau récapitulatif) | Faible | Amélioration future non implémentée |
 | DEBT-11 | Intégration du logo SVG officiel Maison Fuel | Faible | Reporté volontairement |
 | DEBT-12 | Dérive de `PROJECT_STATE.md`/`MASTER_BACKLOG.md` par rapport à l'état réel du dépôt (module `traceability`, audit SEC-01→08, statut réel de PRD-11 non reflétés) | Moyenne | Terminé (ticket TRAC-05, 2026-07-20) |
+| DEBT-13 | ADR dédié à l'architecture de l'assistant IA (AI-01 → AI-06) : annoncé (« voir `docs/adr` à venir ») mais jamais rédigé — formaliser l'orchestrateur, l'abstraction `AiProvider`, le registre d'outils et les garde-fous dans un ADR séparé | Faible | Proposé (2026-07-26, ticket DOC-01) — contenu non rédigé, rédaction non commencée |
 
 ---
 

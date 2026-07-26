@@ -99,7 +99,7 @@ Export de fichiers Excel/CSV à destination d'OpenSi :
 - Connexion machine directe (OPC-UA, Modbus, MQTT), gateway edge, IoT
 - Multi-site complet (l'architecture prévoit un identifiant de site, mais un seul site est utilisé en V0.9)
 - Application mobile
-- IA avancée, optimisation de planning
+- IA avancée, optimisation de planning — **à l'exception du chantier assistant (tickets AI-01 à AI-06, tous terminés et validés, voir `docs/roadmap.md`)** : infrastructure de conversation IA, 6 outils métier réels strictement en lecture seule, et un fournisseur OpenAI optionnel (`AI_PROVIDER=openai`, `EchoAiProvider` restant le fournisseur par défaut et le repli local) — aucune action métier en écriture, aucune optimisation de planning
 - Commandes, expéditions et règles réglementaires détaillées par marché (l'allocation multi-marchés couvre uniquement la répartition de production et de packaging — voir §4.4bis)
 
 ## 6. Contraintes techniques
