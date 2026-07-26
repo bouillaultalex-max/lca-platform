@@ -9,6 +9,7 @@ import { ASSISTANT_CLOCK, SystemClock } from './context/clock';
 import { ToolRegistryService } from './tools/tool-registry.service';
 import { ToolExecutorService } from './tools/tool-executor.service';
 import { AssistantToolsRegistrationService } from './tools/assistant-tools-registration.service';
+import { AssistantThrottlerGuard } from './assistant-throttler.guard';
 import {
   AI_PROVIDER,
   type AiProvider,
@@ -43,6 +44,11 @@ import { ImportExportModule } from '../import-export/import-export.module';
  * (prompt système, contexte statique, sélection/résumé de l'historique) —
  * aucune dépendance base de données, uniquement une horloge injectable
  * (`ASSISTANT_CLOCK`, voir context/clock.ts) pour rester déterministe en test.
+ *
+ * `AssistantThrottlerGuard` (AI-08) : les services globaux de `@nestjs/throttler`
+ * (`THROTTLER_OPTIONS`/`ThrottlerStorage`) sont déjà enregistrés par `AuthModule`
+ * (`ThrottlerModule.forRoot(...)`, voir SEC-02) — ce module est `@Global()`, ne
+ * jamais rappeler `forRoot()` ici sous peine de doublonner cet enregistrement.
  */
 @Module({
   imports: [
@@ -62,6 +68,7 @@ import { ImportExportModule } from '../import-export/import-export.module';
     ToolRegistryService,
     ToolExecutorService,
     AssistantToolsRegistrationService,
+    AssistantThrottlerGuard,
     {
       provide: AI_PROVIDER,
       useFactory: (configService: ConfigService): AiProvider => {

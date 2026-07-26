@@ -1,10 +1,21 @@
-import { Body, Controller, Post, Req, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AssistantService } from './assistant.service';
 import { SendAssistantMessageDto } from './dto/send-assistant-message.dto';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user';
+import { AssistantThrottlerGuard } from './assistant-throttler.guard';
+import {
+  ASSISTANT_THROTTLE_LIMIT,
+  ASSISTANT_THROTTLE_TTL_MS,
+} from './assistant-throttle.constants';
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 
@@ -22,11 +33,27 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
 export class AssistantController {
   constructor(private readonly assistantService: AssistantService) {}
 
+  // Limitation de débit (voir AI-08) : seule cette route l'applique dans tout
+  // le module — AssistantThrottlerGuard n'est volontairement pas un garde
+  // global (même principe que ThrottlerGuard sur POST /auth/login, SEC-02).
+  // `@Throttle` surcharge, pour cette seule route, le couple limite/fenêtre du
+  // throttler global déjà enregistré par AuthModule.
+  @UseGuards(AssistantThrottlerGuard)
+  @Throttle({
+    default: {
+      limit: ASSISTANT_THROTTLE_LIMIT,
+      ttl: ASSISTANT_THROTTLE_TTL_MS,
+    },
+  })
   @Post('messages')
   @ApiOperation({
     summary:
       "Envoie un message à l'assistant et reçoit la réponse en flux (Server-Sent Events). " +
       'Aucune action métier : les outils enregistrés (AI-03) sont en lecture seule.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Trop de messages envoyés, réessayez plus tard.',
   })
   async streamMessage(
     @CurrentUser() user: AuthenticatedUser,
