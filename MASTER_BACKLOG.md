@@ -185,8 +185,10 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 | AI-04 | Orchestration du tool calling (`ToolCallingOrchestrator` : tours de raisonnement, exécution des outils, garde-fous anti-boucle) | Haute | Terminé (2026-07-24) | V0.9 |
 | AI-05 | Moteur de contexte (`ContextEngine` : prompt système, contexte statique, résumé/troncature de l'historique, budget de tokens) | Haute | Terminé (2026-07-24) | V0.9 |
 | AI-06 | Fournisseur OpenAI réel (`OpenAiProvider`, SDK officiel `openai`), optionnel via `AI_PROVIDER=openai` ; `EchoAiProvider` reste le fournisseur par défaut et le repli local | Haute | Terminé (2026-07-24) | V0.9 |
+| AI-07 | Correction du texte d'accueil du panneau assistant (reflète les 6 outils réels en lecture seule livrés par AI-03, au lieu d'affirmer à tort qu'aucune donnée réelle n'est consultée) | Faible | Terminé (2026-07-26, commit `8f73ab3`) | V0.9 |
+| AI-08 | Limitation de débit de l'assistant IA (5 messages / 60 s par utilisateur, tracker `user.id`, repli IP, `429` explicite, aucun appel à `AssistantService`/au fournisseur pour une requête bloquée) | Moyenne | Terminé (2026-07-26, commit `63c6822`) | V0.9 |
 
-**Tickets AI-01 à AI-06 tous validés explicitement par l'utilisateur, ticket par ticket, avant implémentation et commit** (voir `docs/roadmap.md`, section « Chantier IA — Assistant »). Périmètre strictement limité à l'infrastructure, à 6 outils en lecture seule et à un fournisseur optionnel : **aucune action métier en écriture, aucune optimisation de planning** n'est couverte — toute extension reste hors périmètre tant qu'elle n'a pas fait l'objet d'une validation équivalente, ticket par ticket.
+**Tickets AI-01 à AI-08 tous validés explicitement par l'utilisateur, ticket par ticket, avant implémentation et commit** (voir `docs/roadmap.md`, section « Chantier IA — Assistant »). Périmètre strictement limité à l'infrastructure, à 6 outils en lecture seule et à un fournisseur optionnel : **aucune action métier en écriture, aucune optimisation de planning** n'est couverte — toute extension reste hors périmètre tant qu'elle n'a pas fait l'objet d'une validation équivalente, ticket par ticket.
 
 ## EPIC 12 — Imports/Exports OpenSi
 
@@ -248,7 +250,7 @@ Audit de sécurité mené en dehors du backlog fonctionnel courant, huit tickets
 | DEBT-10 | Bandeau global d'avertissement pour un brouillon référençant un ou plusieurs articles désactivés (le texte de repli par ligne est fait, pas le bandeau récapitulatif) | Faible | Amélioration future non implémentée |
 | DEBT-11 | Intégration du logo SVG officiel Maison Fuel | Faible | Reporté volontairement |
 | DEBT-12 | Dérive de `PROJECT_STATE.md`/`MASTER_BACKLOG.md` par rapport à l'état réel du dépôt (module `traceability`, audit SEC-01→08, statut réel de PRD-11 non reflétés) | Moyenne | Terminé (ticket TRAC-05, 2026-07-20) |
-| DEBT-13 | ADR dédié à l'architecture de l'assistant IA (AI-01 → AI-06) : annoncé (« voir `docs/adr` à venir ») mais jamais rédigé — formaliser l'orchestrateur, l'abstraction `AiProvider`, le registre d'outils et les garde-fous dans un ADR séparé | Faible | Proposé (2026-07-26, ticket DOC-01) — contenu non rédigé, rédaction non commencée |
+| DEBT-13 | ADR dédié à l'architecture de l'assistant IA (AI-01 → AI-08) : annoncé (« voir `docs/adr` à venir ») mais jamais rédigé — formaliser l'orchestrateur, l'abstraction `AiProvider`, le registre d'outils, les garde-fous et le garde de limitation de débit dans un ADR séparé | Faible | Proposé (2026-07-26, ticket DOC-01) — contenu non rédigé, rédaction non commencée |
 
 ---
 
