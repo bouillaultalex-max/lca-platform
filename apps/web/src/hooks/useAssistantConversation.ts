@@ -17,6 +17,26 @@ export interface UseAssistantConversationResult {
 }
 
 /**
+ * Applique un chunk assistant à la liste de messages. Fonction pure (aucune
+ * lecture/mutation de ref) pour rester correcte sous React.StrictMode, qui
+ * peut invoquer deux fois l'updater passé à setMessages.
+ */
+export function accumulateAssistantChunk(
+  prev: AssistantMessage[],
+  assistantId: string,
+  delta: string,
+  createdAt: string,
+  isFirstChunk: boolean,
+): AssistantMessage[] {
+  if (isFirstChunk) {
+    return [...prev, { id: assistantId, role: 'ASSISTANT', content: delta, createdAt }];
+  }
+  return prev.map((message) =>
+    message.id === assistantId ? { ...message, content: message.content + delta } : message,
+  );
+}
+
+/**
  * État d'une conversation avec l'assistant (AI-02, infrastructure uniquement) :
  * garde les messages en mémoire côté client pour la session courante — aucune
  * relecture d'historique depuis le serveur pour l'instant (pas d'endpoint de
@@ -55,21 +75,16 @@ export function useAssistantConversation(token: string | null): UseAssistantConv
             if (event.type === 'conversation') {
               conversationIdRef.current = event.conversationId;
             } else if (event.type === 'chunk') {
-              setMessages((prev) => {
-                if (pendingAssistantIdRef.current === null) {
-                  const id = generateLocalId();
-                  pendingAssistantIdRef.current = id;
-                  return [
-                    ...prev,
-                    { id, role: 'ASSISTANT', content: event.delta, createdAt: new Date().toISOString() },
-                  ];
-                }
-                return prev.map((message) =>
-                  message.id === pendingAssistantIdRef.current
-                    ? { ...message, content: message.content + event.delta }
-                    : message,
-                );
-              });
+              // isFirstChunk/assistantId calculés hors de l'updater : la ref
+              // ne doit être lue/mutée qu'une fois par chunk réel, pas par
+              // invocation de l'updater (StrictMode).
+              const isFirstChunk = pendingAssistantIdRef.current === null;
+              const assistantId: string = pendingAssistantIdRef.current ?? generateLocalId();
+              if (isFirstChunk) pendingAssistantIdRef.current = assistantId;
+              const createdAt = new Date().toISOString();
+              const { delta } = event;
+
+              setMessages((prev) => accumulateAssistantChunk(prev, assistantId, delta, createdAt, isFirstChunk));
             } else if (event.type === 'error') {
               setError(event.message);
             }
