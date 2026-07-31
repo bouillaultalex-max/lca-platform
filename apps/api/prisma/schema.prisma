@@ -186,6 +186,7 @@ model Site {
   columnMappingRules   ColumnMappingRule[]
   feedbackEntries      Feedback[]
   aiConversations      AiConversation[]
+  rndAromaSamples      RndAromaSample[]
 
   @@map("sites")
 }
@@ -411,6 +412,7 @@ model Article {
   genealogyLines                LotGenealogy[]
   expectedRequirements          ExpectedRequirement[]
   productAllocations            BatchProductAllocation[]
+  rndAromaSamples               RndAromaSample[]
 
   @@unique([siteId, openSiReference])
   @@unique([productFamilyId, marketId])
@@ -801,6 +803,8 @@ model ImportLog {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
+  rndAromaSamples RndAromaSample[]
+
   @@map("import_logs")
 }
 
@@ -868,4 +872,64 @@ model ColumnMappingRule {
 
   @@unique([siteId, source, sourceVersion, entityType, columnNameNormalized])
   @@map("column_mapping_rules")
+}
+
+// ---------------------------------------------------------------------------
+// R&D — Aromathèque (RD-01A)
+//
+// Périmètre strict de ce ticket : modèle de données uniquement, aucune donnée
+// réelle. Le module `rnd` (controllers/services) et l'import du fichier source
+// sont des tickets ultérieurs distincts, non commencés (voir cadrage R&D-01,
+// docs/roadmap.md "Évolutions futures").
+// ---------------------------------------------------------------------------
+
+/// Échantillon d'aromathèque (essai fournisseur), distinct du catalogue de
+/// production (`Article`) : un échantillon n'est ni une matière première ni une
+/// recette tant qu'il n'a pas été validé et promu manuellement (voir
+/// `linkedArticleId` ci-dessous). Le module R&D reste volontairement séparé du
+/// module `catalog` (voir docs/architecture.md "Évolutions futures").
+model RndAromaSample {
+  id                String     @id @default(uuid())
+  siteId            String     @map("site_id")
+  site              Site       @relation(fields: [siteId], references: [id])
+  /// Identifiant historique du fichier source (colonne dont l'intitulé brut est
+  /// "EF-0378" dans le fichier d'origine — un accident de mise en forme du fichier,
+  /// pas une signification métier). Conservé tel quel pour ne jamais réécrire
+  /// l'historique ; unique par site, réutilisé pour les mises à jour d'un futur
+  /// import (upsert par identifiant, jamais par fusion).
+  legacyId          String     @map("legacy_id")
+  /// Fournisseur conservé exactement comme dans le fichier source, en texte libre.
+  /// Aucun rapprochement automatique avec `Supplier` (référentiel des fournisseurs
+  /// de production, périmètre distinct) — décision métier confirmée.
+  supplierNameRaw   String     @map("supplier_name_raw")
+  productName       String     @map("product_name")
+  /// Référence fournisseur : peut être absente dans le fichier source (décision
+  /// métier confirmée), donc facultative ici — aucune contrainte d'unicité dessus.
+  supplierReference String?    @map("supplier_reference")
+  /// Catégorie en texte libre avec valeur par défaut, pour ne jamais nécessiter de
+  /// migration à l'ajout d'une nouvelle catégorie (pas un enum figé).
+  category          String     @default("Autre")
+  rating            Decimal?
+  stockGrams        Decimal?   @map("stock_grams")
+  pricePerKgEur     Decimal?   @map("price_per_kg_eur")
+  addedAt           DateTime?  @map("added_at")
+  comment           String?
+  /// Lien manuel futur vers le catalogue de production, renseigné uniquement lors
+  /// d'une promotion contrôlée par un utilisateur habilité — jamais automatique.
+  linkedArticleId   String?    @map("linked_article_id")
+  linkedArticle     Article?   @relation(fields: [linkedArticleId], references: [id])
+  active            Boolean    @default(true)
+  /// Provenance d'un futur import (ticket ultérieur, non utilisé par RD-01A).
+  importLogId       String?    @map("import_log_id")
+  importLog         ImportLog? @relation(fields: [importLogId], references: [id])
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  @@unique([siteId, legacyId])
+  @@index([siteId, active])
+  @@index([siteId, category])
+  @@index([siteId, supplierNameRaw])
+  @@index([linkedArticleId])
+  @@index([importLogId])
+  @@map("rnd_aroma_samples")
 }
