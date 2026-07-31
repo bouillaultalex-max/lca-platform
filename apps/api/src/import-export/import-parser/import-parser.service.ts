@@ -20,7 +20,16 @@ export interface ParsedRow {
  */
 @Injectable()
 export class ImportParserService {
-  parse(buffer: Buffer, fileName: string): ParsedRow[] {
+  /**
+   * `sheetName` est optionnel et générique (aucun nom de feuille métier connu
+   * ici, voir docs/architecture.md — ce service reste agnostique de tout
+   * connecteur). Omis : comportement historique inchangé, `workbook.SheetNames[0]`
+   * est utilisé (tous les imports OpenSi existants). Fourni : correspondance
+   * exacte obligatoire, jamais de repli silencieux sur la première feuille si le
+   * nom demandé est introuvable — s'applique de la même façon à un CSV, qui n'a
+   * jamais qu'une seule feuille (nommée "Sheet1" par SheetJS).
+   */
+  parse(buffer: Buffer, fileName: string, sheetName?: string): ParsedRow[] {
     if (!buffer || buffer.length === 0) {
       throw new BadRequestException(
         `Le fichier "${fileName}" est vide ou illisible.`,
@@ -36,16 +45,27 @@ export class ImportParserService {
       );
     }
 
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) {
-      throw new BadRequestException(
-        `Le fichier "${fileName}" ne contient aucune feuille exploitable.`,
-      );
+    let resolvedSheetName: string;
+    if (sheetName !== undefined) {
+      if (!workbook.SheetNames.includes(sheetName)) {
+        throw new BadRequestException(
+          `La feuille "${sheetName}" est introuvable dans le fichier "${fileName}". ` +
+            `Feuilles disponibles : ${workbook.SheetNames.join(', ') || 'aucune'}.`,
+        );
+      }
+      resolvedSheetName = sheetName;
+    } else {
+      resolvedSheetName = workbook.SheetNames[0];
+      if (!resolvedSheetName) {
+        throw new BadRequestException(
+          `Le fichier "${fileName}" ne contient aucune feuille exploitable.`,
+        );
+      }
     }
 
     const rows = XLSX.utils.sheet_to_json<
       Record<string, string | number | boolean | null>
-    >(workbook.Sheets[sheetName], { defval: null, raw: true });
+    >(workbook.Sheets[resolvedSheetName], { defval: null, raw: true });
 
     if (rows.length === 0) {
       throw new BadRequestException(
