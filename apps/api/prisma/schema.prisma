@@ -135,6 +135,7 @@ enum ImportType {
   STOCKS
   BESOINS_ATTENDUS
   INVENTAIRE
+  AROMATHEQUE
 
   @@map("import_type")
 }
@@ -798,6 +799,11 @@ model ImportLog {
   /// Détail des erreurs ligne par ligne (ex : [{ "line": 4, "message": "..." }]),
   /// pour que l'historique reste consultable (pas seulement un compteur).
   errorDetails   Json?        @map("error_details")
+  /// Empreinte SHA-256 des lignes normalisées à la prévisualisation (future
+  /// vérification d'intégrité entre preview et confirm, voir RD-01C). Nullable pour
+  /// préserver tous les imports existants ; non encore lue ni écrite par aucun
+  /// service à ce stade (RD-01C-1 : fondation de schéma uniquement).
+  previewHash    String?      @map("preview_hash")
   userId         String       @map("user_id")
   user           User         @relation(fields: [userId], references: [id])
   createdAt      DateTime     @default(now()) @map("created_at")
