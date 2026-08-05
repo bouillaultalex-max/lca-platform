@@ -16,6 +16,7 @@ import { FeedbackModule } from './feedback/feedback.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { TraceabilityModule } from './traceability/traceability.module';
 import { AssistantModule } from './assistant/assistant.module';
+import { RndModule } from './rnd/rnd.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AssistantModule } from './assistant/assistant.module';
         '/dashboard/*path',
         '/traceability/*path',
         '/assistant/*path',
+        '/rnd/*path',
         '/health',
         '/api/*path',
       ],
@@ -69,6 +71,7 @@ import { AssistantModule } from './assistant/assistant.module';
     DashboardModule,
     TraceabilityModule,
     AssistantModule,
+    RndModule,
   ],
   controllers: [AppController],
   providers: [AppService],
