@@ -3,6 +3,8 @@ import { ImportExportModule } from '../import-export/import-export.module';
 import { ImportFileValidationService } from '../import-export/import-file-validation.service';
 import { AromaSamplesImportController } from './aroma-samples-import/aroma-samples-import.controller';
 import { AromaSamplesImportService } from './aroma-samples-import/aroma-samples-import.service';
+import { AromaSamplesController } from './aroma-samples/aroma-samples.controller';
+import { AromaSamplesService } from './aroma-samples/aroma-samples.service';
 
 /**
  * Module R&D (voir RD-01) : échantillons d'aromathèque, distincts du catalogue de
@@ -17,10 +19,19 @@ import { AromaSamplesImportService } from './aroma-samples-import/aroma-samples-
  * provider indépendant plutôt que de modifier ce module hors périmètre (RD-01C-4) —
  * ce service est sans état, sans dépendance de constructeur, l'instancier deux fois
  * n'a aucun effet de bord.
+ *
+ * `AromaSamplesService`/`AromaSamplesController` (RD-01D-1) : API de consultation en
+ * lecture seule, distincte de l'import (RD-01C) — aucune écriture, aucune dépendance
+ * partagée avec `AromaSamplesImportService` au-delà de `PrismaService` (global, voir
+ * `PrismaModule`).
  */
 @Module({
   imports: [ImportExportModule],
-  controllers: [AromaSamplesImportController],
-  providers: [AromaSamplesImportService, ImportFileValidationService],
+  controllers: [AromaSamplesImportController, AromaSamplesController],
+  providers: [
+    AromaSamplesImportService,
+    ImportFileValidationService,
+    AromaSamplesService,
+  ],
 })
 export class RndModule {}
