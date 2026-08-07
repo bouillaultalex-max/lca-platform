@@ -1,6 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '../../../generated/prisma/client';
+import {
+  ImportStatus,
+  ImportType,
+  Prisma,
+} from '../../../generated/prisma/client';
 import {
   AromaSampleSortBy,
   AromaSampleSortOrder,
@@ -45,6 +49,28 @@ export interface PaginatedAromaSamples {
   meta: PaginationMeta;
 }
 
+/**
+ * Résumé du dernier `ImportLog` ayant créé ou mis à jour l'échantillon (voir
+ * RD-01D-2) — jamais `previewHash`, `errorDetails` complet ni `siteId`.
+ */
+export interface AromaSampleImportLogSummary {
+  id: string;
+  type: ImportType;
+  status: ImportStatus;
+  createdAt: Date;
+  processedLines: number;
+  errorCount: number;
+}
+
+/**
+ * Fiche détail (voir RD-01D-2) : mêmes champs que `AromaSampleListItem`, enrichis du
+ * dernier import d'origine. Toujours `null` pour un échantillon jamais importé (créé
+ * manuellement — hors périmètre actuel, mais le champ `importLogId` reste nullable).
+ */
+export interface AromaSampleDetailResponse extends AromaSampleListItem {
+  importLog: AromaSampleImportLogSummary | null;
+}
+
 const SELECT_AROMA_SAMPLE_LIST_ITEM = {
   id: true,
   legacyId: true,
@@ -74,6 +100,55 @@ function toListItem(sample: SelectedAromaSample): AromaSampleListItem {
     pricePerKgEur: sample.pricePerKgEur
       ? sample.pricePerKgEur.toNumber()
       : null,
+  };
+}
+
+/**
+ * Sélection de la fiche détail : reprend les mêmes champs que la liste, plus le
+ * dernier `ImportLog` lié — en sélectionnant explicitement uniquement ses champs
+ * utiles (`id`, `type`, `status`, `createdAt`, `processedLines`, `errorCount`),
+ * jamais `previewHash`, `errorDetails`, `siteId` ni `userId` : ces champs ne sont
+ * jamais lus en base pour cet écran, donc ne peuvent jamais être exposés par erreur.
+ */
+const SELECT_AROMA_SAMPLE_DETAIL = {
+  ...SELECT_AROMA_SAMPLE_LIST_ITEM,
+  importLog: {
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      createdAt: true,
+      processedLines: true,
+      errorCount: true,
+    },
+  },
+} satisfies Prisma.RndAromaSampleSelect;
+
+type SelectedAromaSampleDetail = Prisma.RndAromaSampleGetPayload<{
+  select: typeof SELECT_AROMA_SAMPLE_DETAIL;
+}>;
+
+function toDetailResponse(
+  sample: SelectedAromaSampleDetail,
+): AromaSampleDetailResponse {
+  return {
+    id: sample.id,
+    legacyId: sample.legacyId,
+    supplierNameRaw: sample.supplierNameRaw,
+    productName: sample.productName,
+    supplierReference: sample.supplierReference,
+    category: sample.category,
+    rating: sample.rating ? sample.rating.toNumber() : null,
+    stockGrams: sample.stockGrams ? sample.stockGrams.toNumber() : null,
+    pricePerKgEur: sample.pricePerKgEur
+      ? sample.pricePerKgEur.toNumber()
+      : null,
+    addedAt: sample.addedAt,
+    comment: sample.comment,
+    active: sample.active,
+    createdAt: sample.createdAt,
+    updatedAt: sample.updatedAt,
+    importLog: sample.importLog,
   };
 }
 
@@ -166,5 +241,27 @@ export class AromaSamplesService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  /**
+   * Fiche détail d'un échantillon (voir RD-01D-2). Recherche systématiquement par
+   * `id` + `siteId` combinés (jamais par `id` seul) : un identifiant valide d'un
+   * autre site ne renvoie jamais l'échantillon, exactement comme
+   * `ArticlesService.findOne()`.
+   */
+  async findOne(
+    siteId: string,
+    id: string,
+  ): Promise<AromaSampleDetailResponse> {
+    const sample = await this.prisma.rndAromaSample.findFirst({
+      where: { id, siteId },
+      select: SELECT_AROMA_SAMPLE_DETAIL,
+    });
+    if (!sample) {
+      throw new NotFoundException(
+        `Échantillon d'aromathèque ${id} introuvable.`,
+      );
+    }
+    return toDetailResponse(sample);
   }
 }
