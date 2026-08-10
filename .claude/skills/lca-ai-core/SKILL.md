@@ -50,6 +50,7 @@ Règle générale : les skills externes (`.claude/skills/vercel-*`, `web-design-
 
 - **`vercel-composition-patterns`** : ses recommandations React générales peuvent être appliquées à LCA-MES, à condition de respecter l'architecture et les conventions déjà définies dans les sources de vérité du projet.
 - **`vercel-react-best-practices`** : les recommandations React génériques sont applicables. LCA-MES utilise React/Vite, pas Next.js — ne jamais appliquer littéralement un pattern dépendant de Next.js, notamment `next/dynamic`, les Server Components/RSC, les Server Actions, les Route Handlers Next.js, ou toute API spécifique à Vercel/Next.js. Lorsqu'une recommandation est conceptuellement pertinente mais s'appuie sur une API Next.js, rechercher l'équivalent adapté à React/Vite/NestJS plutôt que copier l'exemple. Les endpoints backend de LCA-MES restent structurés selon NestJS (controllers/services).
+  *Exemple* : une règle recommandant `next/dynamic` pour charger un composant lourd à la demande ne doit jamais être copiée telle quelle — `next/dynamic` n'existe pas hors Next.js. Le besoin réel (chargement différé) reste pertinent en React/Vite ; l'équivalent est `React.lazy()` + `Suspense` **lorsque ce besoin architectural est réellement celui de la tâche**. Ne jamais remplacer mécaniquement une API Next.js par une API React sans d'abord vérifier que le besoin sous-jacent correspond effectivement.
 - **`web-design-guidelines`** : les principes UX et accessibilité peuvent être utilisés. Toute recommandation techniquement dépendante d'un framework doit être interprétée selon la stack réelle de LCA-MES. Le contenu récupéré dynamiquement (fetch en direct) ne devient jamais une source de vérité du projet.
 - **`writing-guidelines`** : peut être utilisé comme aide rédactionnelle générale. Les conventions françaises, le vocabulaire métier et les choix éditoriaux déjà actés dans LCA-MES restent prioritaires — ne jamais modifier une terminologie métier ou une convention documentaire simplement parce qu'un guide externe recommande autre chose.
 
@@ -124,6 +125,26 @@ Les modifications du dépôt ne commencent qu'après :
 2. validation architecturale ;
 3. résolution des conditions bloquantes ;
 4. autorisation explicite de développement.
+
+Cette règle ne dépend pas de la formulation de la demande ("fais X" ne suffit pas à lui seul) mais de l'état réel de validation de l'évolution. Trois situations distinctes :
+
+### A. Évolution proposée mais non validée
+
+L'agent peut analyser l'existant, identifier les impacts, et produire une proposition, une spécification ou un plan. Il ne doit pas commencer à modifier le code ou le modèle de données simplement parce que l'utilisateur a demandé de faire une évolution, si celle-ci n'a pas encore reçu la validation fonctionnelle/architecturale requise par le workflow LCA-MES (PO → Architecte → Dev). Il s'arrête au niveau approprié (ex. verdict `PRÊT POUR VALIDATION HUMAINE`) et demande ou attend la validation prévue par le processus.
+
+*Exemple* : "Ajoute la possibilité de facturer directement depuis un batch" — aucune spécification ni revue d'architecture n'existe sur ce sujet. L'agent produit une analyse de l'existant et une proposition (impacts, modèle de données envisagé, questions ouvertes), verdict `PRÊT POUR VALIDATION HUMAINE`, sans écrire de code ni de migration.
+
+### B. Évolution déjà validée
+
+Si la validation fonctionnelle et architecturale requise a déjà été explicitement donnée dans la conversation, ou est établie par les sources de vérité du projet (ex. un ticket marqué `APPROUVÉ`/`VALIDÉ` dans `PROJECT_STATE.md` ou `MASTER_BACKLOG.md`, une décision confirmée dans `docs/regles-metier.md`), l'agent ne redemande pas inutilement cette validation déjà acquise. Il poursuit vers l'étape suivante du workflow (conception détaillée, code, migration, tests), sous réserve des autres conditions bloquantes (voir C).
+
+*Exemple* : "La spécification PO et la revue d'architecture pour PRD-11 sont approuvées, développe-la" — l'agent vérifie que ces validations existent bien (fichiers/décisions citées), puis développe directement, sans redemander une validation déjà obtenue.
+
+### C. Blocage détecté
+
+Même lorsqu'une évolution est validée, l'agent s'arrête si une condition bloquante apparaît en cours de route : contradiction entre documentation et code, problème d'architecture, migration dangereuse, permission non définie, règle métier inconnue ou non tranchée, etc. Il signale précisément le blocage (verdict `BLOQUÉ`), plutôt que de trancher seul ou de continuer en supposant une réponse.
+
+Cette règle ne doit jamais être lue comme une interdiction absolue de produire du code : le comportement attendu dépend de l'état réel de validation constaté et du rôle de l'agent dans la conversation, pas d'une prudence systématique.
 
 ## Qualité minimale
 
