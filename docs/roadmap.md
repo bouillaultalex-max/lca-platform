@@ -111,7 +111,7 @@ Non conçu, non codé — à cadrer explicitement avec l'utilisateur avant tout 
 - **Workflow réel de préparation/batching/production** validé avec le responsable laboratoire (voir `docs/regles-metier.md` §12) : consultation des besoins → adaptation des quantités par gamme (couverture visée d'environ 1 mois ou plus) → préparation de la recette selon la quantité à produire → batching → mélange → incorporation en trémie → conditionnement machine. Aucune maturation. Impacte directement la conception des modules `batching`/`production` (Phase D).
 - **Calcul volume + masse en préparation de batch** : les recettes restent exprimées en % de volume ; une densité optionnelle par matière première (`Article.densityKgPerL`) permet d'afficher la masse à peser, sans valeur par défaut codée en dur — "densité manquante" affiché explicitement si absente. La déduction de stock, elle, reste en volume (L).
 - **Étape de production distincte du statut** : `BatchStep` (`PREPARATION`/`MELANGE`/`INCORPORATION_TREMIE`/`CONDITIONNEMENT`) est un champ séparé de `BatchStatus`, avec progression stricte et sans retour en arrière.
-- **Point noté pour un futur module `traceability`** (Jalon 3) : le numéro de lot généré à la clôture d'un batch n'est aujourd'hui affiché qu'immédiatement après la clôture — il n'est pas encore consultable en rechargeant un batch terminé (pas d'endpoint de lecture des lots).
+- **Point noté pour le module `traceability`** (Jalon 3) : le numéro de lot généré à la clôture d'un batch est désormais consultable après coup — recherche par numéro de lot et lien direct depuis l'écran Production, implémentés et vérifiés le 2026-08-11 (voir TRAC-01 à TRAC-04, `PROJECT_STATE.md` §6, `MASTER_BACKLOG.md`).
 
 ## Jalon 4 — Sortie, fiabilisation, documentation finale
 

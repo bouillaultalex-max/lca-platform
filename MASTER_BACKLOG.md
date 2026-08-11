@@ -38,7 +38,7 @@ Les documents officiels (`MASTER_SPECIFICATION.md`, `docs/roadmap.md`) ne défin
 | Jalon 2 — Catalogue & cœur production | Terminé (2026-07-07) | v0.9 |
 | Jalon 2.5 — Gestion des utilisateurs | Terminé (2026-07-07) | v0.9 |
 | Audit + corrections V0.3 (7 itérations, 2026-07-08 → 2026-07-16) | Terminé | v0.9 |
-| Jalon 3 — Traçabilité, qualité, coûts | Démarré partiellement (traçabilité, backend + frontend partiels, 2026-07-18/19 — voir PRD-08/PRD-09/TRAC-01→04) ; qualité et coûts non démarrés | v1.0 / v1.2 (Production complète / Qualité) |
+| Jalon 3 — Traçabilité, qualité, coûts | Démarré partiellement (traçabilité : backend + frontend terminés et vérifiés le 2026-08-11 — voir PRD-08/PRD-09/TRAC-01→04) ; qualité et coûts non démarrés | v1.0 / v1.2 (Production complète / Qualité) |
 | Jalon 4 — Exports, tableaux de bord, sauvegardes | Non démarré | v1.1 (Administration) |
 | Post-V0.9 (`logistique`, `r&d`, `planning`) | Non conçu | v1.3 (R&D) / hors périmètre |
 | CRM, Achats (au sens ERP), IA avancée | Jamais mentionnés comme fonctionnalités concrètes | v2.0 (Entreprise) — aspirationnel, aucun contenu documenté |
@@ -84,15 +84,17 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 | PRD-05 | Clôture de batch : génération du lot + déduction stock atomique (transaction unique) | Haute | Terminé | V0.9 |
 | PRD-06 | Analyse de faisabilité avant lancement (`BatchFeasibilityService`, ADR 0005) : blocage si stock insuffisant, quantité max produisible, ajustement explicite | Haute | Terminé | V0.9 |
 | PRD-07 | Génération du numéro de lot (`LotNumberGeneratorService`) | Haute | Terminé (implémentation placeholder — voir DEBT-01) | V0.9 |
-| PRD-08 | Généalogie du lot (`LotGenealogy`) — écran de consultation dédié (module `traceability`) | Moyenne | Partiellement terminé (2026-07-18/19) — backend en lecture livré (`GET /traceability/lots/:id`, `GET /traceability/stock-lots/:id`) et écran de recherche par UUID livré ; **les lignes de généalogie ne sont pas encore affichées à l'écran** — voir TRAC-01/TRAC-02/TRAC-04 | V0.9 (Jalon 3) |
-| PRD-09 | Consultation du numéro de lot après rechargement d'un batch terminé | Faible | Partiellement débloqué (2026-07-18/19) — `GET /traceability/lots/:id` permet techniquement de recharger un lot, mais sans moyen réaliste d'en retrouver l'UUID (pas de recherche par numéro, pas de lien depuis Production) — voir TRAC-03A/TRAC-03B | V0.9 (Jalon 3) |
+| PRD-08 | Généalogie du lot (`LotGenealogy`) — écran de consultation dédié (module `traceability`) | Moyenne | **Terminé** — backend en lecture (`GET /traceability/lots/:id`, `GET /traceability/stock-lots/:id`) et frontend complet : lignes de généalogie affichées, traçabilité inverse consultable — voir TRAC-01/TRAC-02, vérifié le 2026-08-11 | V0.9 (Jalon 3) |
+| PRD-09 | Consultation du numéro de lot après rechargement d'un batch terminé | Faible | **Terminé** — recherche par numéro de lot (`455XXX`) et lien direct depuis l'écran Production après clôture, tous deux fonctionnels — voir TRAC-03A/TRAC-03B, vérifié le 2026-08-11 | V0.9 (Jalon 3) |
 | PRD-10 | Calcul et historisation du coût par flacon (`BatchCost`) | Moyenne | Non démarré | V0.9 (Jalon 3) |
 | PRD-11 | Allocation multi-marchés (un batch réparti entre plusieurs marchés, un lot par allocation — voir ADR-0006 et `docs/features/PRD-11-allocation-multi-marches/`) | P0 | **Terminé (2026-07-22)** — backend (schéma Prisma, `catalog/markets`, `catalog/product-families`, `BatchProductAllocationsService`, `BatchFeasibilityService`/`BatchClosureService` étendus) et frontend (5 tickets, `ProductionPage.tsx`) livrés ; recette fonctionnelle globale réalisée, conclusion « validé avec réserves mineures » (voir `PROJECT_STATE.md` §6) | V0.9 (Jalon 2) |
-| TRAC-01 | Afficher les lignes de généalogie (matières premières/packaging consommés, avec lot fournisseur) sur l'écran de traçabilité d'un lot | Moyenne | Proposé (2026-07-20) | V0.9 (Jalon 3) |
-| TRAC-02 | Intégrer la traçabilité inverse (`GET /traceability/stock-lots/:id`) côté frontend | Moyenne | Proposé (2026-07-20) | V0.9 (Jalon 3) |
-| TRAC-03A | Recherche d'un lot par numéro (`455XXX`) sur l'écran de traçabilité | Faible | Proposé (2026-07-20) | V0.9 (Jalon 3) |
-| TRAC-03B | Lien direct vers la fiche de traçabilité d'un lot depuis l'écran Production, après clôture d'un batch | Faible | Proposé (2026-07-20) | V0.9 (Jalon 3) |
-| TRAC-04 | Tests e2e des deux endpoints `traceability` (cas trouvé, non trouvé, hors site, ouverture `DIRECTION`/`DAF`) | Faible | Proposé (2026-07-20) | V0.9 (Jalon 3) |
+| TRAC-01 | Afficher les lignes de généalogie (matières premières/packaging consommés, avec lot fournisseur) sur l'écran de traçabilité d'un lot | Moyenne | **Terminé**, vérifié le 2026-08-11 (`TraceabilityPage.tsx`) | V0.9 (Jalon 3) |
+| TRAC-02 | Intégrer la traçabilité inverse (`GET /traceability/stock-lots/:id`) côté frontend | Moyenne | **Terminé**, vérifié le 2026-08-11 (`TraceabilityPage.tsx`) | V0.9 (Jalon 3) |
+| TRAC-03A | Recherche d'un lot par numéro (`455XXX`) sur l'écran de traçabilité | Faible | **Terminé**, vérifié le 2026-08-11 | V0.9 (Jalon 3) |
+| TRAC-03B | Lien direct vers la fiche de traçabilité d'un lot depuis l'écran Production, après clôture d'un batch | Faible | **Terminé**, vérifié le 2026-08-11 (`ProductionPage.tsx`) | V0.9 (Jalon 3) |
+| TRAC-04 | Tests e2e des deux endpoints `traceability` (cas trouvé, non trouvé, hors site, ouverture `DIRECTION`/`DAF`) | Faible | **Terminé pour les cas trouvé/non trouvé/hors site/authentification** (`traceability.e2e-spec.ts`, vérifié le 2026-08-11 — 754 tests/79 suites unitaires et 171 tests/18 suites e2e au total sur le projet, tous verts) ; **le cas `DIRECTION`/`DAF` n'est pas explicitement testé sur ce module** — finding de couverture, pas un défaut de comportement constaté (voir note ci-dessous) | V0.9 (Jalon 3) |
+
+**Note (2026-08-11)** : constat obtenu par revue d'architecture (`alex-architecte`) puis confirmé par exécution réelle de la suite de tests — TRAC-01 à TRAC-04 étaient déjà entièrement implémentés dans le dépôt, alors documentés à tort comme "Proposé (2026-07-20)". Aucune évolution applicative n'a été développée à cette occasion, uniquement une resynchronisation documentaire (voir `PROJECT_STATE.md` §6). Le finding de couverture `DIRECTION`/`DAF` sur `traceability.e2e-spec.ts` (absent, contrairement à `stock.e2e-spec.ts`) est conservé comme complément à traiter ultérieurement, sans nouvel identifiant de ticket — ce n'est pas une évolution validée, seulement un point signalé.
 
 ## EPIC 02 — Stocks
 
