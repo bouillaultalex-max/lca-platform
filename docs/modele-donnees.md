@@ -277,6 +277,31 @@ Contrainte d'unicité : `(site, source, sourceVersion, entityType, nomColonneNor
 Une règle n'est enregistrée qu'à la **confirmation** d'un import, jamais à sa seule
 prévisualisation.
 
+## 9bis. R&D — Aromathèque (tranche 1)
+
+**Tranche 1 du futur module `r&d`** (voir `docs/architecture.md` §8 "Points d'extension" et `docs/roadmap.md`) : bibliothèque d'échantillons d'arômes fournisseurs, distincte du catalogue de production. Terminée le 2026-08-07 (backend uniquement), intégrée au périmètre V0.9 par décision du 2026-08-11 — voir `PROJECT_STATE.md` §6.
+
+### RndAromaSample (Échantillon d'aromathèque)
+Un échantillon (essai fournisseur) n'est ni une matière première ni une recette tant qu'il n'a pas été validé et promu manuellement vers le catalogue — cette promotion n'est pas encore implémentée (voir ci-dessous).
+- `siteId` → FK `Site` (cloisonnement par site, comme le reste du modèle)
+- `legacyId` (identifiant historique du fichier source ; unique par site, utilisé pour l'upsert lors d'un import)
+- `supplierNameRaw` (fournisseur conservé tel quel, texte libre — aucun rapprochement automatique avec `Supplier`, décision distincte du référentiel fournisseurs de production)
+- `productName`
+- `supplierReference` (optionnelle)
+- `category` (texte libre, valeur par défaut "Autre" — pas un enum figé)
+- `rating`, `stockGrams`, `pricePerKgEur` (tous optionnels, `Decimal`)
+- `addedAt` (optionnelle)
+- `comment` (optionnel)
+- `linkedArticleId` → FK `Article`, optionnelle — lien manuel futur vers le catalogue de production ; **non encore renseigné par aucun service actuel** (aucune fonctionnalité de promotion codée à ce stade)
+- `active` (booléen, `true` par défaut)
+- `importLogId` → FK `ImportLog`, optionnelle — import ayant créé ou mis à jour l'échantillon
+
+> Contrainte d'unicité : `(siteId, legacyId)`. Index sur `(siteId, active)`, `(siteId, category)`, `(siteId, supplierNameRaw)`, `linkedArticleId`, `importLogId`.
+
+> **`ImportLog`** porte désormais aussi un type `AROMATHEQUE` (enum `ImportType`) et une colonne `previewHash` (empreinte SHA-256 des lignes prévisualisées, vérifiée à la confirmation pour détecter toute altération — voir `aroma-samples-import.service.ts`). Nullable, non exploitée par les imports OpenSi existants.
+
+> **Ce qui n'existe pas encore** : aucune écriture manuelle d'un échantillon (uniquement via import), aucune fonctionnalité de recette expérimentale, d'essai, de validation/rejet, ni de promotion effective vers le catalogue — voir `docs/roadmap.md` "Évolutions futures".
+
 ## 10. Audit
 
 ### AuditLog
@@ -295,7 +320,7 @@ Site 1──n User
 Site 1──n Batch, Lot, StockMovement...
 
 Article (type: MP / PACKAGING / PRODUIT_FINI)
-  └─ référencé par RecipeLine, StockLot, StockItem, StockMovement, LotGenealogy, ExpectedRequirement
+  └─ référencé par RecipeLine, StockLot, StockItem, StockMovement, LotGenealogy, ExpectedRequirement, RndAromaSample (lien optionnel non exploité)
 
 StockLot 1──n StockMovement
 StockLot 1──n LotGenealogy (en tant que lot source consommé)
@@ -318,6 +343,9 @@ Lot 1──n LotGenealogy
 Lot 1──n QualityCheck
 
 QualityCheck 1──n QualityCheckAttachment
+
+Site 1──n RndAromaSample (R&D — Aromathèque, tranche 1, voir §9bis)
+ImportLog 1──n RndAromaSample (import optionnel, importLogId)
 ```
 
 ## 12. Points ouverts à valider avec l'utilisateur

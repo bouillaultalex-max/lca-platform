@@ -138,6 +138,14 @@ Non conçu, non codé — à cadrer explicitement avec l'utilisateur avant tout 
 
 **Périmètre explicitement non couvert par ces 8 tickets** : aucune action métier en écriture (les 6 outils AI-03 sont tous en lecture seule), aucune action proposée ni confirmée, aucune optimisation de planning, aucune persistance d'historique consultable côté serveur au-delà de la conversation courante. Toute extension au-delà de ces tickets (nouveaux outils, actions en écriture, planning) reste hors périmètre tant qu'elle n'a pas fait l'objet d'une validation explicite équivalente, ticket par ticket.
 
+## R&D — Aromathèque, tranche 1 ✅ Terminé (2026-07-31 → 2026-08-07)
+
+**Décision confirmée (2026-08-11)** : cette tranche fait officiellement partie du périmètre V0.9, développée et commitée du 2026-07-31 au 2026-08-07, documentée a posteriori par resynchronisation. Comme pour le chantier Assistant ci-dessus, il s'agit d'une extension consciente et assumée par rapport à la section "Évolutions futures" ci-dessous, qui classait jusque-là l'intégralité du module `r&d` en post-V0.9 non planifié.
+
+Périmètre livré : bibliothèque d'échantillons d'arômes fournisseurs (« aromathèque »), **backend uniquement** — modèle de données (`RndAromaSample`), import dédié (prévisualisation/confirmation, mapping, intégrité `previewHash`), consultation en lecture seule (liste paginée, détail). Voir `PROJECT_STATE.md` §6 pour le détail complet.
+
+**Cette décision ne planifie pas automatiquement la suite du module `r&d`** (recettes expérimentales, essais, validation/rejet, promotion vers le catalogue — voir "Évolutions futures" ci-dessous, qui reste non planifiée en détail) ni le frontend correspondant à cette tranche.
+
 ## Hors périmètre V0.9 (rappel)
 
 Ces éléments ne font partie d'aucun jalon ci-dessus et ne doivent pas être anticipés :
@@ -151,7 +159,7 @@ Ces éléments ne font partie d'aucun jalon ci-dessus et ne doivent pas être an
 Contrairement à la section précédente, ces évolutions sont **prévues pour une version ultérieure** — elles ne sont pas codées en V0.9, mais leur existence future doit être gardée à l'esprit dans les choix de modélisation (sans les anticiper en code).
 
 - **Module `logistique`** : expédition, conditionnement (cartons), exports transporteurs. Périmètre exact non détaillé — utilisera la règle de conditionnement en cartons actée ci-dessus.
-- **Module `r&d`** (recherche & développement) :
+- **Module `r&d`** (recherche & développement) — **tranche 1 (Aromathèque, import + consultation backend) terminée et intégrée au périmètre V0.9, voir section dédiée ci-dessus** ; le reste du module demeure non planifié en détail :
   - création de recettes expérimentales, distinctes des recettes de production actives ;
   - réalisation d'essais ;
   - validation ou rejet d'une recette expérimentale ;

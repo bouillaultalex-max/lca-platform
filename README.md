@@ -92,7 +92,7 @@ docker-compose.yml, apps/api/Dockerfile   # déploiement (optionnel)
 
 ## Périmètre V0.9 (résumé)
 
-**Inclus** : catalogue, recettes, matières premières, packaging, stocks, imports OpenSi (Excel/CSV), batching, production (saisie manuelle), lots, traçabilité, contrôle qualité simple, coût matière + packaging par flacon.
+**Inclus** : catalogue, recettes, matières premières, packaging, stocks, imports OpenSi (Excel/CSV), batching, production (saisie manuelle), lots, traçabilité, contrôle qualité simple, coût matière + packaging par flacon, R&D / Aromathèque — tranche 1 : import + consultation, backend uniquement.
 
 **Hors périmètre** (évolutions futures) : connexion machine (OPC-UA/Modbus/MQTT), gateway edge, IoT, multi-site complet, application mobile, IA avancée, optimisation de planning — à l'exception du chantier assistant (AI-01 à AI-08 : infrastructure, 6 outils métier en lecture seule, fournisseur OpenAI optionnel, aucune action en écriture — voir `docs/roadmap.md` et `PROJECT_STATE.md`).
 

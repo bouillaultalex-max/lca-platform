@@ -15,7 +15,7 @@ Avant toute intervention significative sur ce projet, lire :
 ## Principes d'architecture à respecter
 
 - **Monolithe modulaire NestJS.** Pas de microservices, pas de message broker, pas de gateway edge en V0.9.
-- Un module Nest par domaine métier : `catalog`, `stock`, `batching`, `production`, `traceability`, `quality`, `costing`, `import-export`, `auth`, `audit-log`. La logique métier vit dans les services, jamais dans les controllers.
+- Un module Nest par domaine métier : `catalog`, `stock`, `batching`, `production`, `traceability`, `quality`, `costing`, `import-export`, `auth`, `audit-log`, `rnd`. La logique métier vit dans les services, jamais dans les controllers.
 - Module `assistant` (voir ci-dessous, AI-01 à AI-08, tous terminés et validés) : infrastructure de l'assistant IA — orchestrateur (`ToolCallingOrchestrator`, AI-04), moteur de contexte (`ContextEngine`, AI-05), abstraction `AiProvider` (`EchoAiProvider` par défaut/repli local, `OpenAiProvider` optionnel actif uniquement si `AI_PROVIDER=openai`, AI-06), registre de 6 outils métier réels strictement en lecture seule (AI-03). Ne doit jamais accéder directement à la base ni contourner les guards/permissions existants : passe systématiquement par les services métier déjà en place.
 - **Prisma schema = source unique de vérité** du modèle de données. Toute évolution de modèle passe par une migration Prisma versionnée, jamais par une modification manuelle de la base.
 - **Un seul processus backend** sert l'API et les fichiers statiques du build React (un seul port, pas de CORS à gérer en interne).

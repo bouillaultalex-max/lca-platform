@@ -160,7 +160,12 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 
 | ID | Feature | Priorité | Statut | Version |
 |----|---------|----------|--------|---------|
-| RD-01 | Recettes expérimentales, essais, validation/rejet, promotion vers le catalogue production | Faible | Non conçu | Post-V0.9 |
+| RD-01 | Recettes expérimentales, essais, validation/rejet, promotion vers le catalogue production (vision complète du module R&D) | Faible | Non conçu | Post-V0.9 |
+| RD-01A | Aromathèque — modèle de données (`RndAromaSample`) | Moyenne | **Terminé (2026-07-31)** | V0.9 — décision du 2026-08-11 d'intégration au périmètre (voir `PROJECT_STATE.md` §6) |
+| RD-01C | Aromathèque — import (preview/confirm, mapping dédié, intégrité `previewHash`) | Moyenne | **Terminé (2026-08-03 → 2026-08-05)** | V0.9 — idem |
+| RD-01D | Aromathèque — consultation (liste paginée, détail) | Moyenne | **Terminé (2026-08-07)** | V0.9 — idem |
+
+**Note (2026-08-11)** : `RD-01A`/`RD-01C`/`RD-01D` sont les identifiants retrouvés tels quels dans les commentaires du code (`schema.prisma`, `rnd.module.ts`) — ils couvrent uniquement la tranche « Aromathèque » (bibliothèque d'échantillons fournisseurs), un sous-ensemble de la vision `RD-01` d'origine (recettes expérimentales/essais/validation/promotion), qui reste non conçue. Aucun `RD-01B` n'a été retrouvé dans le code. L'écran frontend de consultation/import de l'aromathèque n'est pas développé et n'est pas validé pour développement — aucun identifiant de ticket ne lui est attribué à ce stade, voir "Parking" en fin de document.
 
 ## EPIC 09 — CRM
 
@@ -266,3 +271,4 @@ Idées futures qui ne sont pas encore planifiées : actées comme "à garder à 
 - **Mise en évidence (highlight) du texte correspondant à une recherche** — idée UX, non conçue.
 - Multi-site complet, connexion machine directe (OPC-UA/Modbus/MQTT), gateway edge/IoT, application mobile, IA avancée/optimisation de planning — explicitement hors périmètre V0.9 (`MASTER_SPECIFICATION.md` §5, `README.md`, `CLAUDE.md`).
 - Epics 09 (CRM) et 11 (IA) — aucun contenu documenté à ce jour, réservés pour la roadmap v2.0.
+- **Écran frontend de consultation/import de l'aromathèque** (R&D, tranche 1 backend terminée — voir `RD-01A`/`RD-01C`/`RD-01D`, Epic 08) : non développé, non validé pour développement — reste à faire pour compléter l'expérience utilisateur de cette tranche.

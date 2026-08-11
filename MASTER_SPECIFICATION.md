@@ -94,6 +94,9 @@ Export de fichiers Excel/CSV à destination d'OpenSi :
 - inventaires
 - rapports
 
+### 4.9 R&D — Aromathèque (tranche 1)
+Bibliothèque d'échantillons d'arômes fournisseurs, distincte du catalogue de production : import dédié (prévisualisation/confirmation, comme les imports OpenSi) et consultation en lecture seule (liste, détail). **Backend uniquement** — aucun écran frontend, aucune fonctionnalité de recette expérimentale, d'essai, de validation/rejet, ni de promotion vers le catalogue de production à ce stade (voir `docs/roadmap.md` "Évolutions futures" pour la suite non planifiée du module R&D). Décision d'intégration au périmètre V0.9 confirmée le 2026-08-11 — voir `PROJECT_STATE.md` §6.
+
 ## 5. Hors périmètre V0.9 (évolutions futures anticipées, non codées)
 
 - Connexion machine directe (OPC-UA, Modbus, MQTT), gateway edge, IoT
