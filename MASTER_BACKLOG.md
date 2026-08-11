@@ -156,7 +156,7 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 | ID | Feature | Priorité | Statut | Version |
 |----|---------|----------|--------|---------|
 | COM-01 | Système de retours utilisateurs intégré (`Feedback` : type/priorité/statut, écran admin) | Moyenne | Terminé | V0.9 |
-| COM-02 | Notification Make (webhook → agent IA → e-mail) sur chaque retour créé | Moyenne | En cours, non commité | V0.9 |
+| COM-02 | Notification Make (webhook → agent IA → e-mail) sur chaque retour créé | Moyenne | **Terminé** (commit `91b42fc`, 2026-07-16) | V0.9 |
 
 ## EPIC 08 — R&D
 
@@ -220,7 +220,7 @@ Cas où plusieurs rattachements étaient plausibles — arbitrage retenu et just
 - **MP-05 à MP-08 (Recettes, brouillons, sélecteur d'ingrédient, recherche Catalogue)** → Epic 03 (Matières Premières), plutôt qu'Epic 04 (Conditionnement), bien qu'une recette contienne aussi des lignes de packaging. La recette est structurée autour de la règle des 100 % de matière première (`docs/regles-metier.md` §12), qui en est la contrainte centrale.
 - **CDT-02 (Règle de conditionnement en cartons)** → Epic 04 (Conditionnement), distinct de MP-02 (modification d'articles). MP-02 couvre la possibilité de modifier le champ `unitsPerCarton` sur un article ; CDT-02 couvre la règle métier de correspondance format → carton elle-même (`docs/modele-donnees.md` §1). Deux aspects différents du même champ, pas la même Feature.
 - **ADM-09 (Tableau de bord)** → Epic 05 (Administration), bien qu'il agrège des données de tous les modules (articles, recettes, machines, stock, production, retours, besoins — `PROJECT_STATE.md` §2). Choisi comme écran de pilotage/supervision transversal, pas comme fonctionnalité d'un domaine métier particulier.
-- **COM-02 (Webhook Make)** : travail réellement effectué (code présent, testé, fonctionnel) mais non commité et absent de `PROJECT_STATE.md` au moment de la rédaction de ce backlog — statut "En cours, non commité" retenu explicitement plutôt que "Terminé", pour ne pas anticiper une écriture de documentation qui n'a pas encore eu lieu.
+- **COM-02 (Webhook Make)** : travail réellement effectué (code présent, testé, fonctionnel) mais non commité et absent de `PROJECT_STATE.md` au moment de la rédaction de ce backlog — statut "En cours, non commité" retenu explicitement plutôt que "Terminé", pour ne pas anticiper une écriture de documentation qui n'a pas encore eu lieu. **Mise à jour (2026-08-11)** : le code a depuis été commité (`91b42fc feat(feedback): add Make webhook integration`, 2026-07-16 — `FeedbackWebhookService`, tests unitaires et e2e, variable `MAKE_FEEDBACK_WEBHOOK_URL`) et reste présent, câblé (`feedback.module.ts`) et testé dans le dépôt actuel — statut corrigé en "Terminé" ci-dessus.
 - **TRAC-01 à TRAC-04 (préfixe `TRAC-` distinct de `PRD-`)** : ces tickets, proposés le 2026-07-20 pour compléter PRD-08/PRD-09, restent rattachés à l'Epic 01 (Production) comme PRD-08/PRD-09 eux-mêmes — même logique que la décision ci-dessous sur PRD-08 (pas d'epic "Traçabilité" séparé dans ce backlog). Le préfixe `TRAC-` est conservé (plutôt que de les numéroter PRD-12+) pour qu'ils restent identifiables comme les tickets d'exécution issus de l'analyse PO du 2026-07-20, sans renuméroter PRD-08/PRD-09 qu'ils complètent.
 
 ---
