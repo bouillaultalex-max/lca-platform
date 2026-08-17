@@ -39,7 +39,8 @@ Les règles marquées **[À VALIDER]** sont des propositions raisonnables faites
 - **Décision confirmée (2026-07-05)** : un lot peut recevoir **plusieurs** contrôles qualité (`QualityCheck`), chacun typé parmi `VISUEL` / `ORGANOLEPTIQUE` / `PHYSICO_CHIMIQUE` / `PACKAGING` / `DOCUMENTAIRE`. Chaque contrôle porte une date/heure, un contrôleur, un statut (`CONFORME` / `NON_CONFORME` / `CONFORME_AVEC_RESERVE`), un commentaire et des pièces jointes éventuelles (architecture prévue dès la V0.9, upload non nécessairement exploité immédiatement).
 - La V0.9 pourra n'utiliser qu'un seul contrôle en pratique, mais **le modèle doit permettre plusieurs contrôles sans modification** (voir `docs/modele-donnees.md` §6).
 - Le lot possède un statut global calculé automatiquement à partir de l'ensemble de ses contrôles : `EN_ATTENTE` / `CONFORME` / `NON_CONFORME` / `BLOQUE`.
-- **[À VALIDER — Jalon 3]** Règle exacte de calcul de ce statut global (ex : un seul contrôle `NON_CONFORME` suffit-il à passer le lot en `NON_CONFORME` ? Le passage à `BLOQUE` est-il automatique ou nécessite-t-il une action explicite d'un responsable ?) et : un lot `NON_CONFORME`/`BLOQUE` doit-il bloquer automatiquement toute sortie de stock ultérieure (export OpenSi, expédition) ? À confirmer avec l'utilisateur au moment du Jalon 3.
+- **Résolu (2026-08-17, voir ADR 0008 — QUA-03)** : règle de calcul du statut global, volontairement simple en V1 (aucun scoring, aucune pondération) — un seul contrôle `NON_CONFORME` suffit à passer le lot en `NON_CONFORME` (`CONFORME_AVEC_RESERVE` traité comme `CONFORME`) ; le passage à `BLOQUE` n'est jamais automatique en V1, réservé à une évolution métier future.
+- **[À VALIDER]** Un lot `NON_CONFORME`/`BLOQUE` doit-il bloquer automatiquement toute sortie de stock ultérieure (export OpenSi, expédition) ? Question non traitée par QUA-01/QUA-03 (V1), reste ouverte.
 
 ## 7. Imports OpenSi
 

@@ -86,7 +86,7 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 | PRD-07 | Génération du numéro de lot (`LotNumberGeneratorService`) | Haute | Terminé (implémentation placeholder — voir DEBT-01) | V0.9 |
 | PRD-08 | Généalogie du lot (`LotGenealogy`) — écran de consultation dédié (module `traceability`) | Moyenne | **Terminé** — backend en lecture (`GET /traceability/lots/:id`, `GET /traceability/stock-lots/:id`) et frontend complet : lignes de généalogie affichées, traçabilité inverse consultable — voir TRAC-01/TRAC-02, vérifié le 2026-08-11 | V0.9 (Jalon 3) |
 | PRD-09 | Consultation du numéro de lot après rechargement d'un batch terminé | Faible | **Terminé** — recherche par numéro de lot (`455XXX`) et lien direct depuis l'écran Production après clôture, tous deux fonctionnels — voir TRAC-03A/TRAC-03B, vérifié le 2026-08-11 | V0.9 (Jalon 3) |
-| PRD-10 | Calcul et historisation du coût par flacon (`BatchCost`) | Moyenne | Non démarré | V0.9 (Jalon 3) |
+| PRD-10 | Calcul et historisation du coût par flacon (`BatchCost`) | Moyenne | **Terminé (2026-08-17)** — calcul figé à la clôture du batch, consultation backend (`GET /costing/lots/:lotId/cost`), aucun écran frontend dédié dans cette tranche — voir ADR 0007 | V0.9 (Jalon 3) |
 | PRD-11 | Allocation multi-marchés (un batch réparti entre plusieurs marchés, un lot par allocation — voir ADR-0006 et `docs/features/PRD-11-allocation-multi-marches/`) | P0 | **Terminé (2026-07-22)** — backend (schéma Prisma, `catalog/markets`, `catalog/product-families`, `BatchProductAllocationsService`, `BatchFeasibilityService`/`BatchClosureService` étendus) et frontend (5 tickets, `ProductionPage.tsx`) livrés ; recette fonctionnelle globale réalisée, conclusion « validé avec réserves mineures » (voir `PROJECT_STATE.md` §6) | V0.9 (Jalon 2) |
 | TRAC-01 | Afficher les lignes de généalogie (matières premières/packaging consommés, avec lot fournisseur) sur l'écran de traçabilité d'un lot | Moyenne | **Terminé**, vérifié le 2026-08-11 (`TraceabilityPage.tsx`) | V0.9 (Jalon 3) |
 | TRAC-02 | Intégrer la traçabilité inverse (`GET /traceability/stock-lots/:id`) côté frontend | Moyenne | **Terminé**, vérifié le 2026-08-11 (`TraceabilityPage.tsx`) | V0.9 (Jalon 3) |
@@ -147,9 +147,9 @@ Chaque Feature n'appartient qu'à un seul Epic (voir "Décisions d'organisation"
 
 | ID | Feature | Priorité | Statut | Version |
 |----|---------|----------|--------|---------|
-| QUA-01 | Contrôle qualité multi-type par lot (`QualityCheck` : visuel/organoleptique/physico-chimique/packaging/documentaire) | Moyenne | Non démarré | V0.9 (Jalon 3) |
-| QUA-02 | Pièces jointes de contrôle qualité (`QualityCheckAttachment`) | Faible | Non démarré | V0.9 (Jalon 3) |
-| QUA-03 | Calcul automatique du statut qualité global du lot | Moyenne | Non démarré (règle exacte à valider — voir DEBT-03) | V0.9 (Jalon 3) |
+| QUA-01 | Contrôle qualité multi-type par lot (`QualityCheck` : visuel/organoleptique/physico-chimique/packaging/documentaire) | Moyenne | **Terminé** — création (`POST /quality/lots/:lotId/checks`, réservée `FULL_ACCESS_ROLES`) et consultation (`GET /quality/lots/:lotId`, ouverte y compris DIRECTION/DAF), immuable en V1 — voir ADR 0008 | V0.9 (Jalon 3) |
+| QUA-02 | Pièces jointes de contrôle qualité (`QualityCheckAttachment`) | Faible | Non démarré — reporté hors V1, aucune infrastructure de stockage de fichiers introduite (voir ADR 0008) | V0.9 (Jalon 3) |
+| QUA-03 | Calcul automatique du statut qualité global du lot | Moyenne | **Terminé (V1)** — règle simple : `NON_CONFORME` si au moins un contrôle `NON_CONFORME`, sinon `CONFORME` si des contrôles existent, sinon `EN_ATTENTE` ; `CONFORME_AVEC_RESERVE` traité comme `CONFORME` ; `BLOQUE` jamais produit automatiquement — voir ADR 0008, DEBT-03 résolu | V0.9 (Jalon 3) |
 
 ## EPIC 07 — Communication
 
@@ -247,7 +247,7 @@ Audit de sécurité mené en dehors du backlog fonctionnel courant, huit tickets
 |----|-------|----------|--------|
 | DEBT-01 | Algorithme réel de génération du numéro de lot (convention `455XXX` confirmée, détail non fourni) — actuellement un compteur séquentiel placeholder | Haute | En attente d'information utilisateur |
 | DEBT-02 | Formule exacte de `besoinCalculé`/`quantitéSuggérée` (besoins attendus) | Haute | À valider (bloque IMP-08) |
-| DEBT-03 | Règle exacte de calcul du statut qualité global du lot à partir des `QualityCheck` | Moyenne | À valider (bloque QUA-03) |
+| DEBT-03 | Règle exacte de calcul du statut qualité global du lot à partir des `QualityCheck` | Moyenne | **Résolu (2026-08-17)** — voir ADR 0008, QUA-03 |
 | DEBT-04 | Stratégie de réconciliation de l'import Inventaire (granularité lot fournisseur vs quantité globale) | Moyenne | En attente d'un fichier réel OpenSi |
 | DEBT-05 | Notion de "gamme" (regroupement de produits) absente du modèle de données | Moyenne | À préciser (bloque planification par gamme) |
 | DEBT-06 | Docker/`docker-compose.yml` jamais exécutés de bout en bout avec un Docker réel | Faible | À valider avant premier déploiement réel |

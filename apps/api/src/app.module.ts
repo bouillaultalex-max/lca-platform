@@ -18,6 +18,7 @@ import { TraceabilityModule } from './traceability/traceability.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { RndModule } from './rnd/rnd.module';
 import { CostingModule } from './costing/costing.module';
+import { QualityModule } from './quality/quality.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { CostingModule } from './costing/costing.module';
         '/assistant/*path',
         '/rnd/*path',
         '/costing/*path',
+        '/quality/*path',
         '/health',
         '/api/*path',
       ],
@@ -75,6 +77,7 @@ import { CostingModule } from './costing/costing.module';
     AssistantModule,
     RndModule,
     CostingModule,
+    QualityModule,
   ],
   controllers: [AppController],
   providers: [AppService],

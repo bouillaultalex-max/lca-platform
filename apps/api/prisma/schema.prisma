@@ -116,17 +116,42 @@ enum BatchStep {
 }
 
 /// Statut qualité global du lot, calculé automatiquement à partir de l'ensemble
-/// de ses `QualityCheck` (voir docs/regles-metier.md §6). La règle de calcul exacte
-/// et le module `quality` lui-même sont prévus au Jalon 3 ; le champ existe déjà ici
-/// car il fait partie intégrante de l'entité Lot (valeur par défaut EN_ATTENTE en
-/// l'absence de tout contrôle qualité pour l'instant).
+/// de ses `QualityCheck` (voir docs/regles-metier.md §6, ADR 0008 — QUA-03) et
+/// recalculé à chaque création de `QualityCheck`. Reste à `EN_ATTENTE` tant
+/// qu'aucun contrôle n'existe pour le lot.
 enum LotQualityStatus {
   EN_ATTENTE
   CONFORME
   NON_CONFORME
+  /// Non produite automatiquement par le calcul du statut en V1 (voir ADR 0008,
+  /// décision 2) — réservée à une évolution métier future (ex. action manuelle
+  /// explicite d'un responsable).
   BLOQUE
 
   @@map("lot_quality_status")
+}
+
+/// Type d'un contrôle qualité (voir docs/regles-metier.md §6, ADR 0008).
+enum QualityCheckType {
+  VISUEL
+  ORGANOLEPTIQUE
+  PHYSICO_CHIMIQUE
+  PACKAGING
+  DOCUMENTAIRE
+
+  @@map("quality_check_type")
+}
+
+/// Résultat d'un contrôle qualité unitaire — distinct de `LotQualityStatus`
+/// (statut agrégé du lot) : `EN_ATTENTE`/`BLOQUE` n'existent que côté lot,
+/// `CONFORME_AVEC_RESERVE` n'existe que côté contrôle unitaire. Traité comme
+/// `CONFORME` pour le calcul du statut global en V1 (voir ADR 0008, décision 1).
+enum QualityCheckResult {
+  CONFORME
+  NON_CONFORME
+  CONFORME_AVEC_RESERVE
+
+  @@map("quality_check_result")
 }
 
 /// Type de fichier importé depuis OpenSi (voir docs/regles-metier.md §7).
@@ -237,15 +262,17 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  auditLogs       AuditLog[]
-  loginHistory    LoginHistory[]
-  stockMovements  StockMovement[]
-  batchesCreated  Batch[]
-  importLogs      ImportLog[]
-  exportLogs      ExportLog[]
-  feedbackEntries Feedback[]
-  recipeDrafts    RecipeDraft[]
-  aiConversations AiConversation[]
+  auditLogs               AuditLog[]
+  loginHistory            LoginHistory[]
+  stockMovements          StockMovement[]
+  batchesCreated          Batch[]
+  importLogs              ImportLog[]
+  exportLogs              ExportLog[]
+  feedbackEntries         Feedback[]
+  recipeDrafts            RecipeDraft[]
+  aiConversations         AiConversation[]
+  /// Contrôles qualité réalisés par cet utilisateur (voir `QualityCheck`, ADR 0008).
+  qualityChecksControlled QualityCheck[]
 
   @@map("users")
 }
@@ -753,6 +780,8 @@ model Lot {
   genealogyLines LotGenealogy[]
   /// Voir modèle `BatchCost` ci-dessous (PRD-10, ADR 0007) — relation `1──1`.
   batchCost      BatchCost?
+  /// Voir modèle `QualityCheck` ci-dessous (QUA-01/QUA-03, ADR 0008) — relation `1──n`.
+  qualityChecks  QualityCheck[]
 
   // Remplace l'index unique implicite retiré ci-dessus : conserve la performance des
   // lectures par batchId (ex. TraceabilityService, futur BatchClosureService) sans
@@ -819,6 +848,34 @@ model LotGenealogy {
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("lot_genealogies")
+}
+
+// ---------------------------------------------------------------------------
+// Qualité (voir docs/modele-donnees.md §6, ADR 0008 — QUA-01/QUA-03)
+// ---------------------------------------------------------------------------
+
+/// Contrôle qualité unitaire d'un lot (voir ADR 0008). Un lot peut recevoir
+/// plusieurs contrôles, y compris de même `type` (un recontrôle après action
+/// corrective reste possible — aucune contrainte d'unicité). Immuable en V1 :
+/// aucun endpoint de modification ni de suppression (voir ADR 0008, décision 3).
+/// Pas de `siteId` propre (même convention que `LotGenealogy`/`BatchCost`) : le
+/// cloisonnement par site est porté par `lot.siteId`.
+model QualityCheck {
+  id           String             @id @default(uuid())
+  lotId        String             @map("lot_id")
+  lot          Lot                @relation(fields: [lotId], references: [id])
+  type         QualityCheckType
+  result       QualityCheckResult
+  controllerId String             @map("controller_user_id")
+  controller   User               @relation(fields: [controllerId], references: [id])
+  checkedAt    DateTime           @map("checked_at")
+  comment      String?
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  // Recherche directe des contrôles d'un lot (voir ADR 0008 § Modèle de données retenu).
+  @@index([lotId])
+  @@map("quality_checks")
 }
 
 // ---------------------------------------------------------------------------

@@ -168,7 +168,7 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 - `quantite` (quantité totale produite, rebuts inclus — cohérent avec `docs/regles-metier.md` §3/§5)
 - `dateFabrication`
 - `datePeremption` (optionnelle)
-- `statutQualite` : enum `EN_ATTENTE` / `CONFORME` / `NON_CONFORME` / `BLOQUE`, calculé automatiquement à partir de l'ensemble des `QualityCheck` du lot (règle de calcul exacte à définir au Jalon 3, voir §6)
+- `statutQualite` : enum `EN_ATTENTE` / `CONFORME` / `NON_CONFORME` / `BLOQUE`, calculé automatiquement à partir de l'ensemble des `QualityCheck` du lot (règle de calcul définie et implémentée — voir §6, ADR 0008)
 
 > **Relation `Batch` ↔ `Lot`** depuis cette feature : `Batch 1──n Lot` (un lot par allocation — voir §4bis), et non plus `Batch 1──1 Lot`. Pour un batch à allocation unique, cela reste dans les faits un seul lot. `Lot.batch` est maintenu à titre de champ dénormalisé (dérivé de `allocation.batch`, jamais modifiable indépendamment) pour ne pas obliger une jointure via l'allocation à chaque lecture "tous les lots d'un batch" — sa cohérence est garantie par la couche service, aucune contrainte native en base ne peut le vérifier automatiquement.
 
@@ -191,25 +191,28 @@ Table centrale de traçabilité : permet de remonter d'un lot fini vers les lots
 
 ## 6. Qualité
 
-**Décision confirmée (2026-07-05)** : un lot peut recevoir plusieurs contrôles qualité, chacun typé. La V0.9 n'utilisera peut-être qu'un seul contrôle en pratique, mais le modèle doit supporter plusieurs contrôles sans modification ultérieure.
+**Décision confirmée (2026-07-05)** : un lot peut recevoir plusieurs contrôles qualité, chacun typé — le modèle supporte plusieurs contrôles par lot dès la V1 (voir ADR 0008, QUA-01/QUA-03).
 
 ### QualityCheck
-- `lot` → FK `Lot`
-- `type` : enum `VISUEL` / `ORGANOLEPTIQUE` / `PHYSICO_CHIMIQUE` / `PACKAGING` / `DOCUMENTAIRE`
-- `resultat` : enum `CONFORME` / `NON_CONFORME` / `CONFORME_AVEC_RESERVE`
-- `controleur` → FK `User`
-- `dateControle`
-- `commentaire`
+Contrôle qualité unitaire d'un lot — voir ADR 0008 pour le détail des décisions et de leurs justifications. Immuable en V1 : aucune modification ni suppression possible (aucun endpoint `PATCH`/`PUT`/`DELETE`).
+- `lot` → FK `Lot`, relation `1──n` (plusieurs contrôles par lot, y compris de même `type` — aucune contrainte d'unicité, un recontrôle après action corrective reste possible), indexée sur `lotId`.
+- `type` : enum `VISUEL` / `ORGANOLEPTIQUE` / `PHYSICO_CHIMIQUE` / `PACKAGING` / `DOCUMENTAIRE`.
+- `result` : enum `CONFORME` / `NON_CONFORME` / `CONFORME_AVEC_RESERVE`.
+- `controller` → FK `User` (contrôleur ayant réalisé le contrôle).
+- `checkedAt` : date/heure du contrôle réalisé.
+- `comment` : commentaire libre, optionnel.
 
-### QualityCheckAttachment (Pièce jointe)
-Architecture prévue dès la V0.9 (modèle présent), même si l'upload/stockage de fichier n'est pas nécessairement exploité immédiatement.
+> **Pas de `siteId` propre sur `QualityCheck`** : le cloisonnement par site reste porté exclusivement par `lot.siteId`, jamais dupliqué — même convention que `LotGenealogy`/`BatchCost` (voir §5/§7).
+>
+> **Statut qualité global du lot (`Lot.qualityStatus`, QUA-03)** — règle V1 volontairement simple (aucun scoring, aucune pondération), résolue par ADR 0008 (`DEBT-03` clos) : si au moins un `QualityCheck` du lot est `NON_CONFORME` → `NON_CONFORME` ; sinon, si des contrôles existent (`CONFORME` ou `CONFORME_AVEC_RESERVE`, indifféremment) → `CONFORME` ; si aucun contrôle n'existe → `EN_ATTENTE`. `BLOQUE` reste dans l'enum `LotQualityStatus` mais n'est jamais produit automatiquement — réservé à une évolution métier future. Recalculé dans la même transaction que la création du `QualityCheck` : aucune correction/suppression n'étant possible en V1, un `NON_CONFORME` déjà enregistré rend le lot `NON_CONFORME` de façon définitive (irréversibilité assumée, voir ADR 0008).
+
+### QualityCheckAttachment (Pièce jointe) — reporté (QUA-02, hors V1)
+Modèle non créé en V1 (voir ADR 0008, décision 7) : aucune infrastructure de stockage de fichiers n'est introduite dans cette tranche. Reste une intention documentaire pour une tranche future :
 - `qualityCheck` → FK `QualityCheck`
 - `nomFichier`
 - `typeMime`
 - `cheminStockage` (ou URL, selon la solution de stockage de fichiers retenue le moment venu)
 - `dateAjout`
-
-> **[À VALIDER — Jalon 3]** Règle exacte de calcul de `Lot.statutQualite` à partir de l'ensemble des `QualityCheck` du lot (ex : un seul `NON_CONFORME` suffit-il à bloquer le lot, ou faut-il une action explicite pour passer de `NON_CONFORME` à `BLOQUE` ?). À confirmer avec l'utilisateur au moment du Jalon 3.
 
 ## 7. Coûts
 
@@ -356,7 +359,7 @@ ImportLog 1──n RndAromaSample (import optionnel, importLogId)
 ## 12. Points ouverts à valider avec l'utilisateur
 
 - Algorithme exact de génération du numéro de lot (convention confirmée : 6 chiffres commençant par 455, ex. `455XXX` — détail à fournir par l'utilisateur ; isolé dans `LotNumberGeneratorService`, voir §5).
-- Règle exacte de calcul de `Lot.statutQualite` à partir des `QualityCheck` (Jalon 3, voir §6).
+- ~~Règle exacte de calcul de `Lot.statutQualite` à partir des `QualityCheck` (Jalon 3, voir §6).~~ **Résolu le 2026-08-17** : voir §6, ADR 0008 (QUA-03) — règle V1 simple, sans scoring ni pondération.
 - Formule exacte de `besoinCalculé`/`quantitéSuggérée` (§8).
 - ~~**PRD-11 (allocation multi-produits, §4bis)** : règle de repli pour le cas de division par zéro sur le prorata de généalogie matière première.~~ **Résolu le 2026-07-17** : la clé de répartition est la quantité traitée (conforme + rebuts), pas les seuls conformes — une clôture n'est refusée que si la quantité traitée totale du batch est nulle, ce qui rend le cas de division par zéro structurellement impossible (voir §4bis).
 
