@@ -15,6 +15,10 @@ import {
   type FifoAllocation,
 } from '../../stock/stock-fifo/stock-fifo.service';
 import {
+  computeBatchCost,
+  type CostedConsumptionLine,
+} from '../../costing/batch-cost-calculation/batch-cost-calculation';
+import {
   Batch,
   BatchProductAllocation,
   BatchStatus,
@@ -270,6 +274,28 @@ export class BatchClosureService {
         );
       }
 
+      // Coût (PRD-10, ADR 0007) : une seule lecture, dans la transaction, des
+      // Article.currentUnitCost de tous les articles réellement consommés (matière
+      // première + packaging, toutes lignes confondues) — instantané cohérent « au
+      // moment de la clôture », comme StockLot.remainingQuantity ci-dessus. Le FIFO
+      // a déjà déterminé les quantités ; cette lecture ne sert qu'à les valoriser.
+      const consumedArticleIds = new Set<string>();
+      for (const consumption of materialConsumptions) {
+        consumedArticleIds.add(consumption.articleId);
+      }
+      for (const consumptions of packagingConsumptionsByLine.values()) {
+        for (const consumption of consumptions) {
+          consumedArticleIds.add(consumption.articleId);
+        }
+      }
+      const consumedArticles = await tx.article.findMany({
+        where: { id: { in: [...consumedArticleIds] } },
+        select: { id: true, currentUnitCost: true },
+      });
+      const articleCostById = new Map(
+        consumedArticles.map((article) => [article.id, article.currentUnitCost]),
+      );
+
       // 3. Écriture de la consommation matière première (jamais de batchProductAllocationId).
       for (const consumption of materialConsumptions) {
         for (const allocation of consumption.allocations) {
@@ -403,6 +429,10 @@ export class BatchClosureService {
       // éligible dans l'ordre déterministe (jamais un nouveau calcul au prorata pour
       // cette dernière ligne).
       const totalTreatedDecimal = new Prisma.Decimal(totalTreated);
+      // Coût matière première par lot (PRD-10) : accumule la même « part » que celle
+      // écrite en généalogie ci-dessous, valorisée à Article.currentUnitCost — aucun
+      // second calcul de répartition, une seule et même part pour les deux écritures.
+      const materialCostLinesByLotId = new Map<string, CostedConsumptionLine[]>();
       for (const consumption of materialConsumptions) {
         for (const allocation of consumption.allocations) {
           let remaining = allocation.quantityToConsume;
@@ -430,9 +460,51 @@ export class BatchClosureService {
                   consumedQuantity: share,
                 },
               });
+              const costLines = materialCostLinesByLotId.get(lot.id) ?? [];
+              costLines.push({
+                quantity: share,
+                unitCost: articleCostById.get(consumption.articleId)!,
+              });
+              materialCostLinesByLotId.set(lot.id, costLines);
             }
           }
         }
+      }
+
+      // 5bis. Coût par lot (BatchCost, PRD-10, ADR 0007) : matière première (part
+      // proratisée ci-dessus) + packaging (calculé directement par ligne), valorisés à
+      // Article.currentUnitCost au moment de la clôture — jamais un coût pondéré par
+      // StockLot/FIFO (le FIFO ne détermine que les quantités consommées, pas le
+      // prix). Un BatchCost par lot, jamais un seul par batch (voir ADR 0007).
+      for (const line of eligibleLines) {
+        const lot = lotByAllocationId.get(line.allocationId)!;
+        const materialLines = materialCostLinesByLotId.get(lot.id) ?? [];
+        const packagingConsumptions =
+          packagingConsumptionsByLine.get(line.allocationId) ?? [];
+        const packagingLines: CostedConsumptionLine[] =
+          packagingConsumptions.flatMap((consumption) =>
+            consumption.allocations.map((allocation) => ({
+              quantity: allocation.quantityToConsume,
+              unitCost: articleCostById.get(consumption.articleId)!,
+            })),
+          );
+        const treatedQuantity = line.producedQuantity + line.rejectedQuantity;
+        const { materialCostTotal, packagingCostTotal, unitCostPerFlacon } =
+          computeBatchCost({
+            materialConsumptions: materialLines,
+            packagingConsumptions: packagingLines,
+            producedQuantityTotal: new Prisma.Decimal(treatedQuantity),
+          });
+        await tx.batchCost.create({
+          data: {
+            lotId: lot.id,
+            batchId,
+            materialCostTotal,
+            packagingCostTotal,
+            unitCostPerFlacon,
+            producedQuantityTotal: treatedQuantity,
+          },
+        });
       }
 
       // 6. Agrégats du batch : dérivés par somme des lignes, jamais saisis

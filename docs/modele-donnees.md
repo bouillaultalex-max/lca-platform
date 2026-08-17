@@ -155,7 +155,7 @@ Vue agrégée par article, dérivée de la somme des `StockLot.quantiteRestante`
 >
 > **Répartition de la généalogie matière première (règle définitive, 2026-07-17)** : au prorata de la **quantité traitée** de chaque allocation (`quantiteProduite + rebuts` — et non les seuls volumes conformes, remplace toute mention antérieure d'un prorata fondé sur les seuls conformes) : les rebuts consomment réellement le mélange commun et reçoivent donc leur part de généalogie, au même titre que pour la consommation de packaging (voir §5). `part = quantité traitée de l'allocation ÷ quantité traitée totale du batch` ; le reliquat éventuel dû aux arrondis est affecté déterministement à la dernière allocation traitée. Une clôture est refusée uniquement si la somme des quantités traitées de toutes les allocations du batch est nulle.
 >
-> **Coût (Jalon 3, `BatchCost`, non encore construit)** : coût du mélange réparti proportionnellement entre allocations (même clé que la généalogie, soit la quantité traitée), coût du packaging calculé directement par allocation.
+> **Coût (Jalon 3, `BatchCost`, voir §7 et ADR 0007)** : coût du mélange réparti proportionnellement entre allocations (même clé que la généalogie, soit la quantité traitée), coût du packaging calculé directement par allocation. `BatchCost` est rattaché en `1──1` au `Lot` de chaque allocation (pas à `Batch`) : un batch à plusieurs allocations produit donc plusieurs `Lot`, chacun avec son propre `BatchCost`.
 >
 > **Données historiques** : aucun backfill, aucune modification rétroactive. Les batchs/lots déjà clôturés avant cette feature restent tels quels (relation directe `Lot.batch`, sans allocation) — voir §5.
 
@@ -214,12 +214,17 @@ Architecture prévue dès la V0.9 (modèle présent), même si l'upload/stockage
 ## 7. Coûts
 
 ### BatchCost
-Instantané du coût calculé au moment de la production (le coût unitaire des articles varie dans le temps ; ce figeage garantit un historique fiable).
-- `batch` → FK `Batch`
+Instantané du coût calculé au moment de la clôture du batch (le coût unitaire des articles varie dans le temps ; ce figeage garantit un historique fiable) — voir ADR 0007 pour le détail des décisions et de leurs justifications.
+- `lot` → FK `Lot`, relation **`1──1`** (contrainte d'unicité sur `lotId`) — **pas** de rattachement *authentique* à `Batch` : depuis PRD-11 (§4bis), un batch peut produire plusieurs lots (un par allocation), chacun avec son propre packaging et sa propre quantité traitée ; un coût par batch ne pourrait représenter qu'une moyenne masquant ces différences.
+- `batchId` → FK `Batch`, **dénormalisé depuis `lot.batchId`** (même principe que `Lot.batchId`, lui-même dénormalisé depuis `allocation.batchId`, voir §5) — ne remplace pas `lotId` comme relation authentique et ne sert pas de clé de cloisonnement (celui-ci reste porté par `lot.siteId`, voir ci-dessous). Permet une recherche directe des coûts par batch sans jointure via `Lot`, indexé (`@@index([batchId])`).
 - `coutMatierePremiereTotal`
 - `coutPackagingTotal`
-- `coutUnitaireParFlacon` (basé sur la quantité totale produite, rebuts inclus)
+- `coutUnitaireParFlacon` (= (`coutMatierePremiereTotal` + `coutPackagingTotal`) ÷ quantité totale traitée du lot, rebuts inclus)
 - `dateCalcul`
+
+> **Pas de `siteId` propre sur `BatchCost`** : le cloisonnement par site reste porté exclusivement par `lot.siteId`, jamais dupliqué — même convention que `LotGenealogy` (enfant de `Lot`, §5) et `BatchStop` (enfant de `Batch`), aucune de ces entités enfants n'ayant sa propre colonne `siteId`.
+>
+> **Prix retenu : `Article.currentUnitCost` au moment de la clôture**, jamais un coût pondéré par `StockLot`/FIFO — le FIFO (`StockFifoService`) détermine les quantités et les lots réellement consommés (généalogie, §5), pas le prix. Coût **figé définitivement** à la clôture : aucun endpoint de recalcul ni de correction en V0.9, même si `Article.currentUnitCost` évolue ensuite. Lecture ouverte à `DIRECTION`/`DAF` (cohérent avec leur accès en lecture seule aux coûts/stocks, voir `CLAUDE.md`).
 
 ## 8. Besoins attendus (aide à la planification)
 
@@ -330,7 +335,6 @@ Recipe 1──n Batch
 
 Batch 1──n BatchStop
 Batch 1──n BatchProductAllocation (voir §4bis — PRD-11)
-Batch 1──1 BatchCost
 Batch 1──n StockMovement (sorties matières/packaging, quantité totale rebuts inclus)
 
 Market 1──n BatchProductAllocation
@@ -338,6 +342,7 @@ ProductFamily 1──n Article (déclinaisons commerciales, voir §1/§4bis)
 
 BatchProductAllocation 1──1 Lot
 Batch 1──n Lot (via les allocations — un seul lot pour un batch standard à une allocation ; `Lot.batch` conservé en lecture, voir §5)
+Lot 1──1 BatchCost (voir §7, ADR 0007 — pas de rattachement direct à `Batch`)
 
 Lot 1──n LotGenealogy
 Lot 1──n QualityCheck

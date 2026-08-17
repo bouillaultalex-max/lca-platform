@@ -205,6 +205,11 @@ describe('BatchClosure — clôture multi-allocation (e2e)', () => {
       await prisma.lotGenealogy.deleteMany({
         where: { lot: { batch: { recipeId: recipeRefId } } },
       });
+      // BatchCost (PRD-10, ADR 0007) : FK RESTRICT sur lotId — doit être supprimé
+      // avant les Lot qu'il référence, comme LotGenealogy ci-dessus.
+      await prisma.batchCost.deleteMany({
+        where: { lot: { batch: { recipeId: recipeRefId } } },
+      });
       await prisma.lot.deleteMany({
         where: { batch: { recipeId: recipeRefId } },
       });

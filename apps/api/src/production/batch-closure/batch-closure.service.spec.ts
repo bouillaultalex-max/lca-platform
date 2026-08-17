@@ -21,6 +21,7 @@ describe('BatchClosureService', () => {
   let batchPreparationService: { computeIngredientQuantities: jest.Mock };
   let lotNumberGeneratorService: { generate: jest.Mock };
   let tx: {
+    article: { findMany: jest.Mock };
     stockLot: {
       findMany: jest.Mock;
       update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
@@ -38,6 +39,9 @@ describe('BatchClosureService', () => {
     batch: { update: jest.Mock<Promise<unknown>, [Record<string, unknown>]> };
     batchProductAllocation: {
       update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+    };
+    batchCost: {
+      create: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
     };
   };
 
@@ -113,6 +117,7 @@ describe('BatchClosureService', () => {
 
   beforeEach(async () => {
     tx = {
+      article: { findMany: jest.fn() },
       stockLot: {
         findMany: jest.fn(),
         update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
@@ -130,6 +135,9 @@ describe('BatchClosureService', () => {
       batch: { update: jest.fn<Promise<unknown>, [Record<string, unknown>]>() },
       batchProductAllocation: {
         update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+      },
+      batchCost: {
+        create: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
       },
     };
 
@@ -156,6 +164,19 @@ describe('BatchClosureService', () => {
     tx.batch.update.mockImplementation(
       ({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ id: batchId, ...data }),
+    );
+    // Coût unitaire par défaut = 1 pour tout article demandé : neutre pour les tests
+    // pré-existants (qui n'affirment rien sur les coûts), overridé explicitement dans
+    // les tests dédiés à BatchCost.
+    tx.article.findMany.mockImplementation(
+      ({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(
+          where.id.in.map((id) => ({ id, currentUnitCost: new Prisma.Decimal(1) })),
+        ),
+    );
+    tx.batchCost.create.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ id: `cost-${data.lotId as string}`, ...data }),
     );
 
     const module: TestingModule = await Test.createTestingModule({
@@ -892,6 +913,181 @@ describe('BatchClosureService', () => {
         >
       ).map((call) => call[0].data.lotId);
       expect(new Set(lotIds).size).toBe(1);
+    });
+  });
+
+  describe('BatchCost (PRD-10, ADR 0007)', () => {
+    describe('cas historique (une seule allocation implicite)', () => {
+      beforeEach(() => {
+        prisma.batch.findFirst.mockResolvedValue(historicalBatch);
+        prisma.batchStop.findFirst.mockResolvedValue(null);
+      });
+
+      it('crée un BatchCost rattaché au lot, valorisé à Article.currentUnitCost, dans la transaction de clôture', async () => {
+        batchPreparationService.computeIngredientQuantities.mockResolvedValue([
+          materialQuantity('mp-1', 'Parfum lavande', 50),
+          packagingQuantity('pkg-1', 'Flacon 100 ml', 500),
+        ]);
+        tx.stockLot.findMany
+          .mockResolvedValueOnce([stockLot('lot-mp-A', 100)])
+          .mockResolvedValueOnce([stockLot('lot-pkg-A', 1000)]);
+        tx.article.findMany.mockResolvedValue([
+          { id: 'mp-1', currentUnitCost: new Prisma.Decimal(2) },
+          { id: 'pkg-1', currentUnitCost: new Prisma.Decimal('0.1') },
+        ]);
+
+        const result = await service.close(
+          siteId,
+          userId,
+          batchId,
+          historicalDto,
+        );
+
+        expect(tx.batchCost.create).toHaveBeenCalledTimes(1);
+        const costArgs = tx.batchCost.create.mock.calls[0][0] as {
+          data: {
+            lotId: string;
+            batchId: string;
+            materialCostTotal: Prisma.Decimal;
+            packagingCostTotal: Prisma.Decimal;
+            unitCostPerFlacon: Prisma.Decimal;
+            producedQuantityTotal: number;
+          };
+        };
+        expect(costArgs.data.lotId).toBe(result.lots[0].id);
+        expect(costArgs.data.batchId).toBe(batchId);
+        expect(costArgs.data.materialCostTotal.toString()).toBe('100'); // 50 * 2
+        expect(costArgs.data.packagingCostTotal.toString()).toBe('50'); // 500 * 0.1
+        expect(costArgs.data.unitCostPerFlacon.toString()).toBe('0.3'); // 150 / 500
+        // Quantité traitée (480 produits + 20 rebuts), pas la seule quantité conforme.
+        expect(costArgs.data.producedQuantityTotal).toBe(500);
+      });
+
+      it('interroge Article.currentUnitCost pour tous les articles réellement consommés, dans la transaction', async () => {
+        batchPreparationService.computeIngredientQuantities.mockResolvedValue([
+          materialQuantity('mp-1', 'Parfum lavande', 50),
+        ]);
+        tx.stockLot.findMany.mockResolvedValueOnce([stockLot('lot-mp-A', 100)]);
+
+        await service.close(siteId, userId, batchId, historicalDto);
+
+        expect(tx.article.findMany).toHaveBeenCalledWith({
+          where: { id: { in: ['mp-1'] } },
+          select: { id: true, currentUnitCost: true },
+        });
+      });
+
+      it('aucun BatchCost n’est créé si la clôture échoue faute de stock (transaction non écrite)', async () => {
+        batchPreparationService.computeIngredientQuantities.mockResolvedValue([
+          materialQuantity('mp-1', 'Parfum lavande', 50),
+        ]);
+        tx.stockLot.findMany.mockResolvedValueOnce([stockLot('lot-A', 10)]);
+
+        await expect(
+          service.close(siteId, userId, batchId, historicalDto),
+        ).rejects.toThrow(BadRequestException);
+        expect(tx.batchCost.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('plusieurs allocations', () => {
+      const dto = {
+        endedAt: historicalDto.endedAt,
+        allocations: [
+          {
+            allocationId: 'alloc-A',
+            producedQuantity: 300,
+            rejectedQuantity: 10,
+          }, // traité 310
+          {
+            allocationId: 'alloc-B',
+            producedQuantity: 150,
+            rejectedQuantity: 5,
+          }, // traité 155
+        ],
+      };
+
+      beforeEach(() => {
+        prisma.batch.findFirst.mockResolvedValue(twoAllocationsBatch);
+        prisma.batchStop.findFirst.mockResolvedValue(null);
+      });
+
+      it('crée un BatchCost distinct par lot (jamais un seul par batch), coût matière réparti au prorata de la quantité traitée', async () => {
+        batchPreparationService.computeIngredientQuantities.mockImplementation(
+          (_siteId: string, recipeId: string) => {
+            if (recipeId === 'recipe-1') {
+              // Matière commune, calculée une seule fois sur le total traité (465).
+              return Promise.resolve([
+                materialQuantity('mp-1', 'Parfum lavande', 46.5),
+              ]);
+            }
+            if (recipeId === 'recipe-A') {
+              return Promise.resolve([
+                packagingQuantity('flacon-fr', 'Flacon FR', 310),
+              ]);
+            }
+            if (recipeId === 'recipe-B') {
+              return Promise.resolve([
+                packagingQuantity('flacon-ch', 'Flacon CH', 155),
+              ]);
+            }
+            throw new Error(`recipeId inattendu ${recipeId}`);
+          },
+        );
+        tx.stockLot.findMany.mockResolvedValue([stockLot('lot-1', 10000)]);
+        tx.article.findMany.mockResolvedValue([
+          { id: 'mp-1', currentUnitCost: new Prisma.Decimal(3) },
+          { id: 'flacon-fr', currentUnitCost: new Prisma.Decimal('0.2') },
+          { id: 'flacon-ch', currentUnitCost: new Prisma.Decimal('0.3') },
+        ]);
+
+        const result = await service.close(siteId, userId, batchId, dto);
+
+        expect(tx.batchCost.create).toHaveBeenCalledTimes(2);
+
+        const costsByLotId = new Map(
+          (
+            tx.batchCost.create.mock.calls as Array<
+              [
+                {
+                  data: {
+                    lotId: string;
+                    materialCostTotal: Prisma.Decimal;
+                    packagingCostTotal: Prisma.Decimal;
+                    unitCostPerFlacon: Prisma.Decimal;
+                    producedQuantityTotal: number;
+                  };
+                },
+              ]
+            >
+          ).map((call) => [call[0].data.lotId, call[0].data]),
+        );
+
+        const lotA = result.lots.find((lot) => lot.allocationId === 'alloc-A')!;
+        const lotB = result.lots.find((lot) => lot.allocationId === 'alloc-B')!;
+        const costA = costsByLotId.get(lotA.id)!;
+        const costB = costsByLotId.get(lotB.id)!;
+
+        // Coût matière total = 46.5 * 3 = 139.5, réparti au prorata de la quantité
+        // traitée (310/465 pour A, reliquat exact pour B — même clé que la généalogie).
+        const totalMaterialCost = new Prisma.Decimal(139.5);
+        const shareA = totalMaterialCost.times(310).dividedBy(465);
+        const shareB = totalMaterialCost.minus(shareA);
+
+        expect(costA.materialCostTotal.toString()).toBe(shareA.toString());
+        expect(costA.packagingCostTotal.toString()).toBe('62'); // 310 * 0.2
+        expect(costA.producedQuantityTotal).toBe(310);
+        expect(costA.unitCostPerFlacon.toString()).toBe(
+          shareA.plus(62).dividedBy(310).toString(),
+        );
+
+        expect(costB.materialCostTotal.toString()).toBe(shareB.toString());
+        expect(costB.packagingCostTotal.toString()).toBe('46.5'); // 155 * 0.3
+        expect(costB.producedQuantityTotal).toBe(155);
+        expect(costB.unitCostPerFlacon.toString()).toBe(
+          shareB.plus(46.5).dividedBy(155).toString(),
+        );
+      });
     });
   });
 });

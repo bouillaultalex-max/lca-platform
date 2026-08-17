@@ -663,6 +663,7 @@ model Batch {
   stockMovements StockMovement[]
   lots           Lot[]
   allocations    BatchProductAllocation[]
+  batchCosts     BatchCost[]
 
   @@map("batches")
 }
@@ -750,12 +751,53 @@ model Lot {
   updatedAt      DateTime                @updatedAt @map("updated_at")
 
   genealogyLines LotGenealogy[]
+  /// Voir modèle `BatchCost` ci-dessous (PRD-10, ADR 0007) — relation `1──1`.
+  batchCost      BatchCost?
 
   // Remplace l'index unique implicite retiré ci-dessus : conserve la performance des
   // lectures par batchId (ex. TraceabilityService, futur BatchClosureService) sans
   // imposer l'unicité.
   @@index([batchId])
   @@map("lots")
+}
+
+// ---------------------------------------------------------------------------
+// Coûts (voir docs/modele-donnees.md §7, ADR 0007 — PRD-10)
+// ---------------------------------------------------------------------------
+
+/// Coût figé d'un lot au moment de sa clôture (voir ADR 0007) : matière première +
+/// packaging, valorisés à `Article.currentUnitCost` au moment de la clôture (jamais
+/// un coût pondéré par StockLot/FIFO — le FIFO détermine les quantités réellement
+/// consommées, pas le prix). Relation `1──1` avec `Lot`, pas avec `Batch` : depuis
+/// PRD-11 un batch peut produire plusieurs lots (un par allocation), chacun avec son
+/// propre packaging et donc son propre coût. Immuable une fois créé : aucun endpoint
+/// de recalcul ni de correction en V0.9. Pas de `siteId` propre (même convention que
+/// `LotGenealogy`/`BatchStop`) : le cloisonnement par site est porté par `lot.siteId`.
+model BatchCost {
+  id      String @id @default(uuid())
+  lotId   String @unique @map("lot_id")
+  lot     Lot    @relation(fields: [lotId], references: [id])
+  /// Dénormalisé depuis `lot.batchId`, jamais modifiable indépendamment (même
+  /// convention que `Lot.batchId` vis-à-vis de `allocation.batchId`) — évite une
+  /// jointure via `Lot` pour les lectures groupées par batch.
+  batchId String @map("batch_id")
+  batch   Batch  @relation(fields: [batchId], references: [id])
+
+  materialCostTotal     Decimal @map("material_cost_total")
+  packagingCostTotal    Decimal @map("packaging_cost_total")
+  unitCostPerFlacon     Decimal @map("unit_cost_per_flacon")
+  /// Quantité totale traitée du lot (conforme + rebuts) au moment du calcul —
+  /// dénominateur de `unitCostPerFlacon`, cohérente avec `Lot.quantity`
+  /// (docs/regles-metier.md §5 : "quantité totale produite, rebuts inclus" = quantité
+  /// traitée, et non la seule quantité conforme — voir ADR 0007).
+  producedQuantityTotal Int     @map("produced_quantity_total")
+
+  calculatedAt DateTime @default(now()) @map("calculated_at")
+
+  // Recherche directe des coûts par batch (ex. tous les BatchCost d'un Batch
+  // multi-allocation) sans jointure via Lot — voir ADR 0007 § Modèle de données retenu.
+  @@index([batchId])
+  @@map("batch_costs")
 }
 
 /// Table centrale de traçabilité amont : permet de remonter d'un lot fini vers les
