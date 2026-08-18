@@ -3,6 +3,8 @@ import type {
   ArticleImportRow,
   ArticlesImportConfirmResult,
   ArticlesImportPreviewResult,
+  AromaSamplesImportConfirmResult,
+  AromaSamplesImportPreviewResult,
   ExpectedRequirementImportRow,
   ExpectedRequirementsImportConfirmResult,
   ExpectedRequirementsImportPreviewResult,
@@ -24,21 +26,25 @@ import { ArticlesPreviewPanel } from './ArticlesPreviewPanel';
 import { StocksPreviewPanel } from './StocksPreviewPanel';
 import { ExpectedRequirementsPreviewPanel } from './ExpectedRequirementsPreviewPanel';
 import { InventoryPreviewPanel } from './InventoryPreviewPanel';
+import { AromaSamplesPreviewPanel } from './AromaSamplesPreviewPanel';
 import { SuccessScreen } from './SuccessScreen';
 import { ImportHistoryPanel } from './ImportHistoryPanel';
 import { formatImportDate } from './importFormatting';
 import { toArticlesConfirmRow } from './articlesConfirmRow';
+import { toAromaSampleConfirmRow } from './aromaSamplesConfirmRow';
 
 type AnyPreviewResult =
   | ArticlesImportPreviewResult
   | StocksImportPreviewResult
   | ExpectedRequirementsImportPreviewResult
-  | InventoryImportPreviewResult;
+  | InventoryImportPreviewResult
+  | AromaSamplesImportPreviewResult;
 
 type AnyConfirmResult =
   | ArticlesImportConfirmResult
   | StocksImportConfirmResult
-  | ExpectedRequirementsImportConfirmResult;
+  | ExpectedRequirementsImportConfirmResult
+  | AromaSamplesImportConfirmResult;
 
 type WizardStepId = 'type' | 'file' | 'mapping' | 'preview' | 'success';
 
@@ -82,6 +88,12 @@ const IMPORT_TYPE_OPTIONS: {
     description: "Lire et vérifier le contenu d'un fichier d'inventaire.",
     note: 'Aperçu uniquement pour le moment',
   },
+  {
+    type: 'AROMATHEQUE',
+    emoji: '🌿',
+    title: 'Aromathèque',
+    description: 'Importer des échantillons fournisseurs (R&D, tranche 1).',
+  },
 ];
 
 function defaultSelection(type: ImportType, result: AnyPreviewResult): Set<number> {
@@ -97,6 +109,10 @@ function defaultSelection(type: ImportType, result: AnyPreviewResult): Set<numbe
   if (type === 'BESOINS_ATTENDUS') {
     const r = result as ExpectedRequirementsImportPreviewResult;
     return new Set((r.toImport ?? []).map((row) => row.line));
+  }
+  if (type === 'AROMATHEQUE') {
+    const r = result as AromaSamplesImportPreviewResult;
+    return new Set((r.rows ?? []).filter((row) => row.status !== 'unchanged').map((row) => row.line));
   }
   return new Set();
 }
@@ -251,6 +267,7 @@ export function ImportsPage() {
     if (type === 'STOCKS') return api.previewStocksImport(token, selectedFile, corrections);
     if (type === 'BESOINS_ATTENDUS')
       return api.previewExpectedRequirementsImport(token, selectedFile, corrections);
+    if (type === 'AROMATHEQUE') return api.previewAromaSamplesImport(token, selectedFile, corrections);
     return api.previewInventoryImport(token, selectedFile, corrections);
   }
 
@@ -365,6 +382,17 @@ export function ImportsPage() {
           selectedLines.has(row.line),
         );
         const confirmed = await api.confirmExpectedRequirementsImport(token, {
+          importLogId: result.importLogId,
+          rows,
+          mappingCorrections: corrections,
+        });
+        setConfirmResult(confirmed);
+      } else if (selectedType === 'AROMATHEQUE') {
+        const result = previewResult as AromaSamplesImportPreviewResult;
+        const rows = (result.rows ?? [])
+          .filter((row) => selectedLines.has(row.line))
+          .map(toAromaSampleConfirmRow);
+        const confirmed = await api.confirmAromaSamplesImport(token, {
           importLogId: result.importLogId,
           rows,
           mappingCorrections: corrections,
@@ -540,6 +568,17 @@ export function ImportsPage() {
                 onFinish={resetWizard}
               />
             )}
+            {step === 'preview' && previewResult && selectedType === 'AROMATHEQUE' && (
+              <AromaSamplesPreviewPanel
+                result={previewResult as AromaSamplesImportPreviewResult}
+                selectedLines={selectedLines}
+                onToggleLine={handleToggleLine}
+                onToggleAll={handleToggleAll}
+                onConfirm={handleConfirm}
+                isConfirming={isConfirming}
+                confirmError={confirmError}
+              />
+            )}
 
             {step === 'success' && confirmResult && selectedType === 'ARTICLES' && (
               <SuccessScreen
@@ -583,6 +622,24 @@ export function ImportsPage() {
                 errorSummary={
                   (confirmResult as ExpectedRequirementsImportConfirmResult).errors.length > 0
                     ? `${(confirmResult as ExpectedRequirementsImportConfirmResult).errors.length} ligne(s) en erreur`
+                    : undefined
+                }
+                onBackToImports={handleBackToImports}
+                onNewImport={resetWizard}
+              />
+            )}
+            {step === 'success' && confirmResult && selectedType === 'AROMATHEQUE' && (
+              <SuccessScreen
+                lines={[
+                  `${(confirmResult as AromaSamplesImportConfirmResult).created} échantillons créés`,
+                  `${(confirmResult as AromaSamplesImportConfirmResult).updated} échantillons mis à jour`,
+                  ...((confirmResult as AromaSamplesImportConfirmResult).errors.length === 0
+                    ? ['Aucune erreur']
+                    : []),
+                ]}
+                errorSummary={
+                  (confirmResult as AromaSamplesImportConfirmResult).errors.length > 0
+                    ? `${(confirmResult as AromaSamplesImportConfirmResult).errors.length} ligne(s) en erreur`
                     : undefined
                 }
                 onBackToImports={handleBackToImports}

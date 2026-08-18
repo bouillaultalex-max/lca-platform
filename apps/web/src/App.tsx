@@ -12,6 +12,7 @@ import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { TraceabilityPage } from './pages/TraceabilityPage';
 import { ImportsPage } from './pages/imports/ImportsPage';
+import { AromaSamplesPage } from './pages/rnd/AromaSamplesPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { FeedbackPage } from './pages/admin/FeedbackPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
@@ -129,6 +130,14 @@ function App() {
         element={
           <ProtectedRoute requireFullAccess>
             <ImportsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/rnd/aroma-samples"
+        element={
+          <ProtectedRoute requireFullAccess>
+            <AromaSamplesPage />
           </ProtectedRoute>
         }
       />

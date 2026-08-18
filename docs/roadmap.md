@@ -144,7 +144,9 @@ Non conçu, non codé — à cadrer explicitement avec l'utilisateur avant tout 
 
 Périmètre livré : bibliothèque d'échantillons d'arômes fournisseurs (« aromathèque »), **backend uniquement** — modèle de données (`RndAromaSample`), import dédié (prévisualisation/confirmation, mapping, intégrité `previewHash`), consultation en lecture seule (liste paginée, détail). Voir `PROJECT_STATE.md` §6 pour le détail complet.
 
-**Cette décision ne planifie pas automatiquement la suite du module `r&d`** (recettes expérimentales, essais, validation/rejet, promotion vers le catalogue — voir "Évolutions futures" ci-dessous, qui reste non planifiée en détail) ni le frontend correspondant à cette tranche.
+**Mise à jour (2026-08-18)** : un frontend de consultation/import pour cette tranche a depuis été implémenté (non commité, revu `pr-review-toolkit` avec verdict GO) — voir `PROJECT_STATE.md` §6 pour le détail. Cet ajout reste circonscrit à la tranche 1 (Aromathèque) ; il ne modifie pas le périmètre du reste du module `r&d`, toujours non planifié (voir "Évolutions futures" ci-dessous).
+
+**Cette décision ne planifie pas automatiquement la suite du module `r&d`** (recettes expérimentales, essais, validation/rejet, promotion vers le catalogue — voir "Évolutions futures" ci-dessous, qui reste non planifiée en détail). Elle ne planifiait pas non plus, à l'origine, le frontend correspondant à cette tranche — celui-ci a depuis été implémenté par un cadrage et une validation distincts (voir mise à jour ci-dessus).
 
 ## Hors périmètre V0.9 (rappel)
 
@@ -159,7 +161,7 @@ Ces éléments ne font partie d'aucun jalon ci-dessus et ne doivent pas être an
 Contrairement à la section précédente, ces évolutions sont **prévues pour une version ultérieure** — elles ne sont pas codées en V0.9, mais leur existence future doit être gardée à l'esprit dans les choix de modélisation (sans les anticiper en code).
 
 - **Module `logistique`** : expédition, conditionnement (cartons), exports transporteurs. Périmètre exact non détaillé — utilisera la règle de conditionnement en cartons actée ci-dessus.
-- **Module `r&d`** (recherche & développement) — **tranche 1 (Aromathèque, import + consultation backend) terminée et intégrée au périmètre V0.9, voir section dédiée ci-dessus** ; le reste du module demeure non planifié en détail :
+- **Module `r&d`** (recherche & développement) — **tranche 1 (Aromathèque, import + consultation) terminée et intégrée au périmètre V0.9, voir section dédiée ci-dessus (frontend correspondant depuis également implémenté, non commité)** ; le reste du module demeure non planifié en détail :
   - création de recettes expérimentales, distinctes des recettes de production actives ;
   - réalisation d'essais ;
   - validation ou rejet d'une recette expérimentale ;

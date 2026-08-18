@@ -5,13 +5,14 @@
 
 import type { ArticleType } from './catalog';
 
-export type ImportType = 'ARTICLES' | 'STOCKS' | 'BESOINS_ATTENDUS' | 'INVENTAIRE';
+export type ImportType = 'ARTICLES' | 'STOCKS' | 'BESOINS_ATTENDUS' | 'INVENTAIRE' | 'AROMATHEQUE';
 
 export const IMPORT_TYPE_LABELS: Record<ImportType, string> = {
   ARTICLES: 'Articles',
   STOCKS: 'Stocks',
   BESOINS_ATTENDUS: 'Besoins attendus',
   INVENTAIRE: 'Inventaire',
+  AROMATHEQUE: 'Aromathèque',
 };
 
 export type ImportStatus = 'PREVISUALISE' | 'VALIDE' | 'ERREUR';
@@ -193,4 +194,97 @@ export interface InventoryImportPreviewResult {
   mappingComplete: boolean;
   hasSupplierLotNumber?: boolean;
   rows?: RawInventoryRow[];
+}
+
+// --- Aromathèque (R&D, tranche 1) ---------------------------------------------
+
+export type AromaSampleImportRowStatus = 'create' | 'update' | 'unchanged';
+
+export type AromaSampleImportableField =
+  | 'supplierNameRaw'
+  | 'productName'
+  | 'supplierReference'
+  | 'category'
+  | 'rating'
+  | 'stockGrams'
+  | 'pricePerKgEur'
+  | 'addedAt'
+  | 'comment';
+
+export interface AromaSampleFieldChange {
+  field: AromaSampleImportableField;
+  label: string;
+  before: string | number | null;
+  after: string | number | null;
+}
+
+/** Forme envoyée à `/rnd/aroma-samples/import/confirm` (voir `AromaSampleImportRowDto` côté API). */
+export interface AromaSampleImportRow {
+  line: number;
+  legacyId: string;
+  supplierNameRaw: string;
+  productName: string;
+  supplierReference?: string;
+  category: string;
+  rating?: number;
+  stockGrams?: number;
+  pricePerKgEur?: number;
+  addedAt?: string;
+  comment?: string;
+}
+
+/** Ligne renvoyée par la prévisualisation, déjà classée (voir `AromaSampleImportRowWithStatus` côté API). */
+export interface AromaSampleImportRowWithStatus {
+  line: number;
+  legacyId: string;
+  supplierNameRaw: string;
+  productName: string;
+  supplierReference: string | null;
+  category: string;
+  rating: number | null;
+  stockGrams: number | null;
+  pricePerKgEur: number | null;
+  addedAt: string | null;
+  comment: string | null;
+  status: AromaSampleImportRowStatus;
+  sampleId: string | null;
+  changes: AromaSampleFieldChange[];
+}
+
+export interface AromaSampleImportRowError {
+  line: number;
+  legacyId?: string;
+  message: string;
+}
+
+export type AromaSampleDuplicateWarningKind =
+  | 'REFERENCE_FOURNISSEUR_DUPLIQUEE'
+  | 'FOURNISSEUR_PRODUIT_DUPLIQUE';
+
+/** Avertissement non bloquant de doublon potentiel — n'exclut jamais la ligne de la sélection. */
+export interface AromaSampleImportRowWarning {
+  line: number;
+  legacyId: string;
+  kind: AromaSampleDuplicateWarningKind;
+  message: string;
+}
+
+export interface AromaSamplesImportPreviewResult {
+  importLogId: string;
+  mapping: ColumnMappingSuggestion;
+  mappingComplete: boolean;
+  rows?: AromaSampleImportRowWithStatus[];
+  toCreate?: number;
+  toUpdate?: number;
+  unchanged?: number;
+  warnings?: AromaSampleImportRowWarning[];
+  errors?: AromaSampleImportRowError[];
+}
+
+export interface AromaSamplesImportConfirmResult {
+  importLogId: string;
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: AromaSampleImportRowError[];
 }

@@ -25,6 +25,7 @@ function buildNavItems(fullAccess: boolean, isSystemAdmin: boolean): NavItem[] {
       { to: '/catalog/product-families', label: 'Familles de produits' },
       { to: '/production', label: 'Production' },
       { to: '/imports', label: 'Imports' },
+      { to: '/rnd/aroma-samples', label: 'Aromathèque' },
     );
   }
   items.push({ to: '/stock', label: 'Stock' }, { to: '/traceability', label: 'Traçabilité' });

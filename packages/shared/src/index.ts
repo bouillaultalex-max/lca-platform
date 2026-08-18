@@ -9,3 +9,4 @@ export * from './types/feedback';
 export * from './types/dashboard';
 export * from './types/traceability';
 export * from './types/assistant';
+export * from './types/rnd';

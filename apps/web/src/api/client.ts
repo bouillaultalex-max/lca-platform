@@ -66,6 +66,12 @@ import type {
   ResetPasswordResponse,
   LotTraceability,
   StockLotTraceability,
+  AromaSamplesQuery,
+  PaginatedAromaSamples,
+  AromaSampleDetailResponse,
+  AromaSamplesImportPreviewResult,
+  AromaSamplesImportConfirmResult,
+  AromaSampleImportRow,
 } from '@lca-mes/shared';
 
 export class ApiError extends Error {
@@ -131,6 +137,21 @@ async function requestMultipart<T>(path: string, formData: FormData, token: stri
   await throwIfError(response);
 
   return (await response.json()) as T;
+}
+
+/** Construit la chaîne de requête `GET /rnd/aroma-samples` — omet tout paramètre absent. */
+function buildAromaSamplesQueryString(query?: AromaSamplesQuery): string {
+  if (!query) return '';
+  const params = new URLSearchParams();
+  if (query.page !== undefined) params.set('page', String(query.page));
+  if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.search) params.set('search', query.search);
+  if (query.category) params.set('category', query.category);
+  if (query.active !== undefined) params.set('active', String(query.active));
+  if (query.sortBy) params.set('sortBy', query.sortBy);
+  if (query.sortOrder) params.set('sortOrder', query.sortOrder);
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : '';
 }
 
 function buildImportFormData(file: File, mappingCorrections?: MappingCorrection[]): FormData {
@@ -449,4 +470,31 @@ export const api = {
 
   getStockLotTraceability: (token: string, id: string): Promise<StockLotTraceability> =>
     request<StockLotTraceability>(`/traceability/stock-lots/${id}`, {}, token),
+
+  listAromaSamples: (token: string, query?: AromaSamplesQuery): Promise<PaginatedAromaSamples> =>
+    request<PaginatedAromaSamples>(`/rnd/aroma-samples${buildAromaSamplesQueryString(query)}`, {}, token),
+
+  getAromaSample: (token: string, id: string): Promise<AromaSampleDetailResponse> =>
+    request<AromaSampleDetailResponse>(`/rnd/aroma-samples/${id}`, {}, token),
+
+  previewAromaSamplesImport: (
+    token: string,
+    file: File,
+    mappingCorrections?: MappingCorrection[],
+  ): Promise<AromaSamplesImportPreviewResult> =>
+    requestMultipart<AromaSamplesImportPreviewResult>(
+      '/rnd/aroma-samples/import/preview',
+      buildImportFormData(file, mappingCorrections),
+      token,
+    ),
+
+  confirmAromaSamplesImport: (
+    token: string,
+    payload: { importLogId: string; rows: AromaSampleImportRow[]; mappingCorrections?: MappingCorrection[] },
+  ): Promise<AromaSamplesImportConfirmResult> =>
+    request<AromaSamplesImportConfirmResult>(
+      '/rnd/aroma-samples/import/confirm',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
 };
