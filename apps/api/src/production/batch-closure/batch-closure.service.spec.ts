@@ -1,9 +1,10 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BatchClosureService } from './batch-closure.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BatchPreparationService } from '../../batching/batch-preparation/batch-preparation.service';
 import { LotNumberGeneratorService } from '../lot-number-generator/lot-number-generator.service';
+import { AuditLogService } from '../../audit-log/audit-log.service';
 import {
   BatchStatus,
   BatchStep,
@@ -20,7 +21,9 @@ describe('BatchClosureService', () => {
   };
   let batchPreparationService: { computeIngredientQuantities: jest.Mock };
   let lotNumberGeneratorService: { generate: jest.Mock };
+  let auditLogService: { record: jest.Mock };
   let tx: {
+    $queryRaw: jest.Mock;
     article: { findMany: jest.Mock };
     stockLot: {
       findMany: jest.Mock;
@@ -115,8 +118,21 @@ describe('BatchClosureService', () => {
     endedAt: '2026-07-06T16:00:00.000Z',
   };
 
+  /** État verrouillé par défaut (`$queryRaw`, voir ADR 0010 § Décision 14) : batch
+   * legacy `EN_COURS` sans réservation — reproduit le comportement historique pour
+   * tous les tests préexistants de ce fichier, qui n'ont jamais réservé de numéro via
+   * `advance()` (leurs fixtures `baseBatch`/`historicalBatch`/etc. ne portent aucun
+   * champ `reservedLotNumber`/`reservedExpiryDate`). Les tests dédiés au mécanisme
+   * nominal (voir plus bas) surchargent explicitement cette valeur par test. */
+  const legacyLockedRow = {
+    status: BatchStatus.EN_COURS,
+    reservedLotNumber: null as string | null,
+    reservedExpiryDate: null as Date | null,
+  };
+
   beforeEach(async () => {
     tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ ...legacyLockedRow }]),
       article: { findMany: jest.fn() },
       stockLot: {
         findMany: jest.fn(),
@@ -151,6 +167,7 @@ describe('BatchClosureService', () => {
 
     batchPreparationService = { computeIngredientQuantities: jest.fn() };
     lotNumberGeneratorService = { generate: jest.fn() };
+    auditLogService = { record: jest.fn() };
 
     let lotCounter = 0;
     lotNumberGeneratorService.generate.mockImplementation(() => {
@@ -188,6 +205,7 @@ describe('BatchClosureService', () => {
           provide: LotNumberGeneratorService,
           useValue: lotNumberGeneratorService,
         },
+        { provide: AuditLogService, useValue: auditLogService },
       ],
     }).compile();
 
@@ -1087,6 +1105,228 @@ describe('BatchClosureService', () => {
         expect(costB.unitCostPerFlacon.toString()).toBe(
           shareB.plus(46.5).dividedBy(155).toString(),
         );
+      });
+    });
+  });
+
+  describe('réutilisation du numéro/DDM réservés au lancement (ADR 0010, étape 5)', () => {
+    const reservedExpiryDate = new Date('2029-07-06T00:00:00.000Z');
+
+    describe('batch nominal (réservation présente)', () => {
+      beforeEach(() => {
+        prisma.batch.findFirst.mockResolvedValue(historicalBatch);
+        prisma.batchStop.findFirst.mockResolvedValue(null);
+        tx.$queryRaw.mockResolvedValue([
+          {
+            status: BatchStatus.EN_COURS,
+            reservedLotNumber: '456149',
+            reservedExpiryDate,
+          },
+        ]);
+        batchPreparationService.computeIngredientQuantities.mockResolvedValue(
+          [],
+        );
+      });
+
+      it('utilise reservedLotNumber tel quel, sans jamais appeler generate()', async () => {
+        const result = await service.close(
+          siteId,
+          userId,
+          batchId,
+          historicalDto,
+        );
+
+        expect(lotNumberGeneratorService.generate).not.toHaveBeenCalled();
+        expect(result.lots[0].lotNumber).toBe('456149');
+      });
+
+      it('utilise reservedExpiryDate tel quel, sans le recalculer, même si dto.expiryDate est fourni', async () => {
+        await service.close(siteId, userId, batchId, {
+          ...historicalDto,
+          expiryDate: '2099-01-01',
+        });
+
+        const lotArgs = tx.lot.create.mock.calls[0][0] as {
+          data: { expiryDate: Date | null };
+        };
+        expect(lotArgs.data.expiryDate).toEqual(reservedExpiryDate);
+      });
+
+      it("n'écrit aucun AuditLog (legacyFallbackUsed) pour un batch nominal", async () => {
+        await service.close(siteId, userId, batchId, historicalDto);
+
+        expect(auditLogService.record).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('batch nominal multi-allocation : numéro partagé', () => {
+      const dto = {
+        endedAt: historicalDto.endedAt,
+        allocations: [
+          { allocationId: 'alloc-A', producedQuantity: 300, rejectedQuantity: 10 },
+          { allocationId: 'alloc-B', producedQuantity: 150, rejectedQuantity: 5 },
+        ],
+      };
+
+      beforeEach(() => {
+        prisma.batch.findFirst.mockResolvedValue(twoAllocationsBatch);
+        prisma.batchStop.findFirst.mockResolvedValue(null);
+        tx.$queryRaw.mockResolvedValue([
+          {
+            status: BatchStatus.EN_COURS,
+            reservedLotNumber: '456149',
+            reservedExpiryDate,
+          },
+        ]);
+        batchPreparationService.computeIngredientQuantities.mockResolvedValue(
+          [],
+        );
+        tx.stockLot.findMany.mockResolvedValue([]);
+      });
+
+      it('crée un Lot par allocation, tous avec le même lotNumber réservé, mais des id distincts', async () => {
+        // Le mock générique `id: lot-${lotNumber}` (défini en tête de fichier) produit
+        // désormais un id identique pour deux lignes partageant le même lotNumber
+        // réservé : surchargé ici pour dériver l'id de l'allocation, comme le ferait
+        // réellement `tx.lot.create` (id généré par la base, jamais dérivé du numéro).
+        tx.lot.create.mockImplementation(
+          ({ data }: { data: Record<string, unknown> }) =>
+            Promise.resolve({
+              id: `lot-${data.allocationId as string}`,
+              ...data,
+            }),
+        );
+
+        const result = await service.close(siteId, userId, batchId, dto);
+
+        expect(lotNumberGeneratorService.generate).not.toHaveBeenCalled();
+        expect(result.lots).toHaveLength(2);
+        expect(result.lots[0].lotNumber).toBe('456149');
+        expect(result.lots[1].lotNumber).toBe('456149');
+        expect(result.lots[0].id).not.toBe(result.lots[1].id);
+      });
+    });
+
+    describe('repli legacy (EN_COURS sans réservation, ADR 0010 § Décision 14)', () => {
+      beforeEach(() => {
+        prisma.batch.findFirst.mockResolvedValue(historicalBatch);
+        prisma.batchStop.findFirst.mockResolvedValue(null);
+        tx.$queryRaw.mockResolvedValue([
+          {
+            status: BatchStatus.EN_COURS,
+            reservedLotNumber: null,
+            reservedExpiryDate: null,
+          },
+        ]);
+        batchPreparationService.computeIngredientQuantities.mockResolvedValue(
+          [],
+        );
+      });
+
+      it('appelle generate() comme avant l’ADR (repli), journalise un WARN et un AuditLog legacyFallbackUsed:true dans la transaction', async () => {
+        const warnSpy = jest
+          .spyOn(Logger.prototype, 'warn')
+          .mockImplementation(() => undefined);
+
+        const result = await service.close(
+          siteId,
+          userId,
+          batchId,
+          historicalDto,
+        );
+
+        expect(lotNumberGeneratorService.generate).toHaveBeenCalledTimes(1);
+        expect(result.lots[0].lotNumber).toBe('455001');
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(auditLogService.record).toHaveBeenCalledTimes(1);
+        const [params, usedTx] = auditLogService.record.mock.calls[0] as [
+          { after: Record<string, unknown> },
+          unknown,
+        ];
+        expect(params.after).toEqual({ legacyFallbackUsed: true });
+        expect(usedTx).toBe(tx);
+
+        warnSpy.mockRestore();
+      });
+
+      it('honore dto.expiryDate (seul chemin où il reste pertinent)', async () => {
+        jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+        await service.close(siteId, userId, batchId, {
+          ...historicalDto,
+          expiryDate: '2028-01-01',
+        });
+
+        const lotArgs = tx.lot.create.mock.calls[0][0] as {
+          data: { expiryDate: Date | null };
+        };
+        expect(lotArgs.data.expiryDate).toEqual(new Date('2028-01-01'));
+
+        jest.restoreAllMocks();
+      });
+    });
+
+    describe('états rejetés sous verrou (défense en profondeur)', () => {
+      beforeEach(() => {
+        prisma.batch.findFirst.mockResolvedValue(historicalBatch);
+        prisma.batchStop.findFirst.mockResolvedValue(null);
+        batchPreparationService.computeIngredientQuantities.mockResolvedValue(
+          [],
+        );
+      });
+
+      it("rejette explicitement si reservedLotNumber est renseigné mais reservedExpiryDate est NULL (état normalement impossible par le CHECK SQL)", async () => {
+        tx.$queryRaw.mockResolvedValue([
+          {
+            status: BatchStatus.EN_COURS,
+            reservedLotNumber: '456149',
+            reservedExpiryDate: null,
+          },
+        ]);
+
+        await expect(
+          service.close(siteId, userId, batchId, historicalDto),
+        ).rejects.toThrow(BadRequestException);
+        expect(tx.lot.create).not.toHaveBeenCalled();
+      });
+
+      it('rejette explicitement si reservedExpiryDate est renseignée mais reservedLotNumber est NULL', async () => {
+        tx.$queryRaw.mockResolvedValue([
+          {
+            status: BatchStatus.EN_COURS,
+            reservedLotNumber: null,
+            reservedExpiryDate,
+          },
+        ]);
+
+        await expect(
+          service.close(siteId, userId, batchId, historicalDto),
+        ).rejects.toThrow(BadRequestException);
+        expect(tx.lot.create).not.toHaveBeenCalled();
+      });
+
+      it('rejette explicitement si le batch relu sous verrou n’est plus EN_COURS (annulation ou clôture concurrente survenue entre la lecture initiale et la transaction)', async () => {
+        tx.$queryRaw.mockResolvedValue([
+          {
+            status: BatchStatus.ANNULE,
+            reservedLotNumber: null,
+            reservedExpiryDate: null,
+          },
+        ]);
+
+        await expect(
+          service.close(siteId, userId, batchId, historicalDto),
+        ).rejects.toThrow(BadRequestException);
+        expect(tx.lot.create).not.toHaveBeenCalled();
+        expect(tx.batch.update).not.toHaveBeenCalled();
+      });
+
+      it('lève NotFoundException si la ligne verrouillée est introuvable (défensif)', async () => {
+        tx.$queryRaw.mockResolvedValue([]);
+
+        await expect(
+          service.close(siteId, userId, batchId, historicalDto),
+        ).rejects.toThrow(NotFoundException);
       });
     });
   });

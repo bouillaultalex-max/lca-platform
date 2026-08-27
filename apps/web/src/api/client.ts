@@ -37,6 +37,7 @@ import type {
   EndBatchStopRequest,
   CloseBatchRequest,
   BatchClosureResult,
+  BatchPrintData,
   BatchProductAllocation,
   AddBatchProductAllocationRequest,
   ImportType,
@@ -356,6 +357,11 @@ export const api = {
   closeBatch: (token: string, batchId: string, payload: CloseBatchRequest): Promise<BatchClosureResult> =>
     request<BatchClosureResult>(`/production/batches/${batchId}/close`, { method: 'POST', body: JSON.stringify(payload) }, token),
 
+  // Impression des étiquettes Brady BBP12 (voir ADR 0010 § Décisions 16/17) : lecture
+  // seule, aucun effet de bord, appelable un nombre quelconque de fois.
+  getBatchPrintData: (token: string, batchId: string): Promise<BatchPrintData> =>
+    request<BatchPrintData>(`/production/batches/${batchId}/print-data`, {}, token),
+
   listBatchAllocations: (token: string, batchId: string): Promise<BatchProductAllocation[]> =>
     request<BatchProductAllocation[]>(`/batching/batches/${batchId}/allocations`, {}, token),
 
@@ -465,8 +471,11 @@ export const api = {
   getLotTraceability: (token: string, id: string): Promise<LotTraceability> =>
     request<LotTraceability>(`/traceability/lots/${id}`, {}, token),
 
-  getLotTraceabilityByNumber: (token: string, lotNumber: string): Promise<LotTraceability> =>
-    request<LotTraceability>(`/traceability/lots?lotNumber=${encodeURIComponent(lotNumber)}`, {}, token),
+  // ADR 0010 § Décision 15 : plusieurs allocations d'un même batch peuvent désormais
+  // partager le même lotNumber — le contrat renvoie toujours une liste, y compris
+  // vide ([]) si aucun lot ne correspond (jamais 404).
+  getLotTraceabilityByNumber: (token: string, lotNumber: string): Promise<LotTraceability[]> =>
+    request<LotTraceability[]>(`/traceability/lots?lotNumber=${encodeURIComponent(lotNumber)}`, {}, token),
 
   getStockLotTraceability: (token: string, id: string): Promise<StockLotTraceability> =>
     request<StockLotTraceability>(`/traceability/stock-lots/${id}`, {}, token),

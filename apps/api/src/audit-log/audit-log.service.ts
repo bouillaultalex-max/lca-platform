@@ -22,8 +22,17 @@ export interface RecordAuditLogParams {
 export class AuditLogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  record(params: RecordAuditLogParams): Promise<AuditLog> {
-    return this.prisma.auditLog.create({
+  /**
+   * @param tx Client Prisma transactionnel de l'appelant (voir ADR 0010 § Décision
+   *   13) — l'écriture d'audit doit rollback avec la mutation métier qu'elle
+   *   accompagne, jamais laisser d'entrée orpheline. Par défaut `this.prisma`,
+   *   inchangé pour tout appelant existant hors transaction.
+   */
+  record(
+    params: RecordAuditLogParams,
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<AuditLog> {
+    return tx.auditLog.create({
       data: {
         userId: params.userId,
         action: params.action,

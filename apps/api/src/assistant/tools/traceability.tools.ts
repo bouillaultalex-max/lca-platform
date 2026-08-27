@@ -26,21 +26,21 @@ export function createTraceabilityTools(
 ): ToolDefinition[] {
   const getLotByNumber: ToolDefinition<
     GetLotByNumberInputDto,
-    LotByNumberToolResult
+    LotByNumberToolResult[]
   > = {
     name: 'traceability.getLotByNumber',
     description:
-      "Renvoie la généalogie complète d'un lot fini identifié par son numéro métier (produit fini, recette, statut qualité, et chaque article/lot fournisseur consommé). Ne jamais inventer un numéro de lot : l'utiliser tel que fourni par l'utilisateur.",
+      "Renvoie la généalogie complète de tous les lots finis identifiés par un numéro métier (produit fini, recette, statut qualité, et chaque article/lot fournisseur consommé) — toujours une liste, y compris vide si aucun lot ne correspond (ADR 0010 § Décision 15 : plusieurs allocations d'un même batch peuvent désormais partager le même numéro). Ne jamais inventer un numéro de lot : l'utiliser tel que fourni par l'utilisateur.",
     inputSchema: GetLotByNumberInputDto,
     permission: { kind: 'authenticated' },
     category: 'read',
     handler: async (user, input) => {
-      const lot = await traceabilityService.findLotTraceabilityByNumber(
+      const lots = await traceabilityService.findLotTraceabilityByNumber(
         user.siteId,
         input.lotNumber,
       );
 
-      return {
+      return lots.map((lot) => ({
         lotNumber: lot.lotNumber,
         quantity: lot.quantity,
         manufacturedAt: lot.manufacturedAt,
@@ -55,7 +55,7 @@ export function createTraceabilityTools(
           supplierLotNumber: line.consumedStockLot.supplierLotNumber,
           consumedQuantity: line.consumedQuantity.toNumber(),
         })),
-      };
+      }));
     },
   };
 

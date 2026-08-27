@@ -213,6 +213,9 @@ model Site {
   feedbackEntries      Feedback[]
   aiConversations      AiConversation[]
   rndAromaSamples      RndAromaSample[]
+  /// Compteur de numérotation de lot (voir ADR 0010) — une ligne par site, amorcée
+  /// explicitement au déploiement (jamais par défaut Prisma).
+  lotNumberCounter     LotNumberCounter?
 
   @@map("sites")
 }
@@ -681,6 +684,15 @@ model Batch {
   /// Étape courante du workflow de production (voir BatchStep) ; `null` tant que le
   /// batch n'a pas démarré (statut PLANIFIE).
   currentStep        BatchStep?  @map("current_step")
+  /// Numéro de lot réservé au lancement (voir ADR 0010) : source unique du numéro
+  /// imprimé et utilisé à la clôture, partagé par tous les `Lot` issus de ce batch.
+  /// `null` tant que le batch est `PLANIFIE` ou pour tout batch historique
+  /// (repli transitoire, ADR 0010 § Décision 14). Co-nullable avec
+  /// `reservedExpiryDate` — garanti par un `CHECK` SQL même-table, voir la migration.
+  reservedLotNumber  String?     @map("reserved_lot_number")
+  /// DDM calculée une seule fois au lancement (`startedAt` + 3 ans, ADR 0010
+  /// § Décision 12), jamais recalculée ailleurs. Co-nullable avec `reservedLotNumber`.
+  reservedExpiryDate DateTime?   @map("reserved_expiry_date")
   createdByUserId    String      @map("created_by_user_id")
   createdByUser      User        @relation(fields: [createdByUserId], references: [id])
   createdAt          DateTime    @default(now()) @map("created_at")
@@ -692,6 +704,10 @@ model Batch {
   allocations    BatchProductAllocation[]
   batchCosts     BatchCost[]
 
+  /// Portée scopée par site (voir ADR 0010 § Décision 1) — jamais une contrainte
+  /// globale : deux sites disposant chacun de leur propre `LotNumberCounter` peuvent
+  /// légitimement produire le même numéro.
+  @@unique([siteId, reservedLotNumber])
   @@map("batches")
 }
 
@@ -741,6 +757,26 @@ model BatchProductAllocation {
   @@map("batch_product_allocations")
 }
 
+/// Compteur de numérotation de lot par site (voir ADR 0010 § Décision 5). Remplace
+/// `count()+1` (`LotNumberGeneratorService`) comme mécanisme d'attribution pour tout
+/// nouveau lancement de batch. `lastIssuedBatchId` est une donnée d'audit dénormalisée,
+/// informative uniquement — jamais lue par l'algorithme d'attribution/réutilisation,
+/// qui ne se fonde que sur `lastIssuedAvailableForReuse` et `lastIssuedNumber`.
+/// Amorçage (valeur réelle 456148 au déploiement du laboratoire) : donnée
+/// d'exploitation insérée explicitement lors du déploiement contrôlé, jamais une
+/// valeur par défaut Prisma (voir ADR 0010 § Décision 5/7).
+model LotNumberCounter {
+  id                          String   @id @default(uuid())
+  siteId                      String   @unique @map("site_id")
+  site                        Site     @relation(fields: [siteId], references: [id])
+  lastIssuedNumber            Int      @map("last_issued_number")
+  lastIssuedBatchId           String?  @map("last_issued_batch_id")
+  lastIssuedAvailableForReuse Boolean  @default(false) @map("last_issued_available_for_reuse")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  @@map("lot_number_counters")
+}
+
 // ---------------------------------------------------------------------------
 // Lots & traçabilité amont (voir docs/modele-donnees.md §5)
 //
@@ -765,10 +801,13 @@ model Lot {
   /// rattachement, exactement comme avant). Relation 1─1 avec `BatchProductAllocation`.
   allocationId   String?                 @unique @map("allocation_id")
   allocation     BatchProductAllocation? @relation(fields: [allocationId], references: [id])
-  /// Généré par LotNumberGeneratorService (TODO : algorithme définitif non fourni,
-  /// implémentation actuelle = placeholder isolé derrière une interface simple,
-  /// voir docs/regles-metier.md §4).
-  lotNumber      String                  @unique @map("lot_number")
+  /// Numéro de lot (voir `LotNumberGeneratorService`, repli transitoire uniquement,
+  /// et `Batch.reservedLotNumber`, mécanisme nominal — ADR 0010). Non unique
+  /// globalement depuis ADR 0010 : plusieurs `Lot` d'un même `Batch` multi-allocation
+  /// partagent désormais le même `lotNumber` (numéro partagé par batch, plus par
+  /// lot) — voir `@@index([siteId, lotNumber])` ci-dessous en remplacement de
+  /// l'ancienne unicité globale.
+  lotNumber      String                  @map("lot_number")
   /// Quantité totale produite, rebuts inclus (voir docs/regles-metier.md §3/§5).
   quantity       Int
   manufacturedAt DateTime                @map("manufactured_at")
@@ -787,6 +826,11 @@ model Lot {
   // lectures par batchId (ex. TraceabilityService, futur BatchClosureService) sans
   // imposer l'unicité.
   @@index([batchId])
+  // Remplace l'unicité globale retirée sur lotNumber (voir ADR 0010 § Décision 4) :
+  // conserve la performance des lectures par (siteId, lotNumber) déjà utilisées par
+  // TraceabilityService, sans imposer l'unicité — plusieurs Lot d'un même Batch
+  // multi-allocation partagent désormais le même lotNumber.
+  @@index([siteId, lotNumber])
   @@map("lots")
 }
 

@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-surface-muted">
+    <div className="no-print min-h-screen bg-surface-muted">
       <Sidebar
         isCollapsed={isCollapsed}
         isMobileOpen={isMobileNavOpen}

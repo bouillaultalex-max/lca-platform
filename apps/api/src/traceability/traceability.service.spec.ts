@@ -7,7 +7,7 @@ import { LotQualityStatus } from '../../generated/prisma/client';
 describe('TraceabilityService', () => {
   let service: TraceabilityService;
   let prisma: {
-    lot: { findFirst: jest.Mock };
+    lot: { findFirst: jest.Mock; findMany: jest.Mock };
     stockLot: { findFirst: jest.Mock };
   };
 
@@ -71,7 +71,7 @@ describe('TraceabilityService', () => {
 
   beforeEach(async () => {
     prisma = {
-      lot: { findFirst: jest.fn() },
+      lot: { findFirst: jest.fn(), findMany: jest.fn() },
       stockLot: { findFirst: jest.fn() },
     };
 
@@ -121,16 +121,30 @@ describe('TraceabilityService', () => {
     });
   });
 
-  describe('findLotTraceabilityByNumber', () => {
-    it('renvoie le lot avec la même généalogie complète, recherché par numéro de lot', async () => {
-      prisma.lot.findFirst.mockResolvedValue(lotWithRelations);
+  describe('findLotTraceabilityByNumber (ADR 0010 § Décision 15 : liste, plus objet unique)', () => {
+    const lotWithRelationsB = {
+      ...lotWithRelations,
+      id: 'lot-2',
+      batch: { ...lotWithRelations.batch, id: 'batch-2' },
+      genealogyLines: [
+        {
+          id: 'genealogy-2',
+          consumedQuantity: 7,
+          consumedArticle: { id: 'article-2', name: 'Flacon 100 ml' },
+          consumedStockLot: {
+            id: 'stock-lot-2',
+            supplierLotNumber: 'FOURNISSEUR-LOT-10',
+          },
+        },
+      ],
+    };
 
-      const result = await service.findLotTraceabilityByNumber(
-        siteId,
-        '455001',
-      );
+    it('utilise findMany (jamais findFirst) avec le même include que la recherche par id', async () => {
+      prisma.lot.findMany.mockResolvedValue([lotWithRelations]);
 
-      expect(prisma.lot.findFirst).toHaveBeenCalledWith({
+      await service.findLotTraceabilityByNumber(siteId, '455001');
+
+      expect(prisma.lot.findMany).toHaveBeenCalledWith({
         where: { lotNumber: '455001', siteId },
         include: {
           batch: {
@@ -147,19 +161,59 @@ describe('TraceabilityService', () => {
             },
           },
         },
+        orderBy: { createdAt: 'asc' },
       });
-      expect(result).toEqual(lotWithRelations);
+      expect(prisma.lot.findFirst).not.toHaveBeenCalled();
     });
 
-    it('lève NotFoundException si aucun lot de ce numéro n’existe sur ce site (y compris isolation cross-site)', async () => {
-      prisma.lot.findFirst.mockResolvedValue(null);
+    it('zéro résultat : retourne un tableau vide, jamais NotFoundException', async () => {
+      prisma.lot.findMany.mockResolvedValue([]);
 
-      await expect(
-        service.findLotTraceabilityByNumber(siteId, '455999'),
-      ).rejects.toThrow(NotFoundException);
-      // Le siteId de l'appelant est bien transmis au `where` — un numéro de lot
-      // existant sur un autre site ne peut jamais être retrouvé depuis celui-ci.
-      expect(prisma.lot.findFirst).toHaveBeenCalledWith(
+      const result = await service.findLotTraceabilityByNumber(
+        siteId,
+        '455999',
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('un seul résultat : retourne un tableau à un élément (jamais l’objet nu)', async () => {
+      prisma.lot.findMany.mockResolvedValue([lotWithRelations]);
+
+      const result = await service.findLotTraceabilityByNumber(
+        siteId,
+        '455001',
+      );
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toEqual([lotWithRelations]);
+    });
+
+    it('plusieurs résultats (numéro partagé par deux allocations d’un même batch) : les deux sont retournés, jamais fusionnés ni dédupliqués par lotNumber', async () => {
+      prisma.lot.findMany.mockResolvedValue([
+        lotWithRelations,
+        lotWithRelationsB,
+      ]);
+
+      const result = await service.findLotTraceabilityByNumber(
+        siteId,
+        '455001',
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result).toEqual([lotWithRelations, lotWithRelationsB]);
+      // Identité technique distincte malgré un lotNumber partagé — jamais lotNumber
+      // comme clé d'identité (ADR 0010 § Décision 4/15/16).
+      expect(result[0].id).not.toBe(result[1].id);
+      expect(result[0].lotNumber).toBe(result[1].lotNumber);
+    });
+
+    it('transmet le siteId de l’appelant (isolation cross-site) même pour un tableau vide', async () => {
+      prisma.lot.findMany.mockResolvedValue([]);
+
+      await service.findLotTraceabilityByNumber(siteId, '455999');
+
+      expect(prisma.lot.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { lotNumber: '455999', siteId } }),
       );
     });

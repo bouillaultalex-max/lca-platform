@@ -9,6 +9,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiQuery,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import {
@@ -33,12 +34,18 @@ export class TraceabilityController {
   @ApiQuery({ name: 'lotNumber', required: true })
   @ApiOperation({
     summary:
-      'Recherche un lot par son numéro métier (ex. 455123) plutôt que par identifiant technique — voir TRAC-03A. Renvoie la même généalogie complète que GET /traceability/lots/:id.',
+      "Recherche des lots par leur numéro métier (ex. 455149) plutôt que par identifiant technique — voir TRAC-03A. Renvoie toujours une liste (ADR 0010 § Décision 15) : plusieurs allocations d'un même batch peuvent désormais partager le même numéro. Même généalogie complète par lot que GET /traceability/lots/:id.",
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      "Toujours un tableau, y compris vide ([]) si aucun lot ne correspond — jamais 404 pour une simple absence de résultat.",
+    isArray: true,
   })
   findLotTraceabilityByNumber(
     @CurrentUser() user: AuthenticatedUser,
     @Query('lotNumber') lotNumber?: string,
-  ): Promise<LotTraceability> {
+  ): Promise<LotTraceability[]> {
     if (!lotNumber) {
       throw new BadRequestException('Le paramètre lotNumber est obligatoire.');
     }

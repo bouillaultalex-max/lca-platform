@@ -28,6 +28,19 @@ export class BatchStepsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ): Promise<Batch> {
-    return this.batchStepsService.advance(user.siteId, id);
+    return this.batchStepsService.advance(user.siteId, id, user.id);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Annule un batch (PLANIFIE ou EN_COURS → ANNULE). Libère le numéro de lot réservé s'il s'agit du dernier numéro émis pour ce batch ; refusé pour un batch déjà annulé ou terminé.",
+  })
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<Batch> {
+    return this.batchStepsService.cancel(user.siteId, id, user.id);
   }
 }

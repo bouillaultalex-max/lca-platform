@@ -104,6 +104,14 @@ describe('BatchClosure — clôture multi-allocation (e2e)', () => {
       (await prisma.site.findFirst()) ??
       (await prisma.site.create({ data: { name: 'Site de test e2e' } }));
     siteId = site.id;
+    // ADR 0010 : le lancement (advance-step) exige désormais un LotNumberCounter pour
+    // le site — amorçage arbitraire pour les tests, sans rapport avec la valeur réelle
+    // 456148 (donnée d'exploitation, jamais codée en dur, voir ADR 0010 § Décision 7).
+    await prisma.lotNumberCounter.upsert({
+      where: { siteId },
+      update: {},
+      create: { siteId, lastIssuedNumber: 900000 },
+    });
     const passwordHash = await bcrypt.hash(password, 4);
 
     const user = await prisma.user.upsert({

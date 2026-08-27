@@ -71,23 +71,26 @@ export class TraceabilityService {
   }
 
   /**
-   * Même généalogie complète, retrouvée par numéro de lot métier (ex. 455123)
-   * plutôt que par identifiant technique — voir TRAC-03A. `lotNumber` est unique
-   * globalement (voir schema.prisma), mais `siteId` reste dans le `where` pour
-   * ne jamais permettre de retrouver un lot d'un autre site par ce biais.
+   * Même généalogie complète, retrouvée par numéro de lot métier (ex. 455149)
+   * plutôt que par identifiant technique — voir TRAC-03A. `lotNumber` n'est plus
+   * unique globalement depuis ADR 0010 (§ Décision 4/15) : plusieurs `Lot` d'un
+   * même `Batch` multi-allocation peuvent partager le même numéro. Retourne donc
+   * systématiquement une **liste**, jamais un objet unique — y compris à taille 0
+   * (aucune correspondance, `200` + `[]`, jamais `404`) ou 1 (cas mono-allocation,
+   * majoritaire, toujours représenté comme une liste à un élément). `siteId` reste
+   * dans le `where` pour ne jamais permettre de retrouver un lot d'un autre site
+   * par ce biais. Ordre par `createdAt` croissant : aucun ordre métier n'est requis
+   * par l'ADR, seule la stabilité du résultat entre deux appels identiques compte.
    */
   async findLotTraceabilityByNumber(
     siteId: string,
     lotNumber: string,
-  ): Promise<LotTraceability> {
-    const lot = await this.prisma.lot.findFirst({
+  ): Promise<LotTraceability[]> {
+    return this.prisma.lot.findMany({
       where: { lotNumber, siteId },
       include: LOT_TRACEABILITY_INCLUDE,
+      orderBy: { createdAt: 'asc' },
     });
-    if (!lot) {
-      throw new NotFoundException(`Lot ${lotNumber} introuvable.`);
-    }
-    return lot;
   }
 
   /**

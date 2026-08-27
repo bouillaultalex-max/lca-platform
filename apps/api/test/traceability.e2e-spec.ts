@@ -500,44 +500,52 @@ describe('Traceability (e2e)', () => {
     });
   });
 
-  describe('GET /traceability/lots?lotNumber= (recherche par numéro de lot — TRAC-03A)', () => {
-    it('retourne la même généalogie complète que la recherche par identifiant technique (200)', async () => {
+  describe('GET /traceability/lots?lotNumber= (recherche par numéro de lot — TRAC-03A, ADR 0010 § Décision 15)', () => {
+    it('retourne un tableau à un seul élément, avec la même généalogie complète que la recherche par identifiant technique (200)', async () => {
       const response = await request(app.getHttpServer())
         .get('/traceability/lots')
         .query({ lotNumber: lotA1Number })
         .set('Authorization', `Bearer ${tokenA}`)
         .expect(200);
 
-      const body = response.body as LotTraceabilityResponseBody;
-      expect(body.id).toBe(lotA1Id);
-      expect(body.lotNumber).toBe(lotA1Number);
-      expect(body.genealogyLines).toHaveLength(1);
+      const body = response.body as LotTraceabilityResponseBody[];
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(1);
+      expect(body[0].id).toBe(lotA1Id);
+      expect(body[0].lotNumber).toBe(lotA1Number);
+      expect(body[0].genealogyLines).toHaveLength(1);
     });
 
-    it('retourne 404 pour un numéro de lot inexistant', () => {
-      return request(app.getHttpServer())
+    it('retourne 200 + [] pour un numéro de lot inexistant — jamais 404 (ADR 0010 § Décision 15)', async () => {
+      const response = await request(app.getHttpServer())
         .get('/traceability/lots')
         .query({ lotNumber: '999999-INEXISTANT' })
         .set('Authorization', `Bearer ${tokenA}`)
-        .expect(404);
+        .expect(200);
+
+      expect(response.body).toEqual([]);
     });
 
-    it('retourne 404 (pas 403) pour un numéro de lot appartenant à un autre site — ne révèle pas son existence', () => {
-      return request(app.getHttpServer())
+    it('retourne 200 + [] (pas 404) pour un numéro de lot appartenant à un autre site — ne révèle pas son existence', async () => {
+      const response = await request(app.getHttpServer())
         .get('/traceability/lots')
         .query({ lotNumber: lotB1Number })
         .set('Authorization', `Bearer ${tokenA}`)
-        .expect(404);
+        .expect(200);
+
+      expect(response.body).toEqual([]);
     });
 
-    it('contrôle : ce même numéro reste bien accessible à un utilisateur de son propre site (200)', async () => {
+    it('contrôle : ce même numéro reste bien accessible à un utilisateur de son propre site (200 + [Lot])', async () => {
       const response = await request(app.getHttpServer())
         .get('/traceability/lots')
         .query({ lotNumber: lotB1Number })
         .set('Authorization', `Bearer ${tokenB}`)
         .expect(200);
 
-      expect((response.body as LotTraceabilityResponseBody).id).toBe(lotB1Id);
+      const body = response.body as LotTraceabilityResponseBody[];
+      expect(body).toHaveLength(1);
+      expect(body[0].id).toBe(lotB1Id);
     });
 
     it('refuse un appel sans le paramètre lotNumber (400)', () => {
@@ -552,6 +560,199 @@ describe('Traceability (e2e)', () => {
         .get('/traceability/lots')
         .query({ lotNumber: lotA1Number })
         .expect(401);
+    });
+
+    describe('numéro partagé par deux Lots de deux allocations d’un même Batch (cas critique ADR 0010)', () => {
+      let sharedBatchId: string;
+      let sharedLotNumber: string;
+      let sharedLotOneId: string;
+      let sharedLotTwoId: string;
+
+      beforeAll(async () => {
+        const finishedShared = await prisma.article.create({
+          data: {
+            siteId: siteAId,
+            type: ArticleType.PRODUIT_FINI,
+            openSiReference: 'E2E-TRAC-A-FP-SHARED',
+            name: 'Recharge test e2e (traçabilité A — partagé)',
+            unitOfMeasure: 'unité',
+            currentUnitCost: 1,
+          },
+        });
+        const recipeShared = await prisma.recipe.create({
+          data: {
+            siteId: siteAId,
+            finishedProductId: finishedShared.id,
+            format: 100,
+            version: 1,
+            status: RecipeStatus.ACTIVE,
+          },
+        });
+        const machineShared = await prisma.machine.create({
+          data: {
+            siteId: siteAId,
+            name: 'Machine test e2e (traçabilité A — partagé)',
+            supportedFormats: [100],
+            active: true,
+          },
+        });
+        const userA = await prisma.user.findUniqueOrThrow({
+          where: { email: emails.a },
+        });
+        sharedLotNumber = `E2E-TRAC-SHARED-${Date.now()}`;
+
+        const sharedBatch = await prisma.batch.create({
+          data: {
+            siteId: siteAId,
+            recipeId: recipeShared.id,
+            machineId: machineShared.id,
+            format: 100,
+            plannedQuantity: 150,
+            producedQuantity: 150,
+            rejectedQuantity: 0,
+            status: BatchStatus.TERMINE,
+            currentStep: BatchStep.CONDITIONNEMENT,
+            createdByUserId: userA.id,
+            startedAt: new Date('2026-07-19T08:00:00.000Z'),
+            endedAt: new Date('2026-07-19T16:00:00.000Z'),
+            reservedLotNumber: null,
+            reservedExpiryDate: null,
+          },
+        });
+        sharedBatchId = sharedBatch.id;
+
+        const productA = await prisma.article.create({
+          data: {
+            siteId: siteAId,
+            type: ArticleType.PRODUIT_FINI,
+            openSiReference: 'E2E-TRAC-A-FP-SHARED-ALLOC-A',
+            name: 'Recharge test e2e (allocation A)',
+            unitOfMeasure: 'unité',
+            currentUnitCost: 1,
+          },
+        });
+        const productB = await prisma.article.create({
+          data: {
+            siteId: siteAId,
+            type: ArticleType.PRODUIT_FINI,
+            openSiReference: 'E2E-TRAC-A-FP-SHARED-ALLOC-B',
+            name: 'Recharge test e2e (allocation B)',
+            unitOfMeasure: 'unité',
+            currentUnitCost: 1,
+          },
+        });
+        const allocationA = await prisma.batchProductAllocation.create({
+          data: {
+            batchId: sharedBatchId,
+            productId: productA.id,
+            recipeId: recipeShared.id,
+            plannedQuantity: 100,
+            producedQuantity: 100,
+            rejectedQuantity: 0,
+          },
+        });
+        const allocationB = await prisma.batchProductAllocation.create({
+          data: {
+            batchId: sharedBatchId,
+            productId: productB.id,
+            recipeId: recipeShared.id,
+            plannedQuantity: 50,
+            producedQuantity: 50,
+            rejectedQuantity: 0,
+          },
+        });
+
+        // Deux Lots du MÊME batch, deux allocations distinctes, même lotNumber
+        // partagé (ADR 0010 § Décision 3) — id distincts.
+        const sharedLotOne = await prisma.lot.create({
+          data: {
+            siteId: siteAId,
+            batchId: sharedBatchId,
+            allocationId: allocationA.id,
+            lotNumber: sharedLotNumber,
+            quantity: 100,
+            manufacturedAt: new Date('2026-07-19T16:00:00.000Z'),
+            qualityStatus: LotQualityStatus.CONFORME,
+          },
+        });
+        sharedLotOneId = sharedLotOne.id;
+        const sharedLotTwo = await prisma.lot.create({
+          data: {
+            siteId: siteAId,
+            batchId: sharedBatchId,
+            allocationId: allocationB.id,
+            lotNumber: sharedLotNumber,
+            quantity: 50,
+            manufacturedAt: new Date('2026-07-19T16:00:00.000Z'),
+            qualityStatus: LotQualityStatus.CONFORME,
+          },
+        });
+        sharedLotTwoId = sharedLotTwo.id;
+
+        await prisma.lotGenealogy.create({
+          data: {
+            lotId: sharedLotOneId,
+            consumedArticleId: materialAId,
+            consumedStockLotId: stockLotA1Id,
+            consumedQuantity: 5,
+          },
+        });
+        await prisma.lotGenealogy.create({
+          data: {
+            lotId: sharedLotTwoId,
+            consumedArticleId: materialAId,
+            consumedStockLotId: stockLotA1Id,
+            consumedQuantity: 2.5,
+          },
+        });
+      });
+
+      afterAll(async () => {
+        await prisma.lotGenealogy.deleteMany({
+          where: { lotId: { in: [sharedLotOneId, sharedLotTwoId] } },
+        });
+        await prisma.lot.deleteMany({
+          where: { id: { in: [sharedLotOneId, sharedLotTwoId] } },
+        });
+        await prisma.batchProductAllocation.deleteMany({
+          where: { batchId: sharedBatchId },
+        });
+        await prisma.batch.deleteMany({ where: { id: sharedBatchId } });
+      });
+
+      it('retourne les DEUX Lots (200 + [LotA, LotB]), jamais fusionnés ni dédupliqués par lotNumber', async () => {
+        const response = await request(app.getHttpServer())
+          .get('/traceability/lots')
+          .query({ lotNumber: sharedLotNumber })
+          .set('Authorization', `Bearer ${tokenA}`)
+          .expect(200);
+
+        const body = response.body as LotTraceabilityResponseBody[];
+        expect(Array.isArray(body)).toBe(true);
+        expect(body).toHaveLength(2);
+
+        const ids = body.map((lot) => lot.id).sort();
+        expect(ids).toEqual([sharedLotOneId, sharedLotTwoId].sort());
+
+        // Même lotNumber, id distincts (ADR 0010 § Décision 16) — jamais lotNumber
+        // comme identifiant technique.
+        expect(body[0].lotNumber).toBe(sharedLotNumber);
+        expect(body[1].lotNumber).toBe(sharedLotNumber);
+        expect(body[0].id).not.toBe(body[1].id);
+
+        // Même Batch pour les deux (deux allocations d'un seul run physique).
+        expect(body.every((lot) => lot.batch.id === sharedBatchId)).toBe(true);
+
+        // Généalogie propre à chaque lot, jamais fusionnée.
+        const lotOne = body.find((lot) => lot.id === sharedLotOneId)!;
+        const lotTwo = body.find((lot) => lot.id === sharedLotTwoId)!;
+        expect(lotOne.quantity).toBe(100);
+        expect(lotTwo.quantity).toBe(50);
+        expect(lotOne.genealogyLines).toHaveLength(1);
+        expect(lotTwo.genealogyLines).toHaveLength(1);
+        expect(lotOne.genealogyLines[0].consumedQuantity).toBe('5');
+        expect(lotTwo.genealogyLines[0].consumedQuantity).toBe('2.5');
+      });
     });
   });
 

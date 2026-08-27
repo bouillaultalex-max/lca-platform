@@ -9,6 +9,7 @@ import {
   type Batch,
   type BatchClosureResult,
   type BatchFeasibilityReport,
+  type BatchPrintData,
   type BatchProductAllocation,
   type BatchStatus,
   type BatchStop,
@@ -23,6 +24,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/useAuth';
 import { AppLayout } from '../components/AppLayout';
 import { Modal } from '../components/Modal';
+import { ProductionBatchPrint } from '../components/ProductionBatchPrint';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SectionCard } from '../components/ui/SectionCard';
 import {
@@ -32,6 +34,7 @@ import {
 } from '../utils/allocationEligibility';
 import { validateAllocationClosureLines } from '../utils/allocationClosureValidation';
 import { enrichClosureLots, resolveClosureLots, type EnrichedClosureLot } from '../utils/closureLots';
+import { canPrintBatchLabels } from '../utils/productionLabels';
 
 const inputClass =
   'w-full rounded-md border border-brand-border px-3 py-2.5 text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
@@ -223,6 +226,21 @@ export function ProductionPage() {
   const [feasibilityReport, setFeasibilityReport] = useState<BatchFeasibilityReport | null>(null);
   const [isCheckingFeasibility, setIsCheckingFeasibility] = useState(false);
 
+  // Impression des étiquettes Brady BBP12 (ADR 0010, étape 7) : `printData` est
+  // toujours re-récupéré au clic (jamais mis en cache entre deux batchs) ; un
+  // nouvel objet déclenche systématiquement `window.print()` via l'effet
+  // ci-dessous, y compris pour deux clics successifs sur le même batch (aucun
+  // effet de bord côté serveur, voir BatchPrintService — impressions répétées
+  // toujours possibles).
+  const [printData, setPrintData] = useState<BatchPrintData | null>(null);
+  const [isLoadingPrintData, setIsLoadingPrintData] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!printData) return;
+    window.print();
+  }, [printData]);
+
   const articlesById = useMemo(() => new Map(articles.map((a) => [a.id, a])), [articles]);
   const machinesById = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
   const marketsById = useMemo(() => new Map(markets.map((m) => [m.id, m])), [markets]);
@@ -403,6 +421,26 @@ export function ProductionPage() {
       }
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : 'Impossible de faire progresser le batch.');
+    }
+  }
+
+  /**
+   * Récupère les données d'impression puis déclenche `window.print()` (voir
+   * l'effet sur `printData` ci-dessus). Lecture seule côté serveur (voir
+   * BatchPrintService) : ne modifie jamais le statut du batch, le numéro
+   * réservé, la DDM, le compteur ou un `Lot` — appelable un nombre quelconque
+   * de fois.
+   */
+  async function handlePrintLabels() {
+    if (!token || !selectedBatch) return;
+    setPrintError(null);
+    setIsLoadingPrintData(true);
+    try {
+      setPrintData(await api.getBatchPrintData(token, selectedBatch.id));
+    } catch (err) {
+      setPrintError(err instanceof ApiError ? err.message : 'Impossible de charger les données d’impression.');
+    } finally {
+      setIsLoadingPrintData(false);
     }
   }
 
@@ -605,6 +643,22 @@ export function ProductionPage() {
                         : 'Passer à l’étape suivante'}
                   </button>
                 )}
+
+                {/* Impression des étiquettes Brady BBP12 (ADR 0010, étape 7) : disponible
+                    dès le lancement, tant que le numéro et la DDM sont réservés — voir
+                    BatchPrintService pour le refus explicite dans tout autre cas. */}
+                {canPrintBatchLabels(selectedBatch) && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => void handlePrintLabels()}
+                        disabled={isLoadingPrintData}
+                        className="rounded-md border border-brand-border bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-brand-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isLoadingPrintData ? 'Préparation des étiquettes…' : 'Imprimer les étiquettes'}
+                      </button>
+                      {printError && <p className="mt-2 text-sm text-red-600">{printError}</p>}
+                    </div>
+                  )}
               </SectionCard>
 
               {selectedBatch.status === 'EN_COURS' && (
@@ -742,6 +796,8 @@ export function ProductionPage() {
           }}
         />
       )}
+
+      {printData && <ProductionBatchPrint data={printData} />}
     </AppLayout>
   );
 }

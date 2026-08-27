@@ -43,6 +43,15 @@ export interface Batch {
   formatChangeDetail: string | null;
   status: BatchStatus;
   currentStep: BatchStep | null;
+  /** Numéro de lot réservé au lancement (voir ADR 0010 § Décision 10) — `null`
+   * tant que `PLANIFIE`, ou pour un batch legacy `EN_COURS` sans réservation
+   * (repli transitoire, § Décision 14). Source du numéro imprimé sur les
+   * étiquettes (voir `BatchPrintData`), jamais `Lot.lotNumber`. */
+  reservedLotNumber: string | null;
+  /** DDM calculée une seule fois au lancement (`startedAt` + 3 ans), jamais
+   * recalculée ailleurs — voir ADR 0010 § Décision 12. Co-nullable avec
+   * `reservedLotNumber`. */
+  reservedExpiryDate: string | null;
   createdAt: string;
 }
 
@@ -207,4 +216,36 @@ export interface BatchClosureResult {
   lots: Lot[];
   /** Alias temporaire vers `lots[0]`, conservé pour compatibilité avec le frontend actuel. */
   lot: Lot;
+}
+
+/**
+ * Données d'une paire d'étiquettes (PRODUIT + BATCHING) pour une allocation — ou
+ * pour le batch entier, `allocationId: null`, dans le seul cas d'un batch
+ * historique sans allocation (voir `BatchPrintData`, ADR 0010 § Décisions 16/17).
+ */
+export interface PrintAllocationData {
+  allocationId: string | null;
+  productName: string;
+  /** Quantité prévue à batcher (`plannedQuantity`) — le batch est nécessairement
+   * `EN_COURS`, donc pas encore clôturé. */
+  quantityToBatch: number;
+  /** Résultat complet de `computeIngredientQuantities` pour cette allocation —
+   * matière première ET packaging confondus, PG/VG inclus sans traitement
+   * spécial, jamais dédupliqués entre allocations. */
+  ingredients: IngredientQuantity[];
+}
+
+/**
+ * Données agrégées pour l'impression des étiquettes Brady BBP12 (voir ADR 0010
+ * § Décisions 16/17, `GET /production/batches/:id/print-data`) : une paire
+ * d'étiquettes par allocation, numéro de lot et DDM communs et réservés au
+ * lancement (`Batch.reservedLotNumber`/`reservedExpiryDate`, jamais
+ * `Lot.lotNumber`/`Lot.expiryDate` — le `Lot` réel n'existe pas encore tant que
+ * le batch n'est pas clôturé).
+ */
+export interface BatchPrintData {
+  batchId: string;
+  lotNumber: string;
+  expiryDate: string;
+  allocations: PrintAllocationData[];
 }

@@ -93,11 +93,23 @@ export class BatchFeasibilityService {
     private readonly batchPreparationService: BatchPreparationService,
   ) {}
 
+  /**
+   * @param client Client Prisma à utiliser pour les lectures décisionnelles de cette
+   *   méthode (`batch`, `stockLot`) — jamais `this.prisma` lorsqu'un client
+   *   transactionnel est fourni (voir ADR 0010 § Décision 19 : cette lecture détermine
+   *   si l'attribution du numéro de lot peut avoir lieu, elle doit donc participer à
+   *   l'atomicité de la transaction appelante). Par défaut `this.prisma`, inchangé
+   *   pour tout appelant existant hors transaction (ex. endpoint de consultation).
+   *   `BatchPreparationService.computeIngredientQuantities` reste volontairement hors
+   *   `client` : lectures de composition de recette, purement informatives au sens de
+   *   l'ADR (non concurremment mutées par ce flux).
+   */
   async checkFeasibility(
     siteId: string,
     batchId: string,
+    client: Prisma.TransactionClient = this.prisma,
   ): Promise<BatchFeasibilityReport> {
-    const batch = await this.prisma.batch.findFirst({
+    const batch = await client.batch.findFirst({
       where: { id: batchId, siteId },
       include: { allocations: true },
     });
@@ -163,7 +175,7 @@ export class BatchFeasibilityService {
       const unit =
         ingredient.kind === 'MATIERE_PREMIERE' ? 'L' : ingredient.unit;
 
-      const lots = await this.prisma.stockLot.findMany({
+      const lots = await client.stockLot.findMany({
         where: {
           siteId,
           articleId: ingredient.articleId,

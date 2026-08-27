@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -9,6 +10,7 @@ import {
   type PackagingQuantity,
 } from '../../batching/batch-preparation/batch-preparation.service';
 import { LotNumberGeneratorService } from '../lot-number-generator/lot-number-generator.service';
+import { AuditLogService } from '../../audit-log/audit-log.service';
 import { CloseBatchDto } from './dto/close-batch.dto';
 import {
   computeFifoAllocations,
@@ -19,6 +21,7 @@ import {
   type CostedConsumptionLine,
 } from '../../costing/batch-cost-calculation/batch-cost-calculation';
 import {
+  AuditAction,
   Batch,
   BatchProductAllocation,
   BatchStatus,
@@ -27,6 +30,18 @@ import {
   Prisma,
   StockMovementType,
 } from '../../../generated/prisma/client';
+
+/** Forme minimale de la ligne `batches` relue sous verrou (`SELECT ... FOR UPDATE`) au
+ * début de la transaction de clôture (voir ADR 0010 § Décision 14) : ferme la fenêtre
+ * de concurrence entre la lecture initiale (hors transaction, `close()`) et l'ouverture
+ * de cette transaction — un `cancel()` concurrent qui libérerait le numéro réservé
+ * entre-temps, ou une seconde clôture concurrente sur le même batch, sont ainsi
+ * détectés avant toute écriture, jamais sur la base d'un état potentiellement périmé. */
+interface LockedBatchForClosureRow {
+  status: BatchStatus;
+  reservedLotNumber: string | null;
+  reservedExpiryDate: Date | null;
+}
 
 export interface BatchClosureResult {
   batch: Batch;
@@ -76,10 +91,13 @@ const ZERO = new Prisma.Decimal(0);
  */
 @Injectable()
 export class BatchClosureService {
+  private readonly logger = new Logger(BatchClosureService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly batchPreparationService: BatchPreparationService,
     private readonly lotNumberGeneratorService: LotNumberGeneratorService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async close(
@@ -170,6 +188,74 @@ export class BatchClosureService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Revalidation sous verrou (ADR 0010 § Décision 14) : la lecture initiale de
+      // `batch` ci-dessus a eu lieu hors transaction, avant tout le calcul de
+      // faisabilité/consommation ci-dessus — une annulation concurrente (qui
+      // libérerait `reservedLotNumber`, § Décision 11) ou une seconde clôture
+      // concurrente sur ce même batch auraient pu s'intercaler entre-temps. Le verrou
+      // `Batch` est acquis ici, avant toute écriture, exactement comme pour le
+      // lancement (§ Décision 10) et l'annulation (§ Décision 11).
+      const lockedRows = await tx.$queryRaw<LockedBatchForClosureRow[]>`
+        SELECT
+          status,
+          reserved_lot_number AS "reservedLotNumber",
+          reserved_expiry_date AS "reservedExpiryDate"
+        FROM batches
+        WHERE id = ${batchId} AND site_id = ${siteId}
+        FOR UPDATE
+      `;
+      const locked = lockedRows[0];
+      if (!locked) {
+        throw new NotFoundException(`Batch ${batchId} introuvable.`);
+      }
+      if (locked.status !== BatchStatus.EN_COURS) {
+        throw new BadRequestException(
+          'Seul un batch en cours peut être clôturé.',
+        );
+      }
+      const hasReservedLotNumber = locked.reservedLotNumber !== null;
+      const hasReservedExpiryDate = locked.reservedExpiryDate !== null;
+      if (hasReservedLotNumber !== hasReservedExpiryDate) {
+        // État normalement rendu impossible par le CHECK PostgreSQL de co-nullabilité
+        // (ADR 0010 § Décision 2) — défense en profondeur explicite, jamais une
+        // tentative de réparation silencieuse (§ Décision 14).
+        throw new BadRequestException(
+          'État de réservation incohérent pour ce batch ; contactez un administrateur.',
+        );
+      }
+
+      // Repli legacy (ADR 0010 § Décision 14) : strictement limité aux batchs
+      // `EN_COURS` sans aucune réservation (les deux champs `NULL`, garanti co-nul
+      // ci-dessus). Structurellement inatteignable pour un batch lancé après le
+      // déploiement de l'ADR — toute occurrence réelle est un signal de régression à
+      // investiguer, jamais un fonctionnement normal à ignorer.
+      const isLegacyFallback = !hasReservedLotNumber;
+      const sharedLotNumber = locked.reservedLotNumber;
+      const expiryDateValue = isLegacyFallback
+        ? dto.expiryDate
+          ? new Date(dto.expiryDate)
+          : null
+        : locked.reservedExpiryDate;
+
+      if (isLegacyFallback) {
+        this.logger.warn(
+          `Clôture via le repli legacy de numérotation (ADR 0010 § Décision 14) : ` +
+            `aucun numéro de lot réservé pour le batch ${batchId} (site ${siteId}) — ` +
+            `generate() invoqué comme avant l'ADR 0010.`,
+        );
+        await this.auditLogService.record(
+          {
+            userId,
+            action: AuditAction.UPDATE,
+            entity: 'Batch',
+            entityId: batchId,
+            before: { reservedLotNumber: null, reservedExpiryDate: null },
+            after: { legacyFallbackUsed: true },
+          },
+          tx,
+        );
+      }
+
       // Simulation cumulative : deux lignes consommant le même article de packaging
       // doivent voir, la seconde, le stock déjà réduit par la première (voir
       // plan-developpement.md étape 10) — jamais de calcul en parallèle.
@@ -329,15 +415,18 @@ export class BatchClosureService {
       // 4. Par ligne éligible : lot, packaging (avec batchProductAllocationId) et
       // mise à jour des quantités réelles de l'allocation.
       const endedAt = new Date(dto.endedAt);
-      const expiryDateValue = dto.expiryDate ? new Date(dto.expiryDate) : null;
       const lots: Lot[] = [];
       const lotByAllocationId = new Map<string | null, Lot>();
 
       for (const line of eligibleLines) {
-        const lotNumber = await this.lotNumberGeneratorService.generate(
-          siteId,
-          tx,
-        );
+        // Numéro de lot (ADR 0010 § Décision 3/14) : pour un batch nominal, lu une
+        // seule fois sur `sharedLotNumber` (dérivé de `batch.reservedLotNumber` sous
+        // verrou ci-dessus) et réutilisé identiquement pour chaque ligne — jamais
+        // régénéré. `generate()` (repli legacy) n'est appelé que dans le seul cas
+        // `isLegacyFallback`, une fois par ligne, exactement comme avant cet ADR.
+        const lotNumber = isLegacyFallback
+          ? await this.lotNumberGeneratorService.generate(siteId, tx)
+          : sharedLotNumber!;
         const treatedQuantity = line.producedQuantity + line.rejectedQuantity;
 
         const lot = await tx.lot.create({

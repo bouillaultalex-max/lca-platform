@@ -43,3 +43,54 @@
   --sidebar-width-collapsed: 4.5rem;
   --header-height: 4rem;
 }
+
+/*
+ * Impression des étiquettes Brady BBP12 (ADR 0010, étape 7 — voir
+ * ProductionBatchPrint.tsx). Format physique réel de l'étiquette : 148 mm ×
+ * 105 mm, imprimée en paysage — jamais un conteneur A4 mis à l'échelle.
+ * `.print-only` reste invisible à l'écran (le contenu n'existe que pour
+ * l'impression) ; `.no-print` masque le reste de l'application (Sidebar,
+ * Header — voir AppShell.tsx) uniquement à l'impression, sans jamais affecter
+ * l'affichage écran normal.
+ *
+ * Calibration physique : la Brady BBP12 du poste de Kevin Prian peut nécessiter
+ * un réglage fin (marges du pilote d'imprimante Windows, échelle « Taille
+ * réelle » dans le dialogue d'impression) — à valider lors d'un test
+ * d'impression physique réel, non couvert par ce commit.
+ */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  .print-label-page {
+    width: 148mm;
+    height: 105mm;
+    box-sizing: border-box;
+    padding: 6mm;
+    display: flex;
+    flex-direction: column;
+    break-after: page;
+    page-break-after: always;
+    overflow: hidden;
+  }
+
+  /* La dernière étiquette ne doit jamais créer de page blanche supplémentaire. */
+  .print-label-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+@page {
+  size: 148mm 105mm landscape;
+  margin: 0;
+}
