@@ -14,6 +14,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { SectionCard } from '../components/ui/SectionCard';
 import { matchesArticleSearch } from '../utils/matchesArticleSearch';
 import { resetMarketFamilyOnTypeChange } from '../utils/resetMarketFamilyOnTypeChange';
+import { resetUnitOfMeasureOnTypeChange } from '../utils/resetUnitOfMeasureOnTypeChange';
 
 const ARTICLE_TYPES: ArticleType[] = ['MATIERE_PREMIERE', 'PACKAGING', 'PRODUIT_FINI'];
 
@@ -39,6 +40,15 @@ function canHaveSupplier(type: ArticleType): boolean {
  */
 function canHaveMarketFamily(type: ArticleType): boolean {
   return type === 'PRODUIT_FINI';
+}
+
+/**
+ * L'unité de mesure n'est significative que pour une matière première (voir
+ * audit préalable : jamais utilisée dans un calcul pour PACKAGING/PRODUIT_FINI,
+ * uniquement en affichage) — voir la même règle côté ArticlesService.
+ */
+function canHaveUnitOfMeasure(type: ArticleType): boolean {
+  return type === 'MATIERE_PREMIERE';
 }
 
 const inputClass =
@@ -186,7 +196,7 @@ export function CatalogPage() {
         type: form.type,
         openSiReference: form.openSiReference,
         name: form.name,
-        unitOfMeasure: form.unitOfMeasure,
+        unitOfMeasure: canHaveUnitOfMeasure(form.type) ? form.unitOfMeasure : undefined,
         currentUnitCost: Number(form.currentUnitCost),
         unitsPerCarton: form.unitsPerCarton ? Number(form.unitsPerCarton) : undefined,
         densityKgPerL: form.densityKgPerL ? Number(form.densityKgPerL) : undefined,
@@ -218,7 +228,7 @@ export function CatalogPage() {
         type: editForm.type,
         openSiReference: editForm.openSiReference,
         name: editForm.name,
-        unitOfMeasure: editForm.unitOfMeasure,
+        unitOfMeasure: canHaveUnitOfMeasure(editForm.type) ? editForm.unitOfMeasure : undefined,
         currentUnitCost: Number(editForm.currentUnitCost),
         unitsPerCarton: editForm.unitsPerCarton ? Number(editForm.unitsPerCarton) : undefined,
         densityKgPerL: editForm.densityKgPerL ? Number(editForm.densityKgPerL) : undefined,
@@ -265,11 +275,15 @@ export function CatalogPage() {
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Type</label>
               <select
                 value={form.type}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const nextType = e.target.value as ArticleType;
                   setForm(
-                    resetMarketFamilyOnTypeChange({ ...form, type: e.target.value as ArticleType }, e.target.value as ArticleType),
-                  )
-                }
+                    resetUnitOfMeasureOnTypeChange(
+                      resetMarketFamilyOnTypeChange({ ...form, type: nextType }, nextType),
+                      nextType,
+                    ),
+                  );
+                }}
                 className={inputClass}
               >
                 {ARTICLE_TYPES.map((type) => (
@@ -297,6 +311,7 @@ export function CatalogPage() {
                 className={inputClass}
               />
             </div>
+            {canHaveUnitOfMeasure(form.type) && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Unité</label>
               <input
@@ -307,6 +322,7 @@ export function CatalogPage() {
                 className={inputClass}
               />
             </div>
+            )}
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Coût unitaire</label>
               <input
@@ -516,14 +532,18 @@ export function CatalogPage() {
                             <td className="px-4 py-2">
                               <select
                                 value={editForm.type}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const nextType = e.target.value as ArticleType;
                                   setEditForm(
-                                    resetMarketFamilyOnTypeChange(
-                                      { ...editForm, type: e.target.value as ArticleType },
-                                      e.target.value as ArticleType,
+                                    resetUnitOfMeasureOnTypeChange(
+                                      resetMarketFamilyOnTypeChange(
+                                        { ...editForm, type: nextType },
+                                        nextType,
+                                      ),
+                                      nextType,
                                     ),
-                                  )
-                                }
+                                  );
+                                }}
                                 className="w-full rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
                               >
                                 {ARTICLE_TYPES.map((type) => (
@@ -541,11 +561,15 @@ export function CatalogPage() {
                               />
                             </td>
                             <td className="px-4 py-2">
-                              <input
-                                value={editForm.unitOfMeasure}
-                                onChange={(e) => setEditForm({ ...editForm, unitOfMeasure: e.target.value })}
-                                className="w-20 rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
-                              />
+                              {canHaveUnitOfMeasure(editForm.type) ? (
+                                <input
+                                  value={editForm.unitOfMeasure}
+                                  onChange={(e) => setEditForm({ ...editForm, unitOfMeasure: e.target.value })}
+                                  className="w-20 rounded-md border border-divider px-2 py-1 text-sm transition-colors focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy"
+                                />
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
                             </td>
                             <td className="px-4 py-2">
                               <input
@@ -655,7 +679,9 @@ export function CatalogPage() {
                             <td className="px-4 py-2 font-medium text-gray-900">{article.name}</td>
                             <td className="px-4 py-2">{ARTICLE_TYPE_LABELS[article.type]}</td>
                             <td className="px-4 py-2 font-mono text-xs">{article.openSiReference}</td>
-                            <td className="px-4 py-2">{article.unitOfMeasure}</td>
+                            <td className="px-4 py-2">
+                              {canHaveUnitOfMeasure(article.type) ? article.unitOfMeasure : '—'}
+                            </td>
                             <td className="px-4 py-2 text-right">{Number(article.currentUnitCost).toFixed(4)}</td>
                             <td className="px-4 py-2 text-right">{article.unitsPerCarton ?? '—'}</td>
                             <td className="px-4 py-2 text-right">{article.densityKgPerL ?? '—'}</td>

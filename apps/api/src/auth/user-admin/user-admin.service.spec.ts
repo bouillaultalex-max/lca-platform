@@ -1,6 +1,10 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { UserAdminService, UserAdminView } from './user-admin.service';
+import {
+  UserAdminService,
+  UserAdminView,
+  UserAuditLogEntryView,
+} from './user-admin.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   AuditLogService,
@@ -16,6 +20,9 @@ describe('UserAdminService', () => {
       findFirst: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
       create: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
       update: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
+    };
+    auditLog: {
+      findMany: jest.Mock<Promise<unknown>, [Record<string, unknown>]>;
     };
   };
   let auditLogService: {
@@ -47,6 +54,9 @@ describe('UserAdminService', () => {
         findFirst: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
         create: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
         update: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
+      },
+      auditLog: {
+        findMany: jest.fn<Promise<unknown>, [Record<string, unknown>]>(),
       },
     };
     auditLogService = {
@@ -147,6 +157,42 @@ describe('UserAdminService', () => {
         expect.objectContaining({ action: 'UPDATE', entity: 'User' }),
       );
     });
+
+    it('modifie le rôle et journalise le rôle avant/après dans AuditLog', async () => {
+      prisma.user.findFirst.mockResolvedValue(kevin);
+      const updated = { ...kevin, role: UserRole.DAF };
+      prisma.user.update.mockResolvedValue(updated);
+
+      const result = await service.update(
+        siteId,
+        kevin.id,
+        { role: UserRole.DAF },
+        actingUserId,
+      );
+
+      expect(result.role).toBe(UserRole.DAF);
+      const auditCallArgs = auditLogService.record.mock.calls[0][0];
+      expect(auditCallArgs).toMatchObject({
+        action: 'UPDATE',
+        entity: 'User',
+        entityId: kevin.id,
+        userId: actingUserId,
+      });
+      expect(auditCallArgs.before).toMatchObject({
+        role: UserRole.RESPONSABLE_LABORATOIRE,
+      });
+      expect(auditCallArgs.after).toMatchObject({ role: UserRole.DAF });
+    });
+
+    it("lève NotFoundException si l'utilisateur cible n'existe pas sur ce site, sans écrire", async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update(siteId, 'inconnu', { role: UserRole.DAF }, actingUserId),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
   });
 
   describe('deactivate', () => {
@@ -180,6 +226,62 @@ describe('UserAdminService', () => {
       await expect(
         service.deactivate(siteId, 'inconnu', actingUserId),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getAuditLog', () => {
+    it("lève NotFoundException si l'utilisateur cible n'existe pas sur ce site", async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(service.getAuditLog(siteId, 'inconnu')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.auditLog.findMany).not.toHaveBeenCalled();
+    });
+
+    it("retourne l'historique filtré sur l'utilisateur, trié du plus récent au plus ancien", async () => {
+      prisma.user.findFirst.mockResolvedValue(kevin);
+      const entries: UserAuditLogEntryView[] = [
+        {
+          id: 'audit-2',
+          action: 'UPDATE',
+          before: { role: 'DAF' },
+          after: { role: 'RESPONSABLE_LABORATOIRE' },
+          createdAt: new Date('2026-02-01'),
+          user: { id: actingUserId, fullName: 'Admin' },
+        },
+        {
+          id: 'audit-1',
+          action: 'CREATE',
+          before: null,
+          after: { role: 'DAF' },
+          createdAt: new Date('2026-01-01'),
+          user: { id: actingUserId, fullName: 'Admin' },
+        },
+      ];
+      prisma.auditLog.findMany.mockResolvedValue(entries);
+
+      const result = await service.getAuditLog(siteId, kevin.id);
+
+      expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { entity: 'User', entityId: kevin.id },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+      expect(result).toEqual(entries);
+    });
+
+    it("ne retourne jamais l'historique d'un compte d'un autre site (borné par findOne)", async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(service.getAuditLog('autre-site', kevin.id)).rejects.toThrow(
+        NotFoundException,
+      );
+      const findFirstArgs = prisma.user.findFirst.mock.calls[0][0];
+      expect(findFirstArgs).toMatchObject({
+        where: { id: kevin.id, siteId: 'autre-site' },
+      });
     });
   });
 

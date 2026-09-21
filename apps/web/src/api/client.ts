@@ -65,6 +65,7 @@ import type {
   CreateFeedbackRequest,
   DashboardSummary,
   ResetPasswordResponse,
+  UserAuditLogEntry,
   LotTraceability,
   StockLotTraceability,
   AromaSamplesQuery,
@@ -203,6 +204,9 @@ export const api = {
 
   resetUserPassword: (token: string, id: string): Promise<ResetPasswordResponse> =>
     request<ResetPasswordResponse>(`/auth/users/${id}/reset-password`, { method: 'POST' }, token),
+
+  getUserAuditLog: (token: string, id: string): Promise<UserAuditLogEntry[]> =>
+    request<UserAuditLogEntry[]>(`/auth/users/${id}/audit-log`, {}, token),
 
   listArticles: (token: string, type?: ArticleType): Promise<Article[]> =>
     request<Article[]>(`/catalog/articles${type ? `?type=${type}` : ''}`, {}, token),

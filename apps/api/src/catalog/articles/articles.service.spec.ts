@@ -536,7 +536,9 @@ describe('ArticlesService', () => {
 
       expect(prisma.article.update).toHaveBeenCalledWith({
         where: { id: article.id },
-        data: { type: ArticleType.PACKAGING },
+        // unitOfMeasure forcé à la valeur technique par défaut : PACKAGING n'est
+        // jamais éligible, quelle que soit l'unité matière première héritée.
+        data: { type: ArticleType.PACKAGING, unitOfMeasure: 'unité' },
       });
     });
 
@@ -556,7 +558,11 @@ describe('ArticlesService', () => {
 
       expect(prisma.article.update).toHaveBeenCalledWith({
         where: { id: article.id },
-        data: { type: ArticleType.PRODUIT_FINI, supplierId: null },
+        data: {
+          type: ArticleType.PRODUIT_FINI,
+          supplierId: null,
+          unitOfMeasure: 'unité',
+        },
       });
     });
 
@@ -637,6 +643,192 @@ describe('ArticlesService', () => {
         service.update(siteId, article.id, { marketId: 'inconnu' }),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.article.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('unitOfMeasure — obligatoire pour MATIERE_PREMIERE uniquement (audit unitOfMeasure)', () => {
+    const zeroUsage = {
+      _count: {
+        recipeLines: 0,
+        recipesAsFinishedProduct: 0,
+        stockLots: 0,
+        stockMovements: 0,
+        genealogyLines: 0,
+      },
+    };
+
+    describe('create', () => {
+      it('crée un packaging sans unitOfMeasure fourni — le serveur écrit la valeur technique "unité"', async () => {
+        prisma.article.create.mockResolvedValue({
+          ...article,
+          type: ArticleType.PACKAGING,
+          unitOfMeasure: 'unité',
+        });
+
+        await service.create(siteId, {
+          type: ArticleType.PACKAGING,
+          openSiReference: 'PKG-1',
+          name: 'Bouchon',
+          currentUnitCost: 0.1,
+        });
+
+        expect(prisma.article.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({ unitOfMeasure: 'unité' }),
+        });
+      });
+
+      it('crée un produit fini sans unitOfMeasure fourni — le serveur écrit la valeur technique "unité"', async () => {
+        prisma.article.create.mockResolvedValue({
+          ...article,
+          type: ArticleType.PRODUIT_FINI,
+          unitOfMeasure: 'unité',
+        });
+
+        await service.create(siteId, {
+          type: ArticleType.PRODUIT_FINI,
+          openSiReference: 'PF-1',
+          name: 'Recharge',
+          currentUnitCost: 3,
+        });
+
+        expect(prisma.article.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({ unitOfMeasure: 'unité' }),
+        });
+      });
+
+      it('ignore une unitOfMeasure envoyée malgré tout pour un packaging — toujours remplacée par "unité"', async () => {
+        prisma.article.create.mockResolvedValue({
+          ...article,
+          type: ArticleType.PACKAGING,
+          unitOfMeasure: 'unité',
+        });
+
+        await service.create(siteId, {
+          type: ArticleType.PACKAGING,
+          openSiReference: 'PKG-2',
+          name: 'Étiquette',
+          currentUnitCost: 0.05,
+          unitOfMeasure: 'kg',
+        });
+
+        expect(prisma.article.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({ unitOfMeasure: 'unité' }),
+        });
+      });
+
+      it('lève BadRequestException si une matière première est créée sans unitOfMeasure (défense en profondeur, au cas où le DTO serait contourné)', async () => {
+        await expect(
+          service.create(siteId, {
+            type: ArticleType.MATIERE_PREMIERE,
+            openSiReference: 'MP-SANS-UNITE',
+            name: 'Matière sans unité',
+            currentUnitCost: 1,
+            unitOfMeasure: undefined as unknown as string,
+          }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.article.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('update', () => {
+      it('modifie l’unité d’une matière première existante', async () => {
+        prisma.article.findFirst.mockResolvedValue(article);
+        prisma.article.update.mockResolvedValue({
+          ...article,
+          unitOfMeasure: 'kg',
+        });
+
+        const result = await service.update(siteId, article.id, {
+          unitOfMeasure: 'kg',
+        });
+
+        expect(prisma.article.update).toHaveBeenCalledWith({
+          where: { id: article.id },
+          data: { unitOfMeasure: 'kg' },
+        });
+        expect(result.unitOfMeasure).toBe('kg');
+      });
+
+      it('ne touche pas unitOfMeasure quand ni le type ni l’unité ne sont fournis (autre champ modifié)', async () => {
+        prisma.article.findFirst.mockResolvedValue(article);
+        prisma.article.update.mockResolvedValue({
+          ...article,
+          currentUnitCost: new Prisma.Decimal(20),
+        });
+
+        await service.update(siteId, article.id, { currentUnitCost: 20 });
+
+        expect(prisma.article.update).toHaveBeenCalledWith({
+          where: { id: article.id },
+          data: { currentUnitCost: 20 },
+        });
+      });
+
+      it('lève BadRequestException si l’unité est explicitement vidée sur une matière première', async () => {
+        prisma.article.findFirst.mockResolvedValue(article);
+
+        await expect(
+          service.update(siteId, article.id, { unitOfMeasure: '   ' }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.article.update).not.toHaveBeenCalled();
+      });
+
+      it('ignore une unitOfMeasure envoyée malgré tout pour une mise à jour d’un packaging — toujours remplacée par "unité"', async () => {
+        const packagingArticle = {
+          ...article,
+          type: ArticleType.PACKAGING,
+          unitOfMeasure: 'unité',
+        };
+        prisma.article.findFirst.mockResolvedValue(packagingArticle);
+        prisma.article.update.mockResolvedValue(packagingArticle);
+
+        await service.update(siteId, article.id, { unitOfMeasure: 'kg' });
+
+        expect(prisma.article.update).toHaveBeenCalledWith({
+          where: { id: article.id },
+          data: { unitOfMeasure: 'unité' },
+        });
+      });
+
+      it('refuse de faire basculer un article vers MATIERE_PREMIERE sans fournir d’unité de mesure', async () => {
+        const packagingArticle = {
+          ...article,
+          type: ArticleType.PACKAGING,
+          unitOfMeasure: 'unité',
+        };
+        prisma.article.findFirst.mockResolvedValue(packagingArticle);
+        prisma.article.findUnique.mockResolvedValue(zeroUsage);
+
+        await expect(
+          service.update(siteId, article.id, {
+            type: ArticleType.MATIERE_PREMIERE,
+          }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.article.update).not.toHaveBeenCalled();
+      });
+
+      it('autorise le basculement vers MATIERE_PREMIERE quand une unité réelle est fournie', async () => {
+        const packagingArticle = {
+          ...article,
+          type: ArticleType.PACKAGING,
+          unitOfMeasure: 'unité',
+        };
+        prisma.article.findFirst.mockResolvedValue(packagingArticle);
+        prisma.article.findUnique.mockResolvedValue(zeroUsage);
+        prisma.article.update.mockResolvedValue({
+          ...packagingArticle,
+          type: ArticleType.MATIERE_PREMIERE,
+          unitOfMeasure: 'kg',
+        });
+
+        const result = await service.update(siteId, article.id, {
+          type: ArticleType.MATIERE_PREMIERE,
+          unitOfMeasure: 'kg',
+        });
+
+        expect(result.unitOfMeasure).toBe('kg');
+        expect(result.type).toBe(ArticleType.MATIERE_PREMIERE);
+      });
     });
   });
 

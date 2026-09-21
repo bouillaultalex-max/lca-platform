@@ -1,5 +1,8 @@
 import type { IncomingMessage } from 'node:http'
-import { defineConfig } from 'vite'
+// `vitest/config` réexporte `defineConfig` de Vite en y ajoutant le typage de la
+// clé `test` ci-dessous — un seul fichier de config pour `vite`/`vite build` et
+// `vitest`, sans dépendance supplémentaire (vitest est déjà une dépendance du projet).
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -51,5 +54,13 @@ export default defineConfig({
       '/assistant': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
       '/health': { target: API_TARGET, changeOrigin: true, bypass: bypassPageNavigations },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    // Couvre à la fois les tests de logique pure déjà existants (`*.spec.ts`,
+    // ex. resetUnitOfMeasureOnTypeChange.spec.ts) et les nouveaux tests de rendu
+    // de composants (`*.test.tsx`) — le défaut de vitest 4 ne matchait que `.spec.ts`.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 })

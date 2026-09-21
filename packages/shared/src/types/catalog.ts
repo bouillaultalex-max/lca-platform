@@ -39,7 +39,9 @@ export interface CreateArticleRequest {
   type: ArticleType;
   openSiReference: string;
   name: string;
-  unitOfMeasure: string;
+  /** Obligatoire uniquement pour MATIERE_PREMIERE — ignorée pour PACKAGING/PRODUIT_FINI
+   * (le serveur y substitue systématiquement la valeur technique "unité"). */
+  unitOfMeasure?: string;
   currentUnitCost: number;
   unitsPerCarton?: number;
   densityKgPerL?: number;

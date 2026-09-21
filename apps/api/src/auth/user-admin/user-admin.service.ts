@@ -39,6 +39,26 @@ export interface CreatedUserResult {
 }
 
 /**
+ * Nombre maximal d'entrées retournées par `getAuditLog` — même convention que
+ * `LoginHistoryService.findByUser` (borne raisonnable pour un historique affiché
+ * à l'écran, pas une pagination complète).
+ */
+const AUDIT_LOG_HISTORY_LIMIT = 50;
+
+/** Vue exposée par l'historique d'audit d'un compte — inclut l'auteur du changement. */
+const userAuditLogSelect = {
+  id: true,
+  action: true,
+  before: true,
+  after: true,
+  createdAt: true,
+  user: { select: { id: true, fullName: true } },
+} satisfies Prisma.AuditLogSelect;
+export type UserAuditLogEntryView = Prisma.AuditLogGetPayload<{
+  select: typeof userAuditLogSelect;
+}>;
+
+/**
  * Génère un mot de passe temporaire lisible (ex: "cheval-42-bureau-livre"), affiché
  * une seule fois dans la réponse à l'administrateur — jamais stocké en clair, jamais
  * journalisé dans `AuditLog`.
@@ -71,6 +91,29 @@ export class UserAdminService {
       throw new NotFoundException(`Utilisateur ${id} introuvable.`);
     }
     return user;
+  }
+
+  /**
+   * Historique des changements (création, modification, désactivation...) d'un
+   * compte, à partir de `AuditLog` déjà alimenté par `create`/`update`/`deactivate`/
+   * `reactivate`/`resetPassword` ci-dessous — aucune nouvelle écriture, lecture seule.
+   * `findOne` lève `NotFoundException` si l'utilisateur n'existe pas sur ce site,
+   * ce qui borne implicitement l'accès au même site que l'appelant (`AuditLog`
+   * n'a pas de colonne `siteId` propre : le filtrage passe par l'existence de
+   * l'utilisateur cible sur le site de l'administrateur).
+   */
+  async getAuditLog(
+    siteId: string,
+    id: string,
+  ): Promise<UserAuditLogEntryView[]> {
+    await this.findOne(siteId, id);
+
+    return this.prisma.auditLog.findMany({
+      where: { entity: 'User', entityId: id },
+      select: userAuditLogSelect,
+      orderBy: { createdAt: 'desc' },
+      take: AUDIT_LOG_HISTORY_LIMIT,
+    });
   }
 
   async create(

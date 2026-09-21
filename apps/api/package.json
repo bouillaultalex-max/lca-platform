@@ -21,7 +21,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "prisma:bootstrap-admin": "tsx prisma/bootstrap-admin.ts"
+    "prisma:bootstrap-admin": "tsx prisma/bootstrap-admin.ts",
+    "prisma:seed:demo": "tsx prisma/seed-demo.ts",
+    "prisma:reset:demo": "tsx prisma/reset-demo.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

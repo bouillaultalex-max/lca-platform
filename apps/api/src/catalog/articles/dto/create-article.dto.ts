@@ -9,6 +9,7 @@ import {
   IsUUID,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { ArticleType } from '../../../../generated/prisma/client';
 
@@ -29,10 +30,17 @@ export class CreateArticleDto {
   @MinLength(1, { message: 'La désignation est obligatoire.' })
   name!: string;
 
-  @ApiProperty({ example: 'L' })
+  @ApiPropertyOptional({
+    example: 'L',
+    description:
+      "Obligatoire et significative uniquement pour une matière première (ex. L, kg). Ignorée pour PACKAGING/PRODUIT_FINI — le serveur y substitue systématiquement la valeur technique 'unité' (voir ArticlesService.resolveUnitOfMeasure).",
+  })
+  @ValidateIf((dto: CreateArticleDto) => dto.type === ArticleType.MATIERE_PREMIERE)
   @IsString()
-  @MinLength(1, { message: "L'unité de mesure est obligatoire." })
-  unitOfMeasure!: string;
+  @MinLength(1, {
+    message: "L'unité de mesure est obligatoire pour une matière première.",
+  })
+  unitOfMeasure?: string;
 
   @ApiProperty({ example: 12.5 })
   @IsNumber({}, { message: 'Le coût unitaire doit être un nombre.' })

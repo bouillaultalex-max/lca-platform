@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
   USER_ROLE_LABELS,
   type UserRole,
@@ -501,6 +502,12 @@ export function AdminUsersPage() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-right whitespace-nowrap">
+                          <Link
+                            to={`/admin/users/${user.id}`}
+                            className="mr-3 text-xs text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                          >
+                            Voir la fiche
+                          </Link>
                           <button
                             onClick={() => startEdit(user)}
                             className="mr-3 text-xs text-navy hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"

@@ -19,6 +19,19 @@ const SUPPLIER_ELIGIBLE_TYPES: ArticleType[] = [
   ArticleType.PACKAGING,
 ];
 
+/**
+ * Seule une matière première a une unité de mesure réellement significative
+ * (volume/masse consommé en recette) — voir audit préalable : `unitOfMeasure`
+ * n'intervient jamais dans un calcul pour PACKAGING/PRODUIT_FINI, uniquement en
+ * affichage. Le champ reste NOT NULL en base (aucune migration) : la valeur
+ * technique `DEFAULT_UNIT_OF_MEASURE_FOR_INELIGIBLE_TYPES` y est substituée pour
+ * ces deux types, jamais demandée à l'utilisateur.
+ */
+const UNIT_OF_MEASURE_ELIGIBLE_TYPES: ArticleType[] = [
+  ArticleType.MATIERE_PREMIERE,
+];
+const DEFAULT_UNIT_OF_MEASURE_FOR_INELIGIBLE_TYPES = 'unité';
+
 @Injectable()
 export class ArticlesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -54,7 +67,13 @@ export class ArticlesService {
       }
     }
     try {
-      return await this.prisma.article.create({ data: { siteId, ...dto } });
+      return await this.prisma.article.create({
+        data: {
+          siteId,
+          ...dto,
+          unitOfMeasure: this.resolveUnitOfMeasure(dto.type, dto.unitOfMeasure),
+        },
+      });
     } catch (error) {
       throw this.toFriendlyError(error, dto.openSiReference);
     }
@@ -104,6 +123,16 @@ export class ArticlesService {
       // Le fournisseur principal ne concerne pas les produits finis : on
       // efface toute affectation existante si l'article devient PRODUIT_FINI.
       data.supplierId = null;
+    }
+    // Ne retouche `unitOfMeasure` que si cette requête a une raison de le faire
+    // (nouvelle valeur fournie, ou changement de type) — sinon la valeur existante
+    // reste intacte, comme n'importe quel autre champ non fourni en update partiel.
+    const typeIsChanging = dto.type !== undefined && dto.type !== existing.type;
+    if (typeIsChanging || dto.unitOfMeasure !== undefined) {
+      data.unitOfMeasure = this.resolveUnitOfMeasure(
+        resolvedType,
+        dto.unitOfMeasure,
+      );
     }
 
     try {
@@ -181,6 +210,32 @@ export class ArticlesService {
     if (!market) {
       throw new NotFoundException(`Marché ${marketId} introuvable.`);
     }
+  }
+
+  /**
+   * Détermine la valeur de `unitOfMeasure` réellement écrite en base :
+   * - matière première : la valeur fournie, revalidée ici en défense en profondeur
+   *   (le DTO ne peut pas voir le type résolu d'une mise à jour qui ne renvoie pas
+   *   `type` — voir CreateArticleDto.unitOfMeasure) — rejetée explicitement si
+   *   absente/vide, jamais une valeur inventée ni une chaîne vide silencieuse ;
+   * - packaging/produit fini : toujours la valeur technique par défaut, quelle que
+   *   soit la valeur éventuellement envoyée par le client — jamais ce qu'il a pu
+   *   fournir par erreur (voir audit préalable : sans impact sur aucun calcul).
+   */
+  private resolveUnitOfMeasure(
+    type: ArticleType,
+    provided: string | undefined,
+  ): string {
+    if (!UNIT_OF_MEASURE_ELIGIBLE_TYPES.includes(type)) {
+      return DEFAULT_UNIT_OF_MEASURE_FOR_INELIGIBLE_TYPES;
+    }
+    const trimmed = provided?.trim();
+    if (!trimmed) {
+      throw new BadRequestException(
+        "L'unité de mesure est obligatoire pour une matière première.",
+      );
+    }
+    return provided!;
   }
 
   /**

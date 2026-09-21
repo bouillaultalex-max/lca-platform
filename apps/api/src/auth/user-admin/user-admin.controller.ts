@@ -12,6 +12,7 @@ import {
   CreatedUserResult,
   UserAdminService,
   UserAdminView,
+  UserAuditLogEntryView,
 } from './user-admin.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -34,6 +35,18 @@ export class UserAdminController {
   @ApiOperation({ summary: 'Liste les comptes utilisateurs du site.' })
   findAll(@CurrentUser() user: AuthenticatedUser): Promise<UserAdminView[]> {
     return this.userAdminService.findAll(user.siteId);
+  }
+
+  @Get(':id/audit-log')
+  @ApiOperation({
+    summary:
+      "Historique des changements (création, modification, désactivation...) d'un compte utilisateur.",
+  })
+  getAuditLog(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<UserAuditLogEntryView[]> {
+    return this.userAdminService.getAuditLog(user.siteId, id);
   }
 
   @Post()

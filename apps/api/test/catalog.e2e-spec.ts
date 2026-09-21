@@ -181,6 +181,67 @@ describe('Catalog (e2e)', () => {
         })
         .expect(403);
     });
+
+    describe('unité de mesure conditionnelle au type', () => {
+      it('refuse une matière première sans unité de mesure (400)', () => {
+        return request(app.getHttpServer())
+          .post('/catalog/articles')
+          .set('Authorization', `Bearer ${tokens.lab}`)
+          .send({
+            type: 'MATIERE_PREMIERE',
+            openSiReference: `${testOpenSiReferencePrefix}MP-SANS-UNITE`,
+            name: 'Matière première sans unité',
+            currentUnitCost: 1,
+          })
+          .expect(400);
+      });
+
+      it('crée un packaging sans unité de mesure fournie — le serveur y substitue "unité" (201)', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/catalog/articles')
+          .set('Authorization', `Bearer ${tokens.lab}`)
+          .send({
+            type: 'PACKAGING',
+            openSiReference: `${testOpenSiReferencePrefix}PKG-SANS-UNITE`,
+            name: 'Packaging sans unité fournie',
+            currentUnitCost: 1,
+          })
+          .expect(201);
+
+        expect((response.body as { unitOfMeasure: string }).unitOfMeasure).toBe('unité');
+      });
+
+      it('crée un produit fini sans unité de mesure fournie — le serveur y substitue "unité" (201)', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/catalog/articles')
+          .set('Authorization', `Bearer ${tokens.lab}`)
+          .send({
+            type: 'PRODUIT_FINI',
+            openSiReference: `${testOpenSiReferencePrefix}PF-SANS-UNITE`,
+            name: 'Produit fini sans unité fournie',
+            currentUnitCost: 1,
+          })
+          .expect(201);
+
+        expect((response.body as { unitOfMeasure: string }).unitOfMeasure).toBe('unité');
+      });
+
+      it('ignore une unité de mesure envoyée malgré tout pour un packaging — toujours remplacée par "unité" (201)', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/catalog/articles')
+          .set('Authorization', `Bearer ${tokens.lab}`)
+          .send({
+            type: 'PACKAGING',
+            openSiReference: `${testOpenSiReferencePrefix}PKG-UNITE-IGNOREE`,
+            name: 'Packaging avec unité envoyée à tort',
+            unitOfMeasure: 'kg',
+            currentUnitCost: 1,
+          })
+          .expect(201);
+
+        expect((response.body as { unitOfMeasure: string }).unitOfMeasure).toBe('unité');
+      });
+    });
   });
 
   describe('PATCH /catalog/articles/:id — changement de type encadré', () => {
@@ -214,7 +275,55 @@ describe('Catalog (e2e)', () => {
         .send({ type: 'PACKAGING' })
         .expect(200);
 
-      expect((patchResponse.body as { type: string }).type).toBe('PACKAGING');
+      const patchedBody = patchResponse.body as { type: string; unitOfMeasure: string };
+      expect(patchedBody.type).toBe('PACKAGING');
+      // Le type bascule vers PACKAGING sans qu'aucune unité ne soit fournie : le
+      // serveur force la valeur technique, jamais l'unité matière première héritée.
+      expect(patchedBody.unitOfMeasure).toBe('unité');
+    });
+
+    it('refuse de faire basculer un article vers MATIERE_PREMIERE sans fournir d’unité de mesure (400)', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PACKAGING',
+          openSiReference: `${testOpenSiReferencePrefix}PKG-TO-MP-SANS-UNITE`,
+          name: 'Packaging jamais utilisé',
+          currentUnitCost: 1,
+        })
+        .expect(201);
+      const articleId = (createResponse.body as { id: string }).id;
+
+      await request(app.getHttpServer())
+        .patch(`/catalog/articles/${articleId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ type: 'MATIERE_PREMIERE' })
+        .expect(400);
+    });
+
+    it('autorise le basculement vers MATIERE_PREMIERE quand une unité de mesure réelle est fournie (200)', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post('/catalog/articles')
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({
+          type: 'PACKAGING',
+          openSiReference: `${testOpenSiReferencePrefix}PKG-TO-MP-AVEC-UNITE`,
+          name: 'Packaging jamais utilisé (2)',
+          currentUnitCost: 1,
+        })
+        .expect(201);
+      const articleId = (createResponse.body as { id: string }).id;
+
+      const patchResponse = await request(app.getHttpServer())
+        .patch(`/catalog/articles/${articleId}`)
+        .set('Authorization', `Bearer ${tokens.lab}`)
+        .send({ type: 'MATIERE_PREMIERE', unitOfMeasure: 'kg' })
+        .expect(200);
+
+      const patchedBody = patchResponse.body as { type: string; unitOfMeasure: string };
+      expect(patchedBody.type).toBe('MATIERE_PREMIERE');
+      expect(patchedBody.unitOfMeasure).toBe('kg');
     });
 
     it('refuse le changement de type si l’article est déjà utilisé (409, message explicite)', async () => {

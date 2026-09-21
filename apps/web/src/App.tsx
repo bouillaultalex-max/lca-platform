@@ -14,6 +14,7 @@ import { TraceabilityPage } from './pages/TraceabilityPage';
 import { ImportsPage } from './pages/imports/ImportsPage';
 import { AromaSamplesPage } from './pages/rnd/AromaSamplesPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
+import { UserDetailPage } from './pages/admin/UserDetailPage';
 import { FeedbackPage } from './pages/admin/FeedbackPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 
@@ -34,6 +35,14 @@ function App() {
         element={
           <ProtectedRoute requireSystemAdmin>
             <AdminUsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users/:id"
+        element={
+          <ProtectedRoute requireSystemAdmin>
+            <UserDetailPage />
           </ProtectedRoute>
         }
       />
