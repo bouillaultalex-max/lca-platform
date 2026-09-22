@@ -567,7 +567,7 @@ export function ProductionPage() {
                         <p>{closureBanner.lots.length} lots créés</p>
                         <ul className="mt-1.5 space-y-1 font-normal">
                           {closureBanner.lots.map((lot) => (
-                            <li key={lot.lotNumber}>
+                            <li key={lot.id}>
                               {lot.lotNumber}
                               {lot.productName && ` — ${lot.productName}`}
                               {lot.marketLabel && ` (${lot.marketLabel})`}

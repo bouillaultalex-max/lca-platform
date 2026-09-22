@@ -17,6 +17,14 @@ export function resolveClosureLots(result: BatchClosureResult): Lot[] {
 
 /** Un lot de clôture enrichi des seules informations réellement fournies par le backend. */
 export interface EnrichedClosureLot {
+  /**
+   * Identifiant réel du `Lot` (clé primaire) — seule clé garantie unique par lot.
+   * `lotNumber` est désormais partagé entre plusieurs `Lot` d'un même batch
+   * multi-allocation (ADR 0010 § Décision 15) et ne doit jamais servir de clé React.
+   */
+  id: string;
+  /** Allocation d'origine du lot, `null` pour un lot historique (voir ADR 0010 § Décision 15). */
+  allocationId: string | null;
   lotNumber: string;
   quantity: number;
   /** `null` pour un lot historique (aucune allocation) ou une allocation introuvable. */
@@ -46,6 +54,8 @@ export function enrichClosureLots(
       allocation?.marketId != null ? (marketsById.get(allocation.marketId)?.label ?? null) : null;
 
     return {
+      id: lot.id,
+      allocationId: lot.allocationId,
       lotNumber: lot.lotNumber,
       quantity: lot.quantity,
       productName,

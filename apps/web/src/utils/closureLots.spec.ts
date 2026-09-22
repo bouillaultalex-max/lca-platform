@@ -88,14 +88,28 @@ describe('enrichClosureLots', () => {
     const marketsById = new Map([['market-1', makeMarket()]]);
 
     expect(enrichClosureLots(lots, allocations, articlesById, marketsById)).toEqual([
-      { lotNumber: 'LOT-0001', quantity: 100, productName: 'Recharge Lavande FR', marketLabel: 'France' },
+      {
+        id: 'lot-1',
+        allocationId: 'alloc-1',
+        lotNumber: 'LOT-0001',
+        quantity: 100,
+        productName: 'Recharge Lavande FR',
+        marketLabel: 'France',
+      },
     ]);
   });
 
   it('returns null product/market for a historical lot (no allocation)', () => {
     const lots = [makeLot({ allocationId: null })];
     expect(enrichClosureLots(lots, [], new Map(), new Map())).toEqual([
-      { lotNumber: 'LOT-0001', quantity: 100, productName: null, marketLabel: null },
+      {
+        id: 'lot-1',
+        allocationId: null,
+        lotNumber: 'LOT-0001',
+        quantity: 100,
+        productName: null,
+        marketLabel: null,
+      },
     ]);
   });
 
@@ -112,7 +126,14 @@ describe('enrichClosureLots', () => {
   it('degrades gracefully when the allocation referenced by the lot is not found', () => {
     const lots = [makeLot({ allocationId: 'missing-alloc' })];
     expect(enrichClosureLots(lots, [], new Map(), new Map())).toEqual([
-      { lotNumber: 'LOT-0001', quantity: 100, productName: null, marketLabel: null },
+      {
+        id: 'lot-1',
+        allocationId: 'missing-alloc',
+        lotNumber: 'LOT-0001',
+        quantity: 100,
+        productName: null,
+        marketLabel: null,
+      },
     ]);
   });
 
@@ -133,5 +154,27 @@ describe('enrichClosureLots', () => {
     const enriched = enrichClosureLots(lots, allocations, articlesById, new Map());
     expect(enriched.map((l) => l.lotNumber)).toEqual(['A', 'B']);
     expect(enriched.map((l) => l.productName)).toEqual(['Produit A', 'Produit B']);
+  });
+
+  it('propagates a distinct id per Lot even when lotNumber is shared across a multi-allocation batch (ADR 0010 § Décision 15)', () => {
+    const lots = [
+      makeLot({ id: 'lot-1', lotNumber: 'LOT-SHARED', allocationId: 'alloc-1' }),
+      makeLot({ id: 'lot-2', lotNumber: 'LOT-SHARED', allocationId: 'alloc-2' }),
+    ];
+    const allocations = [
+      makeAllocation({ id: 'alloc-1', productId: 'product-1' }),
+      makeAllocation({ id: 'alloc-2', productId: 'product-2' }),
+    ];
+    const articlesById = new Map([
+      ['product-1', makeArticle({ id: 'product-1', name: 'Produit A' })],
+      ['product-2', makeArticle({ id: 'product-2', name: 'Produit B' })],
+    ]);
+
+    const enriched = enrichClosureLots(lots, allocations, articlesById, new Map());
+
+    expect(enriched.map((l) => l.lotNumber)).toEqual(['LOT-SHARED', 'LOT-SHARED']);
+    expect(enriched.map((l) => l.id)).toEqual(['lot-1', 'lot-2']);
+    expect(new Set(enriched.map((l) => l.id)).size).toBe(2);
+    expect(enriched.map((l) => l.allocationId)).toEqual(['alloc-1', 'alloc-2']);
   });
 });
