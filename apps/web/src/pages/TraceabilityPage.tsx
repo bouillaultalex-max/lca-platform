@@ -33,7 +33,7 @@ function formatDate(iso: string | null): string {
 function resolveLotOrigin(lot: LotTraceability | StockLotConsumingLot): {
   product: Article;
   market: Market | null;
-  recipe: Recipe;
+  recipe: Omit<Recipe, 'lines'>;
 } {
   if (lot.allocation) {
     return {

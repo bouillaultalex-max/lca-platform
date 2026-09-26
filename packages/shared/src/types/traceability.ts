@@ -29,7 +29,8 @@ export interface LotTraceabilityBatch extends Batch {
 export interface LotTraceabilityAllocation extends BatchProductAllocation {
   product: Article;
   market: Market | null;
-  recipe: Recipe;
+  /** Sans `lines` : l'API n'inclut pas les lignes de recette de l'allocation. */
+  recipe: Omit<Recipe, 'lines'>;
 }
 
 /**

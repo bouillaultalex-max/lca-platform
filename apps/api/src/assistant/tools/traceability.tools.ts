@@ -32,7 +32,7 @@ export function createTraceabilityTools(
   > = {
     name: 'traceability.getLotByNumber',
     description:
-      "Renvoie la généalogie complète de tous les lots finis identifiés par un numéro métier (produit fini, recette, statut qualité, et chaque article/lot fournisseur consommé) — toujours une liste, y compris vide si aucun lot ne correspond (ADR 0010 § Décision 15 : plusieurs allocations d'un même batch peuvent désormais partager le même numéro). Ne jamais inventer un numéro de lot : l'utiliser tel que fourni par l'utilisateur.",
+      "Renvoie la généalogie complète de tous les lots finis identifiés par un numéro métier (produit fini, marché, recette, statut qualité, et chaque article/lot fournisseur consommé) — toujours une liste, y compris vide si aucun lot ne correspond (ADR 0010 § Décision 15 : plusieurs allocations d'un même batch peuvent désormais partager le même numéro). Pour chaque lot, le produit (finishedProductName), le marché (marketLabel) et la recette (recipeFormat/recipeVersion) sont ceux de son allocation d'origine — deux lots partageant le même numéro peuvent donc avoir des produits et marchés différents ; marketLabel vaut null pour un lot sans marché ou un lot historique antérieur aux allocations (produit et recette du batch dans ce cas). Ne jamais inventer un numéro de lot : l'utiliser tel que fourni par l'utilisateur.",
     inputSchema: GetLotByNumberInputDto,
     permission: { kind: 'authenticated' },
     category: 'read',

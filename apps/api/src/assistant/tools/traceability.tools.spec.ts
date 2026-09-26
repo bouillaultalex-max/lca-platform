@@ -111,15 +111,22 @@ describe('traceability.getLotByNumber (ADR 0010 § Décision 15 : liste, plus ob
   });
 
   it('numéro partagé par deux lots (deux allocations d’un même batch) : les deux sont représentés, jamais un seul ni fusionnés', async () => {
-    const lotA = buildLotFixture({ quantity: 300 });
+    // Deux allocations d'un MÊME batch : batch.recipe (recette de référence) est
+    // identique pour les deux lots, seule l'allocation porte le produit distinct.
+    const lotA = buildLotFixture({
+      quantity: 300,
+      allocation: {
+        product: { name: 'Fuel Air Frais 100ml' },
+        market: null,
+        recipe: { format: 100, version: 3 },
+      },
+    });
     const lotB = buildLotFixture({
       quantity: 150,
-      batch: {
-        recipe: {
-          format: 100,
-          version: 3,
-          finishedProduct: { name: 'Fuel Air Frais 100ml — déclinaison Suisse' },
-        },
+      allocation: {
+        product: { name: 'Fuel Air Frais 100ml — déclinaison Suisse' },
+        market: null,
+        recipe: { format: 100, version: 3 },
       },
     });
     const traceabilityService = {
