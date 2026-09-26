@@ -34,6 +34,12 @@ interface LotTraceabilityResponseBody {
       finishedProduct: { id: string; name: string };
     };
   };
+  allocation: {
+    id: string;
+    product: { id: string; name: string };
+    market: { id: string; label: string } | null;
+    recipe: { id: string };
+  } | null;
   genealogyLines: Array<{
     id: string;
     consumedQuantity: string;
@@ -444,6 +450,8 @@ describe('Traceability (e2e)', () => {
       expect(body.batch.recipe.finishedProduct.name).toBe(
         'Recharge test e2e (traçabilité A)',
       );
+      // Lot historique (sans allocation) : `batch.recipe` reste l'unique source.
+      expect(body.allocation).toBeNull();
 
       expect(body.genealogyLines).toHaveLength(1);
       expect(body.genealogyLines[0]).toMatchObject({
@@ -752,6 +760,18 @@ describe('Traceability (e2e)', () => {
         expect(lotTwo.genealogyLines).toHaveLength(1);
         expect(lotOne.genealogyLines[0].consumedQuantity).toBe('5');
         expect(lotTwo.genealogyLines[0].consumedQuantity).toBe('2.5');
+
+        // Non-régression bug D2 : chaque lot expose le produit de SON allocation,
+        // distinct du produit de la recette de référence du batch.
+        expect(lotOne.allocation?.product.name).toBe(
+          'Recharge test e2e (allocation A)',
+        );
+        expect(lotTwo.allocation?.product.name).toBe(
+          'Recharge test e2e (allocation B)',
+        );
+        expect(lotOne.batch.recipe.finishedProduct.name).toBe(
+          'Recharge test e2e (traçabilité A — partagé)',
+        );
       });
     });
   });
