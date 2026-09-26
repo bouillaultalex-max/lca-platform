@@ -4,7 +4,11 @@ import {
   ARTICLE_TYPE_LABELS,
   BATCH_STATUS_LABELS,
   LOT_QUALITY_STATUS_LABELS,
+  type Article,
   type LotTraceability,
+  type Market,
+  type Recipe,
+  type StockLotConsumingLot,
   type StockLotTraceability,
 } from '@lca-mes/shared';
 import { api, ApiError } from '../api/client';
@@ -18,6 +22,27 @@ const inputClass =
 
 function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('fr-FR') : '—';
+}
+
+/**
+ * Produit, marché et recette réellement attribués à un lot (voir ADR 0006, PRD-11) :
+ * ceux de son allocation d'origine quand elle existe — jamais `batch.recipe`, recette
+ * de référence commune à toutes les allocations d'un batch multi-marchés. Un lot
+ * historique sans allocation conserve le comportement antérieur (`batch.recipe`).
+ */
+function resolveLotOrigin(lot: LotTraceability | StockLotConsumingLot): {
+  product: Article;
+  market: Market | null;
+  recipe: Omit<Recipe, 'lines'>;
+} {
+  if (lot.allocation) {
+    return {
+      product: lot.allocation.product,
+      market: lot.allocation.market,
+      recipe: lot.allocation.recipe,
+    };
+  }
+  return { product: lot.batch.recipe.finishedProduct, market: null, recipe: lot.batch.recipe };
 }
 
 type SearchMode = 'number' | 'uuid';
@@ -198,7 +223,9 @@ export function TraceabilityPage() {
               {lots.length} lots partagent ce numéro (allocations distinctes d'un même batch).
             </p>
           )}
-          {lots.map((lot) => (
+          {lots.map((lot) => {
+            const origin = resolveLotOrigin(lot);
+            return (
             <div key={lot.id} className="space-y-6">
               <SectionCard title="Informations du lot">
                 <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -216,12 +243,16 @@ export function TraceabilityPage() {
                   </div>
                   <div>
                     <dt className="text-xs font-medium text-gray-500">Produit fini</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{lot.batch.recipe.finishedProduct.name}</dd>
+                    <dd className="mt-1 text-sm text-gray-900">{origin.product.name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-gray-500">Marché</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{origin.market?.label ?? '—'}</dd>
                   </div>
                   <div>
                     <dt className="text-xs font-medium text-gray-500">Recette</dt>
                     <dd className="mt-1 text-sm text-gray-900">
-                      Version {lot.batch.recipe.version} — Format {lot.batch.recipe.format} ml
+                      Version {origin.recipe.version} — Format {origin.recipe.format} ml
                     </dd>
                   </div>
                   <div>
@@ -305,6 +336,7 @@ export function TraceabilityPage() {
                                           <tr>
                                             <th className="px-3 py-1.5 text-left font-medium text-gray-500">Numéro de lot</th>
                                             <th className="px-3 py-1.5 text-left font-medium text-gray-500">Produit fini</th>
+                                            <th className="px-3 py-1.5 text-left font-medium text-gray-500">Marché</th>
                                             <th className="px-3 py-1.5 text-left font-medium text-gray-500">Recette</th>
                                             <th className="px-3 py-1.5 text-right font-medium text-gray-500">
                                               Quantité produite
@@ -316,15 +348,16 @@ export function TraceabilityPage() {
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
-                                          {stockLotTraceability.genealogyLines.map((consumerLine) => (
+                                          {stockLotTraceability.genealogyLines.map((consumerLine) => {
+                                            const consumerOrigin = resolveLotOrigin(consumerLine.lot);
+                                            return (
                                             <tr key={consumerLine.id}>
                                               <td className="px-3 py-1.5 font-mono">{consumerLine.lot.lotNumber}</td>
+                                              <td className="px-3 py-1.5">{consumerOrigin.product.name}</td>
+                                              <td className="px-3 py-1.5">{consumerOrigin.market?.label ?? '—'}</td>
                                               <td className="px-3 py-1.5">
-                                                {consumerLine.lot.batch.recipe.finishedProduct.name}
-                                              </td>
-                                              <td className="px-3 py-1.5">
-                                                Version {consumerLine.lot.batch.recipe.version} — Format{' '}
-                                                {consumerLine.lot.batch.recipe.format} ml
+                                                Version {consumerOrigin.recipe.version} — Format{' '}
+                                                {consumerOrigin.recipe.format} ml
                                               </td>
                                               <td className="px-3 py-1.5 text-right">{consumerLine.lot.quantity}</td>
                                               <td className="px-3 py-1.5">{formatDate(consumerLine.lot.manufacturedAt)}</td>
@@ -332,7 +365,8 @@ export function TraceabilityPage() {
                                                 {LOT_QUALITY_STATUS_LABELS[consumerLine.lot.qualityStatus]}
                                               </td>
                                             </tr>
-                                          ))}
+                                            );
+                                          })}
                                         </tbody>
                                       </table>
                                     </div>
@@ -348,7 +382,8 @@ export function TraceabilityPage() {
                 </div>
               </SectionCard>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </AppLayout>

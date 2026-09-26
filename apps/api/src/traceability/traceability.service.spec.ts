@@ -86,7 +86,7 @@ describe('TraceabilityService', () => {
   });
 
   describe('findLotTraceability', () => {
-    it('renvoie le lot avec batch, recette, produit fini et lignes de généalogie', async () => {
+    it('renvoie le lot avec batch, recette, produit fini, allocation d’origine (produit, marché, recette) et lignes de généalogie', async () => {
       prisma.lot.findFirst.mockResolvedValue(lotWithRelations);
 
       const result = await service.findLotTraceability(siteId, 'lot-1');
@@ -100,6 +100,9 @@ describe('TraceabilityService', () => {
                 include: { finishedProduct: true },
               },
             },
+          },
+          allocation: {
+            include: { product: true, market: true, recipe: true },
           },
           genealogyLines: {
             include: {
@@ -153,6 +156,9 @@ describe('TraceabilityService', () => {
                 include: { finishedProduct: true },
               },
             },
+          },
+          allocation: {
+            include: { product: true, market: true, recipe: true },
           },
           genealogyLines: {
             include: {
@@ -220,7 +226,7 @@ describe('TraceabilityService', () => {
   });
 
   describe('findStockLotTraceability', () => {
-    it('renvoie le StockLot avec tous les lots de production qui l’ont consommé', async () => {
+    it('renvoie le StockLot avec tous les lots de production qui l’ont consommé, allocation d’origine comprise', async () => {
       prisma.stockLot.findFirst.mockResolvedValue(stockLotWithRelations);
 
       const result = await service.findStockLotTraceability(
@@ -241,6 +247,9 @@ describe('TraceabilityService', () => {
                         include: { finishedProduct: true },
                       },
                     },
+                  },
+                  allocation: {
+                    include: { product: true, market: true, recipe: true },
                   },
                 },
               },

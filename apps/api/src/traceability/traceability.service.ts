@@ -3,14 +3,26 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   Article,
   Batch,
+  BatchProductAllocation,
   Lot,
   LotGenealogy,
+  Market,
   Recipe,
   StockLot,
 } from '../../generated/prisma/client';
 
 type RecipeWithFinishedProduct = Recipe & { finishedProduct: Article };
 type BatchWithRecipe = Batch & { recipe: RecipeWithFinishedProduct };
+/**
+ * Allocation d'origine du lot (PRD-11, ADR 0006) : source du produit, du marché et
+ * de la recette réellement attribués au lot. `null` pour un lot historique sans
+ * allocation — `batch.recipe` reste alors l'unique source (comportement antérieur).
+ */
+type AllocationWithRelations = BatchProductAllocation & {
+  product: Article;
+  market: Market | null;
+  recipe: Recipe;
+};
 type GenealogyLineWithRelations = LotGenealogy & {
   consumedArticle: Article;
   consumedStockLot: StockLot;
@@ -18,15 +30,25 @@ type GenealogyLineWithRelations = LotGenealogy & {
 
 export type LotTraceability = Lot & {
   batch: BatchWithRecipe;
+  allocation: AllocationWithRelations | null;
   genealogyLines: GenealogyLineWithRelations[];
 };
 
-type LotWithBatch = Lot & { batch: BatchWithRecipe };
+type LotWithBatch = Lot & {
+  batch: BatchWithRecipe;
+  allocation: AllocationWithRelations | null;
+};
 type GenealogyLineWithLot = LotGenealogy & { lot: LotWithBatch };
 
 export type StockLotTraceability = StockLot & {
   genealogyLines: GenealogyLineWithLot[];
 };
+
+// Allocation d'origine d'un lot, incluse à l'identique en traçabilité directe et
+// inverse (voir `AllocationWithRelations`).
+const LOT_ALLOCATION_INCLUDE = {
+  include: { product: true, market: true, recipe: true },
+} as const;
 
 // Partagé entre la recherche par identifiant technique et par numéro de lot :
 // même généalogie complète renvoyée dans les deux cas, un seul endroit à faire
@@ -39,6 +61,7 @@ const LOT_TRACEABILITY_INCLUDE = {
       },
     },
   },
+  allocation: LOT_ALLOCATION_INCLUDE,
   genealogyLines: {
     include: {
       consumedArticle: true,
@@ -116,6 +139,7 @@ export class TraceabilityService {
                     },
                   },
                 },
+                allocation: LOT_ALLOCATION_INCLUDE,
               },
             },
           },

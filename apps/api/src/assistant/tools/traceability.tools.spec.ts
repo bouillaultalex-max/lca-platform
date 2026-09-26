@@ -38,6 +38,8 @@ function buildLotFixture(overrides: Record<string, unknown> = {}) {
         finishedProduct: { name: 'Fuel Air Frais 100ml' },
       },
     },
+    // Lot historique (sans allocation) par défaut : `batch.recipe` reste la source.
+    allocation: null,
     genealogyLines: [
       {
         consumedArticle: {
@@ -80,6 +82,7 @@ describe('traceability.getLotByNumber (ADR 0010 § Décision 15 : liste, plus ob
         expiryDate: null,
         qualityStatus: 'CONFORME',
         finishedProductName: 'Fuel Air Frais 100ml',
+        marketLabel: null,
         recipeFormat: 100,
         recipeVersion: 3,
         genealogy: [
@@ -108,15 +111,22 @@ describe('traceability.getLotByNumber (ADR 0010 § Décision 15 : liste, plus ob
   });
 
   it('numéro partagé par deux lots (deux allocations d’un même batch) : les deux sont représentés, jamais un seul ni fusionnés', async () => {
-    const lotA = buildLotFixture({ quantity: 300 });
+    // Deux allocations d'un MÊME batch : batch.recipe (recette de référence) est
+    // identique pour les deux lots, seule l'allocation porte le produit distinct.
+    const lotA = buildLotFixture({
+      quantity: 300,
+      allocation: {
+        product: { name: 'Fuel Air Frais 100ml' },
+        market: null,
+        recipe: { format: 100, version: 3 },
+      },
+    });
     const lotB = buildLotFixture({
       quantity: 150,
-      batch: {
-        recipe: {
-          format: 100,
-          version: 3,
-          finishedProduct: { name: 'Fuel Air Frais 100ml — déclinaison Suisse' },
-        },
+      allocation: {
+        product: { name: 'Fuel Air Frais 100ml — déclinaison Suisse' },
+        market: null,
+        recipe: { format: 100, version: 3 },
       },
     });
     const traceabilityService = {
@@ -137,6 +147,86 @@ describe('traceability.getLotByNumber (ADR 0010 § Décision 15 : liste, plus ob
       expect.objectContaining({
         quantity: 150,
         finishedProductName: 'Fuel Air Frais 100ml — déclinaison Suisse',
+      }),
+    ]);
+  });
+
+  it('batch multi-marchés : produit, marché et recette proviennent de l’allocation de chaque lot, jamais de batch.recipe (bug D2)', async () => {
+    // Recette de référence du batch = déclinaison France, commune aux deux lots.
+    const referenceBatch = {
+      recipe: {
+        format: 100,
+        version: 3,
+        finishedProduct: { name: 'Recharge Lavande FR' },
+      },
+    };
+    const lotFr = buildLotFixture({
+      quantity: 100,
+      batch: referenceBatch,
+      allocation: {
+        product: { name: 'Recharge Lavande FR' },
+        market: { label: 'France' },
+        recipe: { format: 100, version: 3 },
+      },
+    });
+    const lotCh = buildLotFixture({
+      quantity: 50,
+      batch: referenceBatch,
+      allocation: {
+        product: { name: 'Recharge Lavande CH' },
+        market: { label: 'Suisse' },
+        recipe: { format: 100, version: 7 },
+      },
+    });
+    const traceabilityService = {
+      findLotTraceabilityByNumber: jest.fn().mockResolvedValue([lotFr, lotCh]),
+    } as unknown as TraceabilityService;
+    const [getLotByNumber] = createTraceabilityTools(traceabilityService);
+
+    const result = await getLotByNumber.handler(buildUser(), {
+      lotNumber: '455123',
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        quantity: 100,
+        finishedProductName: 'Recharge Lavande FR',
+        marketLabel: 'France',
+        recipeVersion: 3,
+      }),
+      expect.objectContaining({
+        quantity: 50,
+        finishedProductName: 'Recharge Lavande CH',
+        marketLabel: 'Suisse',
+        recipeFormat: 100,
+        recipeVersion: 7,
+      }),
+    ]);
+  });
+
+  it('allocation sans marché (batch mono-produit) : produit et recette de l’allocation, marketLabel null', async () => {
+    const lot = buildLotFixture({
+      allocation: {
+        product: { name: 'Fuel Air Frais 100ml' },
+        market: null,
+        recipe: { format: 100, version: 3 },
+      },
+    });
+    const traceabilityService = {
+      findLotTraceabilityByNumber: jest.fn().mockResolvedValue([lot]),
+    } as unknown as TraceabilityService;
+    const [getLotByNumber] = createTraceabilityTools(traceabilityService);
+
+    const result = await getLotByNumber.handler(buildUser(), {
+      lotNumber: '455123',
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        finishedProductName: 'Fuel Air Frais 100ml',
+        marketLabel: null,
+        recipeFormat: 100,
+        recipeVersion: 3,
       }),
     ]);
   });

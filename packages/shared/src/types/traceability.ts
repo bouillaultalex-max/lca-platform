@@ -8,8 +8,8 @@
  * imbriqué déjà présent, sont omis).
  */
 
-import type { Article, Recipe } from './catalog';
-import type { Batch, Lot } from './production';
+import type { Article, Market, Recipe } from './catalog';
+import type { Batch, BatchProductAllocation, Lot } from './production';
 import type { StockLot } from './stock';
 
 export interface LotTraceabilityRecipe extends Recipe {
@@ -18,6 +18,19 @@ export interface LotTraceabilityRecipe extends Recipe {
 
 export interface LotTraceabilityBatch extends Batch {
   recipe: LotTraceabilityRecipe;
+}
+
+/**
+ * Allocation d'origine d'un lot (voir ADR 0006, PRD-11) : porte le produit, le
+ * marché et la recette réellement attribués au lot. Pour un lot possédant une
+ * allocation, ce sont ces valeurs qui doivent être affichées — jamais celles de
+ * `batch.recipe` (recette de référence du batch, commune à toutes ses allocations).
+ */
+export interface LotTraceabilityAllocation extends BatchProductAllocation {
+  product: Article;
+  market: Market | null;
+  /** Sans `lines` : l'API n'inclut pas les lignes de recette de l'allocation. */
+  recipe: Omit<Recipe, 'lines'>;
 }
 
 /**
@@ -44,12 +57,16 @@ export interface LotGenealogyLine {
  */
 export interface LotTraceability extends Lot {
   batch: LotTraceabilityBatch;
+  /** `null` pour un lot historique sans allocation : `batch.recipe` reste alors la source. */
+  allocation: LotTraceabilityAllocation | null;
   genealogyLines: LotGenealogyLine[];
 }
 
 /** Un lot de production ayant consommé le StockLot recherché (traçabilité inverse). */
 export interface StockLotConsumingLot extends Lot {
   batch: LotTraceabilityBatch;
+  /** Voir `LotTraceability.allocation`. */
+  allocation: LotTraceabilityAllocation | null;
 }
 
 export interface StockLotGenealogyLine {
