@@ -1,106 +1,126 @@
 # LCA-MES
 
-Logiciel de gestion de production pour le laboratoire de **LCA Distribution** (marque **Maison Fuel**) : catalogue produits/recettes, matières premières, packaging, stocks, batching, production, traçabilité des lots, contrôle qualité et coût par flacon.
+### A manufacturing management application built from laboratory needs
 
-## État du projet
+LCA-MES is a web application for managing product catalogues, recipes, inventory, batch preparation, production, and lot traceability.
 
-**L'état réel et à jour du dépôt est documenté dans [`PROJECT_STATE.md`](./PROJECT_STATE.md)**, mis à jour à la fin de chaque jalon/chantier — ce `README.md` ne duplique volontairement pas ce contenu en détail pour ne pas risquer de devenir obsolète (voir ticket DOC-01, 2026-07-26). Se référer à `PROJECT_STATE.md` §1 pour le tableau des jalons et leur statut réel.
+Its purpose is to progressively replace spreadsheet-based preparation with a structured workflow that connects production decisions to available stock.
 
-## Stack technique
+## About the project
 
-- **Backend** : NestJS + TypeScript (`apps/api`)
-- **Frontend** : React + Vite + TypeScript + Tailwind CSS (`apps/web`)
-- **Base de données** : PostgreSQL (instance unique) + Prisma 7 (driver adapter `@prisma/adapter-pg`)
-- **Types partagés** : `packages/shared`
+Created by **Alexandre Bouillault**, an Assistant Laboratory Manager transitioning into Product Building.
 
-## Démarrage en développement local (sans Docker)
+The project brings together operational knowledge, requirements definition, business-rule clarification, prioritisation, and iteration based on user feedback.
 
-Prérequis : Node.js 20+, npm 10+, PostgreSQL installé et démarré localement.
+Development is AI-assisted, with **Claude Code as the primary implementation assistant**. This repository documents both the application and the product decisions behind it.
 
-```bash
-# 1. Créer le rôle et la base de développement (une seule fois, via psql)
-psql -U postgres -c "CREATE ROLE lca_mes LOGIN PASSWORD 'changez-moi';"
-psql -U postgres -c "CREATE DATABASE lca_mes_dev OWNER lca_mes;"
+## Capabilities
 
-# 2. Installer les dépendances (racine du monorepo)
-npm install
+| Area | Overview |
+| --- | --- |
+| Catalogue | Products, materials, packaging, suppliers, and versioned recipes |
+| Preparation | Calculation of ingredient and packaging requirements |
+| Inventory | Stock receipts, movements, adjustments, and consumption tracking |
+| Production | Batch preparation, progress tracking, stoppages, and closure |
+| Feasibility | Inventory checks before starting production |
+| Traceability | Finished-lot genealogy and supplier-lot lookup |
+| Imports | Spreadsheet imports with preview and confirmation |
+| Administration | User accounts and role-based access |
+| Feedback | In-app collection of user feedback |
+| AI assistant | Optional conversational access to read-only business tools |
 
-# 3. Configurer l'API
-cp apps/api/.env.example apps/api/.env   # ajuster DATABASE_URL / JWT_SECRET
-npm run prisma:migrate                    # applique les migrations sur lca_mes_dev
-npm run prisma:seed                       # crée le site + l'utilisateur par défaut
+Quality, costing, and an R&D sample library also have backend implementations documented in the repository. Delivery maturity differs by module; this overview does not imply that every feature is production-ready.
 
-# 4. Démarrer les deux applications (deux terminaux)
-npm run dev:api    # NestJS sur http://localhost:3000 (Swagger: /api/docs)
-npm run dev:web    # React/Vite sur http://localhost:5173 (proxy /auth, /health vers l'API)
-```
+## Product approach
 
-Utilisateur créé par le seed (développement uniquement — à changer avant tout usage réel) :
-`responsable@lca-mes.local` / `ChangezMoi123!`
+The project focuses on three practical concerns:
 
-**Docker n'est jamais requis pour développer.** Le frontend (Vite) proxy ses appels `/auth`, `/health` (et plus tard `/api`) vers l'API sur `localhost:3000` — aucune configuration CORS à gérer.
+- **Make problems visible before work starts.** Batch feasibility checks help operators identify material shortages before starting production.
+- **Preserve traceability.** Production records connect finished lots to the materials consumed.
+- **Keep decisions explicit.** Imports require preview and confirmation, and the AI assistant is limited to read-only business tools.
 
-## Tests
+These are product behaviours, not claims of measured productivity gains.
 
-```bash
-npm run test:api        # tests unitaires (apps/api)
-npm run test:api:e2e    # tests e2e (nécessite une base dédiée, voir ci-dessous)
-```
+## Technology
 
-Les tests e2e utilisent une base **distincte** de la base de développement. Une seule fois :
+- **Backend:** NestJS and TypeScript
+- **Frontend:** React, Vite, TypeScript, and Tailwind CSS
+- **Database:** PostgreSQL and Prisma
+- **Organisation:** npm workspaces with shared TypeScript contracts
+- **Architecture:** modular monolith
+- **Testing:** Jest/Supertest for the API; Vitest/Testing Library for the frontend
+- **Deployment:** optional Docker Compose configuration
 
-```bash
-psql -U postgres -c "CREATE DATABASE lca_mes_test OWNER lca_mes;"
-cp apps/api/.env.test.example apps/api/.env.test   # ajuster si besoin
-cd apps/api && DATABASE_URL="postgresql://lca_mes:<mdp>@localhost:5432/lca_mes_test?schema=public" npx prisma migrate deploy
-```
+## Repository structure
 
-## Déploiement (option Docker Compose)
-
-Réservé au déploiement (poste du laboratoire) — jamais nécessaire en développement.
-
-```bash
-cp .env.example .env   # POSTGRES_PASSWORD, JWT_SECRET à renseigner
-docker compose up -d --build
-```
-
-Démarre PostgreSQL et l'API (qui sert aussi le build React compilé) sur `http://localhost:3000`. Les migrations Prisma (`prisma migrate deploy`) s'appliquent automatiquement au démarrage du conteneur `api`.
-
-> Les artefacts Docker (`Dockerfile`, `docker-compose.yml`) ont été rédigés et raisonnés avec soin mais **n'ont pas pu être testés dans cet environnement de développement** (Docker non installé ici). À valider avant un premier déploiement réel — voir le bilan de jalon pour le détail.
-
-## Structure du monorepo
-
-```
+```text
 apps/
-├── api/     # NestJS — voir apps/api/README.md
-└── web/     # React + Vite + Tailwind
+  api/          Backend and database integration
+  web/          React frontend
 packages/
-└── shared/  # Types TypeScript partagés (rôles, DTO d'auth)
-docker-compose.yml, apps/api/Dockerfile   # déploiement (optionnel)
+  shared/       Shared TypeScript contracts
+docs/           Product and technical documentation
+scripts/        Operational tooling
 ```
+
+## Getting started
+
+Local development uses Node.js, npm, and PostgreSQL. Docker is optional.
+
+1. Clone this repository and run `npm install`.
+2. Create a dedicated local PostgreSQL database.
+3. Copy `apps/api/.env.example` to `apps/api/.env` and configure your own local settings.
+4. Run `npm run prisma:generate` and `npm run prisma:migrate`.
+5. Review the development seed before running `npm run prisma:seed`.
+6. Start the API and frontend in separate terminals:
+
+```bash
+npm run dev:api
+npm run dev:web
+```
+
+The frontend is available at http://localhost:5173 and the API at http://localhost:3000.
+
+Use a Node.js version compatible with the current workspace dependencies. Keep actual credentials outside version control and use separate databases for development and tests.
+
+## Development commands
+
+```bash
+# Backend unit tests
+npm run test:api
+
+# Backend end-to-end tests — requires a dedicated test database
+npm run test:api:e2e
+
+# Frontend tests
+npm run test --workspace apps/web
+
+# Build applications
+npm run build:api
+npm run build:web
+```
+
+These commands are provided for verification; they were not executed as part of this README update.
+
+## Project status
+
+LCA-MES is an evolving product. The repository distinguishes implemented functionality from planned work.
+
+- Quality and costing are documented as backend-only.
+- Automated scheduling, machine connectivity, mobile applications, and full multi-site management are outside the delivered V0.9 scope.
+- The AI assistant does not perform business writes.
+- Deployment and operational readiness require independent validation. Existing documentation records that the Docker configuration had not yet been validated with a real Docker runtime.
+- No quantified business impact is claimed without supporting measurements.
+
+See [PROJECT_STATE.md](./PROJECT_STATE.md) for dated implementation and verification records. Detailed documentation is primarily in French.
 
 ## Documentation
 
-- [`MASTER_SPECIFICATION.md`](./MASTER_SPECIFICATION.md) — spécification fonctionnelle et technique de référence
-- [`PROJECT_STATE.md`](./PROJECT_STATE.md) — état réel et à jour du dépôt (source de vérité de l'avancement)
-- [`MASTER_BACKLOG.md`](./MASTER_BACKLOG.md) — backlog consolidé (features, dette technique, priorisation)
-- [`docs/architecture.md`](./docs/architecture.md) — architecture détaillée, découpage modulaire, organisation des dossiers
-- [`docs/modele-donnees.md`](./docs/modele-donnees.md) — modèle de données (entités, relations)
-- [`docs/regles-metier.md`](./docs/regles-metier.md) — règles métier
-- [`docs/roadmap.md`](./docs/roadmap.md) — feuille de route de la V0.9
-- [`docs/adr/`](./docs/adr/) — décisions d'architecture (Architecture Decision Records)
-
-## Périmètre V0.9 (résumé)
-
-**Inclus** : catalogue, recettes, matières premières, packaging, stocks, imports OpenSi (Excel/CSV), batching, production (saisie manuelle), lots, traçabilité, contrôle qualité simple, coût matière + packaging par flacon, R&D / Aromathèque — tranche 1 : import + consultation, backend uniquement.
-
-**Hors périmètre** (évolutions futures) : connexion machine (OPC-UA/Modbus/MQTT), gateway edge, IoT, multi-site complet, application mobile, IA avancée, optimisation de planning — à l'exception du chantier assistant (AI-01 à AI-08 : infrastructure, 6 outils métier en lecture seule, fournisseur OpenAI optionnel, aucune action en écriture — voir `docs/roadmap.md` et `PROJECT_STATE.md`).
-
-## Utilisateurs et rôles
-
-| Rôle | Accès |
-|---|---|
-| `RESPONSABLE_LABORATOIRE` | Complet |
-| `RESPONSABLE_ADJOINT` | Complet |
-| `DIRECTION` | Lecture seule (rapports, statistiques, coûts, stocks, tableaux de bord) |
-| `DAF` | Lecture seule (rapports, statistiques, coûts, stocks, tableaux de bord) |
+| Resource | Purpose |
+| --- | --- |
+| [Project state](./PROJECT_STATE.md) | Delivery status and known limitations |
+| [Master specification](./MASTER_SPECIFICATION.md) | Functional and technical requirements |
+| [Backlog](./MASTER_BACKLOG.md) | Priorities and technical debt |
+| [Architecture](./docs/architecture.md) | Technical organisation |
+| [Roadmap](./docs/roadmap.md) | Delivery milestones |
+| [Architecture decisions](./docs/adr/) | Decisions and trade-offs |
